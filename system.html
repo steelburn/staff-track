@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>StaffTrack — System Management</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+
+    <header class="app-header">
+        <div class="header-inner" style="display:flex;justify-content:space-between;align-items:center">
+            <div>
+                <div class="app-logo">
+                    <div class="logo-icon">💻</div>
+                    <h1>StaffTrack</h1>
+                </div>
+                <p class="app-subtitle">System Management & Imports</p>
+            </div>
+            <button class="btn-secondary" id="btn-logout" style="font-size:.8rem;padding:.4rem .8rem">Log Out</button>
+        </div>
+    </header>
+
+    <nav class="app-nav" id="main-nav">
+        <!-- Nav links injected by JS based on role -->
+    </nav>
+
+    <main class="main-container">
+
+        <div class="view-toolbar">
+            <div class="view-toolbar-left">
+                <h2 class="view-title">System Management</h2>
+                <span class="view-subtitle">Bulk import and global settings</span>
+            </div>
+        </div>
+
+        <div class="grid-3">
+            <div class="section-card">
+                <div class="section-header">
+                    <div class="section-num blue">📥</div>
+                    <div>
+                        <h4 style="margin:0;font-size:.9rem">Import Staff Catalog</h4>
+                        <p style="margin:0;font-size:.75rem;color:var(--text-muted)">Update global staff records from
+                            CSV</p>
+                    </div>
+                </div>
+                <div class="section-body" style="padding:1.25rem">
+                    <input type="file" id="file-import-staff" accept=".csv" style="display:none">
+                    <button class="btn-secondary w-100"
+                        onclick="document.getElementById('file-import-staff').click()">📁 Select CSV File</button>
+                    <div id="staff-file-info"
+                        style="margin-top:.5rem;font-size:.75rem;color:var(--text-secondary);text-align:center">No file
+                        selected</div>
+                    <button class="btn-primary w-100" id="btn-do-import-staff" style="margin-top:1rem" disabled>🚀
+                        Import & Update</button>
+                </div>
+            </div>
+
+            <div class="section-card">
+                <div class="section-header">
+                    <div class="section-num amber">📂</div>
+                    <div>
+                        <h4 style="margin:0;font-size:.9rem">Import Project Catalog</h4>
+                        <p style="margin:0;font-size:.75rem;color:var(--text-muted)">Update global project list from CSV
+                        </p>
+                    </div>
+                </div>
+                <div class="section-body" style="padding:1.25rem">
+                    <input type="file" id="file-import-projects" accept=".csv" style="display:none">
+                    <button class="btn-secondary w-100"
+                        onclick="document.getElementById('file-import-projects').click()">📁 Select CSV File</button>
+                    <div id="projects-file-info"
+                        style="margin-top:.5rem;font-size:.75rem;color:var(--text-secondary);text-align:center">No file
+                        selected</div>
+                    <button class="btn-primary w-100" id="btn-do-import-projects" style="margin-top:1rem" disabled>🚀
+                        Import & Update</button>
+                </div>
+            </div>
+
+            <div class="section-card" id="import-stats-card" style="display:none">
+                <div class="section-header">
+                    <div class="section-num">📊</div>
+                    <div>
+                        <h4 style="margin:0;font-size:.9rem">Import Results</h4>
+                    </div>
+                </div>
+                <div class="section-body" id="import-results-body" style="font-size:.85rem;line-height:1.5">
+                    <!-- stats injected here -->
+                </div>
+            </div>
+        </div>
+
+    </main>
+
+    <script src="system.js"></script>
+</body>
+
+</html>

@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>StaffTrack — Catalog Management</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+
+    <header class="app-header">
+        <div class="header-inner" style="display:flex;justify-content:space-between;align-items:center">
+            <div>
+                <div class="app-logo">
+                    <div class="logo-icon">⚙️</div>
+                    <h1>StaffTrack</h1>
+                </div>
+                <p class="app-subtitle">Catalog Management</p>
+            </div>
+            <button class="btn-secondary" id="btn-logout" style="font-size:.8rem;padding:.4rem .8rem">Log Out</button>
+        </div>
+    </header>
+
+    <nav class="app-nav" id="main-nav">
+        <!-- Nav links injected by JS based on role -->
+    </nav>
+
+    <main class="main-container">
+
+        <div class="view-toolbar">
+            <div class="view-toolbar-left">
+                <h2 class="view-title">Catalog Management</h2>
+                <span class="view-subtitle">Manage and delete individual entries</span>
+            </div>
+            <div class="view-toolbar-right">
+                <div class="tab-group">
+                    <button class="tab-btn active" data-tab="staff">👤 Staff</button>
+                    <button class="tab-btn" data-tab="projects">📁 Projects</button>
+                </div>
+                <input type="text" id="catalog-search" placeholder="🔍 Search catalog…" class="search-input">
+            </div>
+        </div>
+
+        <div class="section-card" id="catalog-staff-view">
+            <div class="section-body" style="padding:0;overflow-x:auto">
+                <table class="report-table">
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>Title</th>
+                            <th>Department</th>
+                            <th>Email</th>
+                            <th style="width:80px">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody id="catalog-staff-tbody">
+                        <tr>
+                            <td colspan="5" class="table-empty">Loading...</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="section-card" id="catalog-projects-view" style="display:none">
+            <div class="section-body" style="padding:0;overflow-x:auto">
+                <table class="report-table">
+                    <thead>
+                        <tr>
+                            <th>SOC</th>
+                            <th>Project Name</th>
+                            <th>Customer</th>
+                            <th style="width:80px">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody id="catalog-projects-tbody">
+                        <tr>
+                            <td colspan="4" class="table-empty">Loading...</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+    </main>
+
+    <script src="catalog.js"></script>
+</body>
+
+</html>

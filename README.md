@@ -27,7 +27,7 @@ docker compose up -d
 
 | Role | Access Level | Permissions |
 | :--- | :--- | :--- |
-| **Admin** | Full | User Role Management, All Submissions, Global Catalog |
+| **Admin** | Full | User Role Management, System Imports (CSV), Catalog Data Management |
 | **HR** | Reporting | View/Search All Staff Submissions, Export CSV Reports |
 | **Coordinator** | Management | Create/Edit Projects, Manage Staff Assignments |
 | **Staff** | Individual | Submit/Update Personal Skills & Project History |
@@ -37,16 +37,24 @@ docker compose up -d
 - **Relational Backend**: Fully normalized SQLite schema with SQL Transactions.
 - **Auto-Sync Catalog**: Submissions automatically pull Title/Department/Manager data from the company catalog.
 - **Smart Autocomplete**: Dynamic search for Staff and Projects.
-- **Export Ready**: One-click staff list export.
-- **Responsive Layout**: Mobile-friendly dark UI.
+- **Modern UI**: Segmented tab designs, smooth transitions, and a premium dark aesthetic.
+- **Self-Service Administration**: Dedicated pages for permission management, catalog maintenance, and bulk data imports.
 
 ## 📁 Repository Structure
 
 - `/backend`: Node.js API source code.
 - `/data`: SQLite database persistence.
 - `/nginx`: Proxy configuration.
-- `app.js`, `projects.js`, `staff-view.js`: Frontend logic.
-- `index.html`, `projects.html`, `staff-view.html`: Frontend pages.
+- `/files`: Location for CSV import templates.
+- **Management Pages**:
+  - `admin.html`: User permission and role management.
+  - `catalog.html`: Global staff and project record maintenance.
+  - `system.html`: Bulk CSV data imports and system stats.
+- **Standard Pages**:
+  - `index.html`: My Submission / Home.
+  - `projects.html`: Project-centric view with assignment tools.
+  - `staff-view.html`: Organization-wide staff reporting.
+  - `skills.html`: Skill aggregation and search.
 
 ---
 *Built with Antigravity*

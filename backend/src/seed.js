@@ -3,35 +3,7 @@ const fs = require('fs');
 const path = require('path');
 const { v4: uuidv4 } = require('uuid');
 
-// Basic CSV parser
-function parseCSV(text) {
-    const lines = text.trim().split('\n');
-    if (lines.length < 2) return [];
-    const headers = splitLine(lines[0]);
-    return lines.slice(1).filter(l => l.trim()).map(line => {
-        const vals = splitLine(line);
-        const obj = {};
-        headers.forEach((h, i) => {
-            let key = h.trim();
-            // handle BOM or weird chars occasionally found in headers
-            key = key.replace(/^\uFEFF/, '');
-            obj[key] = (vals[i] || '').trim();
-        });
-        return obj;
-    });
-}
-
-function splitLine(line) {
-    const res = [];
-    let cur = '', inQ = false;
-    for (const c of line) {
-        if (c === '"') { inQ = !inQ; continue; }
-        if (c === ',' && !inQ) { res.push(cur); cur = ''; continue; }
-        cur += c;
-    }
-    res.push(cur);
-    return res;
-}
+const { parseCSV } = require('./utils');
 
 function runSeed(db) {
     console.log('--- Checking database seeds ---');
@@ -51,9 +23,10 @@ function runSeed(db) {
 
             const tx = db.transaction((list) => {
                 for (const s of list) {
-                    let email = s.EmailAddress;
+                    // Support multiple CSV formats: "EmailAddress" or "Email" or "UserLogonName"
+                    let email = (s.EmailAddress || s.Email || '').trim();
                     if (!email && s.UserLogonName) {
-                        email = s.UserLogonName + '@zen.com.my';
+                        email = s.UserLogonName.trim() + '@zen.com.my';
                     }
                     if (!email) continue;
 

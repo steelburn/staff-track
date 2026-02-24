@@ -20,12 +20,20 @@ try {
 }
 
 // ── Navigation ───────────────────────────────────────────────────────────────
-document.getElementById('main-nav').innerHTML = `
-  <a href="/projects.html" class="nav-link">🗂 Projects</a>
-  <a href="/skills.html" class="nav-link">📊 Skills</a>
-  <a href="/staff-view.html" class="nav-link">👥 All Staff</a>
-  <a href="/admin.html" class="nav-link active">⚙️ Admin</a>
-`;
+function renderNav() {
+    const nav = document.getElementById('main-nav');
+    if (!nav) return;
+
+    let html = `
+        <a href="/projects.html" class="nav-link">🗂 Projects</a>
+        <a href="/skills.html" class="nav-link">📊 Skills</a>
+        <a href="/staff-view.html" class="nav-link">👥 All Staff</a>
+        <a href="/catalog.html" class="nav-link">⚙️ Catalog</a>
+        <a href="/system.html" class="nav-link">💻 System</a>
+        <a href="/admin.html" class="nav-link active">🛡️ Admin</a>
+    `;
+    nav.innerHTML = html;
+}
 
 document.getElementById('btn-logout').addEventListener('click', () => {
     sessionStorage.clear();
@@ -52,9 +60,7 @@ async function loadData() {
             fetch('/api/admin/roles', { headers: { 'Authorization': `Bearer ${token}` } })
         ]);
 
-        if (staffRes.ok) {
-            staffData = await staffRes.json();
-        }
+        if (staffRes.ok) staffData = await staffRes.json();
 
         if (rolesRes.ok) {
             const overrides = await rolesRes.json();
@@ -66,19 +72,21 @@ async function loadData() {
             });
         }
 
-        render();
+        renderRoles();
     } catch (err) {
         console.error('Failed to load admin data:', err);
         showToast('Failed to load data', true);
     }
 }
 
-// ── Render ────────────────────────────────────────────────────────────────────
-let searchQ = '';
-function render() {
+// ── Role Management ───────────────────────────────────────────────────────────
+let roleSearchQ = '';
+function renderRoles() {
     const tbody = document.getElementById('admin-tbody');
+    if (!tbody) return;
+
     let list = staffData;
-    const q = searchQ.toLowerCase();
+    const q = roleSearchQ.toLowerCase();
 
     if (q) {
         list = list.filter(s =>
@@ -95,24 +103,18 @@ function render() {
 
     tbody.innerHTML = list.map((s, i) => {
         const email = (s.email || '').toLowerCase();
-        if (!email) return ''; // ignore rows without email
-
+        if (!email) return '';
         const role = roleOverrides.get(email) || { is_hr: false, is_coordinator: false };
 
         return `<tr data-email="${email}">
-      <td style="font-weight:600">${s.name}</td>
-      <td style="color:var(--text-secondary);font-size:.85rem">${s.title || '—'}</td>
-      <td style="color:var(--text-secondary);font-size:.85rem">${s.email}</td>
-      <td style="text-align:center">
-        <input type="checkbox" class="cb-hr" ${role.is_hr ? 'checked' : ''}>
-      </td>
-      <td style="text-align:center">
-        <input type="checkbox" class="cb-coord" ${role.is_coordinator ? 'checked' : ''}>
-      </td>
-    </tr>`;
+          <td style="font-weight:600">${s.name}</td>
+          <td style="color:var(--text-secondary);font-size:.85rem">${s.title || '—'}</td>
+          <td style="color:var(--text-secondary);font-size:.85rem">${s.email}</td>
+          <td style="text-align:center"><input type="checkbox" class="cb-hr" ${role.is_hr ? 'checked' : ''}></td>
+          <td style="text-align:center"><input type="checkbox" class="cb-coord" ${role.is_coordinator ? 'checked' : ''}></td>
+        </tr>`;
     }).join('');
 
-    // Wire up change listeners on the checkboxes
     tbody.querySelectorAll('tr').forEach(tr => {
         const email = tr.dataset.email;
         const cbHr = tr.querySelector('.cb-hr');
@@ -128,26 +130,29 @@ async function updateRole(email, is_hr, is_coordinator) {
     try {
         const res = await fetch('/api/admin/roles', {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${token}`
-            },
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
             body: JSON.stringify({ email, is_hr, is_coordinator })
         });
-
         if (!res.ok) throw new Error('Save failed');
         roleOverrides.set(email, { is_hr, is_coordinator });
         showToast(`Saved roles for ${email} ✓`);
     } catch (err) {
         showToast('Failed to update role', true);
-        // revert checkboxes
-        render();
+        renderRoles();
     }
 }
 
-document.getElementById('admin-search').addEventListener('input', e => {
-    searchQ = e.target.value.trim();
-    render();
-});
+// ── Initialization ────────────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', () => {
+    renderNav();
+    loadData();
 
-document.addEventListener('DOMContentLoaded', loadData);
+    // Roles Search
+    const adminSearch = document.getElementById('admin-search');
+    if (adminSearch) {
+        adminSearch.addEventListener('input', e => {
+            roleSearchQ = e.target.value.trim();
+            renderRoles();
+        });
+    }
+});

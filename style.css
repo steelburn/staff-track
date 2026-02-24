@@ -1413,3 +1413,43 @@ mark {
 .star-rating-static .star.on {
   color: var(--accent-amber);
 }
+/* ── Catalog Tabs ───────────────────────────────────────────────────────── */
+.tab-group {
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 0.25rem;
+    display: flex;
+    gap: 0.25rem;
+    width: fit-content;
+}
+
+.tab-btn {
+    border: none;
+    background: transparent;
+    color: var(--text-secondary);
+    padding: 0.6rem 1.25rem;
+    border-radius: 10px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.tab-btn:hover {
+    color: var(--text-primary);
+    background: rgba(255, 255, 255, 0.03);
+}
+
+.tab-btn.active {
+    background: linear-gradient(135deg, var(--accent-blue), #7c5cfc);
+    color: #fff;
+    box-shadow: 0 4px 12px rgba(79, 142, 247, 0.25);
+}
+
+.tab-btn i {
+    font-size: 1rem;
+}

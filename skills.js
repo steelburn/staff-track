@@ -15,7 +15,7 @@ if (authUser.role !== 'admin' && !authUser.is_hr && !authUser.is_coordinator && 
 }
 
 function renderNav(activeTab) {
-    const nav = document.querySelector('.app-nav');
+    const nav = document.getElementById('main-nav');
     if (!nav) return;
 
     let html = '';
@@ -27,7 +27,11 @@ function renderNav(activeTab) {
     if (authUser.role === 'admin' || authUser.is_hr || authUser.role === 'hr') {
         html += `<a href="/staff-view.html" class="nav-link ${activeTab === 'staff' ? 'active' : ''}">👥 All Staff</a>`;
     }
-    if (authUser.role === 'admin') html += `<a href="/admin.html" class="nav-link">⚙️ Admin</a>`;
+    if (authUser.role === 'admin') {
+        html += `<a href="/catalog.html" class="nav-link ${activeTab === 'catalog' ? 'active' : ''}">⚙️ Catalog</a>`;
+        html += `<a href="/system.html" class="nav-link ${activeTab === 'system' ? 'active' : ''}">💻 System</a>`;
+        html += `<a href="/admin.html" class="nav-link">🛡️ Admin</a>`;
+    }
 
     html += `<div style="margin-left:auto;display:flex;align-items:center;gap:1rem">
       <span style="font-size:0.8rem;color:var(--text-secondary)">${authUser.email}</span>

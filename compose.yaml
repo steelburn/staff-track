@@ -18,6 +18,10 @@ services:
       - ./admin.js:/usr/share/nginx/html/admin.js:ro
       - ./skills.html:/usr/share/nginx/html/skills.html:ro
       - ./skills.js:/usr/share/nginx/html/skills.js:ro
+      - ./catalog.html:/usr/share/nginx/html/catalog.html:ro
+      - ./catalog.js:/usr/share/nginx/html/catalog.js:ro
+      - ./system.html:/usr/share/nginx/html/system.html:ro
+      - ./system.js:/usr/share/nginx/html/system.js:ro
       - ./files:/usr/share/nginx/html/files:ro
     depends_on:
       - backend
