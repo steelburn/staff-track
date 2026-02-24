@@ -365,7 +365,9 @@ function initSkillsSection() {
 }
 
 function addSkillRow(row) {
-    AppState.skills.push(row);
+    if (!AppState.skills.find(s => s.id === row.id)) {
+        AppState.skills.push(row);
+    }
     const tbody = document.querySelector('#skills-tbody');
     const tr = document.createElement('tr');
     tr.dataset.id = row.id;
@@ -622,6 +624,10 @@ function restoreForm() {
     setVal('staff-department', s.department);
     setVal('staff-manager', s.managerName);
     setVal('staff-email', s.email);
+
+    // Clear existing rows before re-populating
+    document.querySelector('#skills-tbody').innerHTML = '';
+    document.querySelector('#projects-tbody').innerHTML = '';
 
     AppState.skills.forEach(row => addSkillRow(row));
     AppState.projects.forEach(row => addProjectRow(row));
