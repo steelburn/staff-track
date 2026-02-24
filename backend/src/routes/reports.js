@@ -123,21 +123,31 @@ router.get('/skills', (req, res) => {
         const db = getDb();
 
         const skills = db.prepare(`
+            WITH LatestSubmissions AS (
+                SELECT id, staff_email, staff_name, title, department
+                FROM submissions
+                WHERE (staff_email, updated_at) IN (
+                    SELECT staff_email, MAX(updated_at)
+                    FROM submissions
+                    GROUP BY staff_email
+                )
+            )
             SELECT 
                 sk.skill, sk.rating,
                 s.staff_name, s.staff_email, s.title, s.department
             FROM submission_skills sk
-            JOIN submissions s ON sk.submission_id = s.id
-            ORDER BY sk.skill ASC, sk.rating DESC
+            JOIN LatestSubmissions s ON sk.submission_id = s.id
+            ORDER BY sk.skill COLLATE NOCASE ASC, sk.rating DESC
         `).all();
 
         const skillMap = new Map();
 
         skills.forEach(row => {
-            const key = row.skill.trim();
+            const skillName = row.skill.trim();
+            const key = skillName.toLowerCase();
             if (!skillMap.has(key)) {
                 skillMap.set(key, {
-                    skill: key,
+                    skill: skillName, // Use first casing encountered
                     staff: []
                 });
             }
