@@ -106,6 +106,14 @@ body {
   gap: 1.75rem
 }
 
+.main-container.full-width,
+.full-width .header-inner {
+  max-width: 100% !important;
+  margin: 0;
+  padding-left: 2rem;
+  padding-right: 2rem;
+}
+
 /* Cards */
 .section-card {
   background: var(--bg-card);
@@ -1608,6 +1616,7 @@ mark {
 .w-100 {
   width: 100%;
 }
+
 /* ── Org Chart ──────────────────────────────────────────────────────────── */
 .orgchart-container {
   height: calc(100vh - 250px);
