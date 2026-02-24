@@ -28,6 +28,7 @@ docker compose up -d
 | Role | Access Level | Permissions |
 | :--- | :--- | :--- |
 | **Admin** | Full | User Role Management, All Submissions, Global Catalog |
+| **HR** | Reporting | View/Search All Staff Submissions, Export CSV Reports |
 | **Coordinator** | Management | Create/Edit Projects, Manage Staff Assignments |
 | **Staff** | Individual | Submit/Update Personal Skills & Project History |
 
