@@ -65,7 +65,8 @@ async function initChart() {
             'pan': true,
             'zoom': true,
             'nodeId': 'id',
-            'depth': 4
+            'depth': 4,
+            'verticalLevel': 3
         });
     } catch (e) {
         console.error(e);
@@ -99,12 +100,12 @@ function buildHierarchy(staff) {
         }
     });
 
-    // If multiple roots (e.g. silos), wrap them under a virtual CEO if desired, or just pick the top one.
-    // Usually, we pick the first root or return the one that is clearly at the top.
+    // If multiple roots (e.g. silos), wrap them under a virtual CEO
     if (roots.length > 1) {
         return {
-            name: 'Organization',
+            name: 'StaffTrack Org',
             title: 'Top Level',
+            className: 'root-node',
             children: roots
         };
     }

@@ -1625,8 +1625,8 @@ mark {
   border-radius: 12px;
   border: 1px solid var(--border);
   padding: 2rem;
-  display: flex;
-  justify-content: center;
+  display: block;
+  /* Removed flex/center to prevent hidden left overflow */
 }
 
 .orgchart {
@@ -1679,4 +1679,24 @@ mark {
 
 .orgchart .lines .topLine {
   border-top: 2px solid var(--accent-blue) !important;
+}
+
+/* Vertical nodes styling */
+.orgchart .nodes.vertical .node {
+  width: 180px !important;
+  margin: 5px 0 5px 10px !important;
+}
+
+.orgchart .nodes.vertical .node::before {
+  border-color: var(--accent-blue) !important;
+  border-width: 1px !important;
+}
+
+.orgchart .nodes.vertical .node::after {
+  border-color: var(--accent-blue) !important;
+  border-width: 1px !important;
+}
+
+.orgchart .nodes.vertical>.nodes::before {
+  border-color: var(--accent-blue) !important;
 }
