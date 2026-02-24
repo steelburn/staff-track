@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Organization Chart | StaffTrack</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/orgchart/3.1.1/css/jquery.orgchart.min.css">
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+    <header class="app-header">
+        <div class="header-inner">
+            <div class="app-logo">
+                <div class="logo-icon">📊</div>
+                <h1>StaffTrack</h1>
+            </div>
+            <p class="app-subtitle">Organizational Structure</p>
+        </div>
+    </header>
+
+    <nav class="app-nav" id="main-nav"></nav>
+
+    <main class="main-container">
+        <div class="section-card">
+            <div class="section-header">
+                <div class="section-num blue">🌳</div>
+                <div>
+                    <h2 class="section-title">Org Chart</h2>
+                    <p class="section-desc">Visual representation of the reporting structure</p>
+                </div>
+            </div>
+            <div class="section-body">
+                <div id="chart-container" class="orgchart-container"></div>
+            </div>
+        </div>
+    </main>
+
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/orgchart/3.1.1/js/jquery.orgchart.min.js"></script>
+    <script src="orgchart.js"></script>
+</body>
+
+</html>

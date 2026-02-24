@@ -27,6 +27,7 @@ function renderNav() {
     let html = `
         <a href="/projects.html" class="nav-link">🗂 Projects</a>
         <a href="/skills.html" class="nav-link">📊 Skills</a>
+        <a href="/orgchart.html" class="nav-link">🌳 Org Chart</a>
         <a href="/staff-view.html" class="nav-link">👥 All Staff</a>
         <a href="/catalog.html" class="nav-link">⚙️ Catalog</a>
         <a href="/system.html" class="nav-link active">💻 System</a>

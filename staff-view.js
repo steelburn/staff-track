@@ -20,6 +20,8 @@ function renderNav(activeTab) {
         html += `<a href="/skills.html" class="nav-link ${activeTab === 'skills' ? 'active' : ''}">📊 Skills</a>`;
     }
 
+    html += `<a href="/orgchart.html" class="nav-link ${activeTab === 'orgchart' ? 'active' : ''}">🌳 Org Chart</a>`;
+
     if (authUser.role === 'admin' || authUser.is_hr || authUser.role === 'hr') {
         html += `<a href="/staff-view.html" class="nav-link ${activeTab === 'staff' ? 'active' : ''}">👥 All Staff</a>`;
     }
