@@ -38,6 +38,7 @@ docker compose up -d
 - **Auto-Sync Catalog**: Submissions automatically pull Title/Department/Manager data from the company catalog.
 - **Smart Autocomplete**: Dynamic search for Staff and Projects.
 - **Modern UI**: Segmented tab designs, smooth transitions, and a premium dark aesthetic.
+- **Mobile Responsive**: Optimized for various screen sizes with responsive grids and scrollable table containers.
 - **Self-Service Administration**: Dedicated pages for permission management, catalog maintenance, and bulk data imports.
 
 ## 📁 Repository Structure
