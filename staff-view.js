@@ -16,6 +16,9 @@ function renderNav(activeTab) {
     if (authUser.role !== 'admin') html += `<a href="/" class="nav-link ${activeTab === 'my' ? 'active' : ''}">📝 My Submission</a>`;
 
     html += `<a href="/projects.html" class="nav-link ${activeTab === 'projects' ? 'active' : ''}">🗂 Projects</a>`;
+    if (authUser.role === 'admin' || authUser.is_hr || authUser.is_coordinator || authUser.role === 'hr' || authUser.role === 'coordinator') {
+        html += `<a href="/skills.html" class="nav-link ${activeTab === 'skills' ? 'active' : ''}">📊 Skills</a>`;
+    }
 
     if (authUser.role === 'admin' || authUser.is_hr || authUser.role === 'hr') {
         html += `<a href="/staff-view.html" class="nav-link ${activeTab === 'staff' ? 'active' : ''}">👥 All Staff</a>`;

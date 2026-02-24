@@ -22,6 +22,7 @@ try {
 // ── Navigation ───────────────────────────────────────────────────────────────
 document.getElementById('main-nav').innerHTML = `
   <a href="/projects.html" class="nav-link">🗂 Projects</a>
+  <a href="/skills.html" class="nav-link">📊 Skills</a>
   <a href="/staff-view.html" class="nav-link">👥 All Staff</a>
   <a href="/admin.html" class="nav-link active">⚙️ Admin</a>
 `;

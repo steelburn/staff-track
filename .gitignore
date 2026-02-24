@@ -11,6 +11,7 @@ backend/data/
 backend/*.db
 backend/*.db-journal
 backend/*.db-wal
+files/*.csv
 
 # Logs
 npm-debug.log*

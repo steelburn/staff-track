@@ -114,4 +114,46 @@ router.get('/staff', (req, res) => {
     }
 });
 
+// ── GET /reports/skills ───────────────────────────────────────────────────────
+// Returns all unique skills with the list of staff who possess them.
+router.get('/skills', (req, res) => {
+    try {
+        const db = getDb();
+
+        const skills = db.prepare(`
+            SELECT 
+                sk.skill, sk.rating,
+                s.staff_name, s.staff_email, s.title, s.department
+            FROM submission_skills sk
+            JOIN submissions s ON sk.submission_id = s.id
+            ORDER BY sk.skill ASC, sk.rating DESC
+        `).all();
+
+        const skillMap = new Map();
+
+        skills.forEach(row => {
+            const key = row.skill.trim();
+            if (!skillMap.has(key)) {
+                skillMap.set(key, {
+                    skill: key,
+                    staff: []
+                });
+            }
+            skillMap.get(key).staff.push({
+                name: row.staff_name,
+                email: row.staff_email,
+                title: row.title || '',
+                department: row.department || '',
+                rating: row.rating
+            });
+        });
+
+        const result = [...skillMap.values()];
+        res.json(result);
+    } catch (err) {
+        console.error('GET /reports/skills error:', err);
+        res.status(500).json({ error: 'Failed to fetch skills report' });
+    }
+});
+
 module.exports = router;

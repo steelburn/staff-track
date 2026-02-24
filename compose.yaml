@@ -16,6 +16,8 @@ services:
       - ./login.js:/usr/share/nginx/html/login.js:ro
       - ./admin.html:/usr/share/nginx/html/admin.html:ro
       - ./admin.js:/usr/share/nginx/html/admin.js:ro
+      - ./skills.html:/usr/share/nginx/html/skills.html:ro
+      - ./skills.js:/usr/share/nginx/html/skills.js:ro
       - ./files:/usr/share/nginx/html/files:ro
     depends_on:
       - backend

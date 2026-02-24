@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Skills Catalog | StaffTrack</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+    <header class="app-header">
+        <div class="header-inner">
+            <div class="app-logo">
+                <div class="logo-icon">📊</div>
+                <h1>StaffTrack</h1>
+            </div>
+            <p class="app-subtitle">Skills Dashboard & Analysis</p>
+        </div>
+    </header>
+
+    <nav class="app-nav"></nav>
+
+    <main class="main-container">
+        <div class="section-card">
+            <div class="section-header">
+                <div class="section-num blue">🔍</div>
+                <div>
+                    <h2 class="section-title">Skills Exploration</h2>
+                    <p class="section-desc">Search and analyze skill proficiency across the organization</p>
+                </div>
+            </div>
+            <div class="section-body">
+                <div class="grid-toolbar">
+                    <div class="grid-count" id="skills-count">Loading skills...</div>
+                    <div style="flex:1; max-width: 400px; margin-left: 2rem;">
+                        <input type="text" id="skill-search" placeholder="Search skills (e.g. Python, AWS)..."
+                            autocomplete="off">
+                    </div>
+                </div>
+
+                <div id="skills-grid" class="skills-catalog-grid">
+                    <!-- Skills will be rendered here -->
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script src="skills.js"></script>
+</body>
+
+</html>
