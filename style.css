@@ -1624,79 +1624,17 @@ mark {
   background: var(--bg-surface);
   border-radius: 12px;
   border: 1px solid var(--border);
-  padding: 2rem;
+  padding: 1rem;
   display: block;
-  /* Removed flex/center to prevent hidden left overflow */
+  position: relative;
 }
 
-.orgchart {
+
+/* ApexTree Customizations */
+#chart-container svg {
   background: transparent !important;
 }
 
-.orgchart .node {
-  width: 150px !important;
-  background: var(--bg-elevated) !important;
-  border: 1px solid var(--border) !important;
-  border-radius: 8px !important;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
-  transition: transform 0.2s, box-shadow 0.2s;
-}
-
-.orgchart .node:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.3);
-  background: var(--bg-surface) !important;
-}
-
-.orgchart .node .title {
-  background: var(--accent-blue) !important;
-  color: white !important;
-  border-radius: 8px 8px 0 0 !important;
-  padding: 0.5rem !important;
-  font-weight: 600 !important;
-  font-size: 0.8rem !important;
-}
-
-.orgchart .node .content {
-  color: var(--text-primary) !important;
-  border: none !important;
-  font-size: 0.75rem !important;
-  padding: 0.5rem !important;
-  min-height: unset !important;
-}
-
-.orgchart .lines .downLine {
-  background-color: var(--accent-blue) !important;
-}
-
-.orgchart .lines .rightLine {
-  border-right: 1px solid var(--accent-blue) !important;
-}
-
-.orgchart .lines .leftLine {
-  border-left: 1px solid var(--accent-blue) !important;
-}
-
-.orgchart .lines .topLine {
-  border-top: 2px solid var(--accent-blue) !important;
-}
-
-/* Vertical nodes styling */
-.orgchart .nodes.vertical .node {
-  width: 180px !important;
-  margin: 5px 0 5px 10px !important;
-}
-
-.orgchart .nodes.vertical .node::before {
-  border-color: var(--accent-blue) !important;
-  border-width: 1px !important;
-}
-
-.orgchart .nodes.vertical .node::after {
-  border-color: var(--accent-blue) !important;
-  border-width: 1px !important;
-}
-
-.orgchart .nodes.vertical>.nodes::before {
-  border-color: var(--accent-blue) !important;
+.apextree-node {
+  cursor: pointer;
 }

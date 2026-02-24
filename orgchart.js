@@ -59,15 +59,34 @@ async function initChart() {
 
         const treeData = buildHierarchy(staff);
 
-        $('#chart-container').orgchart({
-            'data': treeData,
-            'nodeContent': 'title',
-            'pan': true,
-            'zoom': true,
-            'nodeId': 'id',
-            'depth': 4,
-            'verticalLevel': 3
-        });
+        const options = {
+            contentKey: 'title',
+            width: document.getElementById('chart-container').offsetWidth || 1200,
+            height: 800,
+            nodeWidth: 200,
+            nodeHeight: 80,
+            childrenSpacing: 80,
+            siblingSpacing: 20,
+            direction: 'top',
+            zoom: true,
+            pan: true,
+            nodeTemplate: (name, title) => {
+                return `
+                    <div style="background:var(--bg-elevated); border:1px solid var(--border); border-radius:8px; width:100%; height:100%; display:flex; flex-direction:column; box-shadow: 0 4px 12px rgba(0,0,0,0.2); overflow:hidden;">
+                        <div style="background:var(--accent-blue); color:white; padding:4px 8px; font-weight:600; font-size:12px; white-space:nowrap; text-overflow:ellipsis; overflow:hidden;">
+                            ${name}
+                        </div>
+                        <div style="padding:8px; color:var(--text-primary); font-size:11px; display:flex; align-items:center; justify-content:center; flex-grow:1; text-align:center;">
+                            ${title}
+                        </div>
+                    </div>
+                `;
+            }
+        };
+
+        const tree = new ApexTree(document.getElementById('chart-container'), options);
+        tree.render(treeData);
+
     } catch (e) {
         console.error(e);
         document.getElementById('chart-container').innerHTML = `<p class="grid-empty">Error loading organization chart.</p>`;
@@ -75,7 +94,6 @@ async function initChart() {
 }
 
 function buildHierarchy(staff) {
-    // Map of all employees for quick lookup by name (using manager_name which is name-based in catalog)
     const map = new Map();
     staff.forEach(s => {
         const node = {
@@ -87,7 +105,6 @@ function buildHierarchy(staff) {
         map.set(s.name, node);
     });
 
-    let root = null;
     const roots = [];
 
     staff.forEach(s => {
@@ -100,12 +117,10 @@ function buildHierarchy(staff) {
         }
     });
 
-    // If multiple roots (e.g. silos), wrap them under a virtual CEO
     if (roots.length > 1) {
         return {
             name: 'StaffTrack Org',
             title: 'Top Level',
-            className: 'root-node',
             children: roots
         };
     }
