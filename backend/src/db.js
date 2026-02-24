@@ -12,6 +12,7 @@ function getDb() {
     db.pragma('journal_mode = WAL');
     db.pragma('foreign_keys = ON');
     initSchema(db);
+    runMigrations(db);
 
     // Run CSV seeders if tables are empty
     const { runSeed } = require('./seed');
@@ -34,7 +35,8 @@ function initSchema(db) {
         manager_name TEXT,
         edited_fields TEXT DEFAULT '[]',
         created_at TEXT NOT NULL,
-        updated_at TEXT NOT NULL
+        updated_at TEXT NOT NULL,
+        updated_by_staff INTEGER DEFAULT 0
       );
 
       -- Individual skills submitted by the user
@@ -98,6 +100,15 @@ function initSchema(db) {
         end_date TEXT
       );
     `);
+}
+
+function runMigrations(db) {
+  // Add updated_by_staff if missing
+  const info = db.pragma("table_info('submissions')");
+  const hasCol = info.some(c => c.name === 'updated_by_staff');
+  if (!hasCol) {
+    db.exec('ALTER TABLE submissions ADD COLUMN updated_by_staff INTEGER DEFAULT 0');
+  }
 }
 
 module.exports = { getDb };

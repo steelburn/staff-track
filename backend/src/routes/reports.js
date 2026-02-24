@@ -64,7 +64,7 @@ router.get('/staff', (req, res) => {
     try {
         const db = getDb();
 
-        const subs = db.prepare('SELECT id, staff_email, staff_name, title, department FROM submissions ORDER BY staff_name').all();
+        const subs = db.prepare('SELECT id, staff_email, staff_name, title, department, updated_at, updated_by_staff FROM submissions ORDER BY staff_name').all();
         const skills = db.prepare('SELECT submission_id, skill, rating FROM submission_skills').all();
         const projects = db.prepare(`
           SELECT 
@@ -103,6 +103,8 @@ router.get('/staff', (req, res) => {
             title: row.title || '',
             department: row.department || '',
             email: row.staff_email || '',
+            updatedAt: row.updated_at,
+            updatedByStaff: !!row.updated_by_staff,
             skills: skillMap.get(row.id) || [],
             projects: projMap.get(row.id) || [],
         }));

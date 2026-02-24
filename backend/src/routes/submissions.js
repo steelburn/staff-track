@@ -93,8 +93,8 @@ function upsertSubmission(db, id, body, updatedAt, createdAt) {
     const email = (staffData.email || body.staffName || '').toLowerCase(); // fallback to name if missing
 
     const insertMain = db.prepare(`
-    INSERT INTO submissions (id, staff_email, staff_name, title, department, manager_name, edited_fields, created_at, updated_at)
-    VALUES (@id, @staff_email, @staff_name, @title, @department, @manager_name, @edited_fields, @created_at, @updated_at)
+    INSERT INTO submissions (id, staff_email, staff_name, title, department, manager_name, edited_fields, created_at, updated_at, updated_by_staff)
+    VALUES (@id, @staff_email, @staff_name, @title, @department, @manager_name, @edited_fields, @created_at, @updated_at, @updated_by_staff)
     ON CONFLICT(id) DO UPDATE SET 
       staff_email = excluded.staff_email,
       staff_name = excluded.staff_name,
@@ -102,7 +102,8 @@ function upsertSubmission(db, id, body, updatedAt, createdAt) {
       department = excluded.department,
       manager_name = excluded.manager_name,
       edited_fields = excluded.edited_fields,
-      updated_at = excluded.updated_at
+      updated_at = excluded.updated_at,
+      updated_by_staff = excluded.updated_by_staff
   `);
 
     const tx = db.transaction(() => {
@@ -115,7 +116,8 @@ function upsertSubmission(db, id, body, updatedAt, createdAt) {
             manager_name: staffData.managerName || '',
             edited_fields: JSON.stringify(body.editedFields || []),
             created_at: createdAt,
-            updated_at: updatedAt
+            updated_at: updatedAt,
+            updated_by_staff: 1 // Called from staff submission view
         });
 
         // Wipe old skills/projects to recreate cleanly
@@ -158,9 +160,9 @@ router.post('/assign-project', (req, res) => {
                 // Create new blank submission if they don't have one
                 subId = uuidv4();
                 db.prepare(`
-          INSERT INTO submissions (id, staff_email, staff_name, title, department, manager_name, created_at, updated_at)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        `).run(subId, email, staffName, staffData?.title || '', staffData?.department || '', staffData?.managerName || '', now, now);
+          INSERT INTO submissions (id, staff_email, staff_name, title, department, manager_name, created_at, updated_at, updated_by_staff)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `).run(subId, email, staffName, staffData?.title || '', staffData?.department || '', staffData?.managerName || '', now, now, 0);
             } else {
                 subId = sub.id;
             }
@@ -174,7 +176,7 @@ router.post('/assign-project', (req, res) => {
             db.prepare('INSERT INTO submission_projects (id, submission_id, soc, project_name, customer, role, end_date) VALUES (?, ?, ?, ?, ?, ?, ?)')
                 .run(uuidv4(), subId, project.soc || '', project.projectName || '', project.customer || '', project.role || '', project.endDate || null);
 
-            db.prepare('UPDATE submissions SET updated_at = ? WHERE id = ?').run(now, subId);
+            db.prepare('UPDATE submissions SET updated_at = ?, updated_by_staff = 0 WHERE id = ?').run(now, subId);
             return subId;
         });
 
@@ -207,7 +209,7 @@ router.put('/assign-project/:assignId', (req, res) => {
         // Also update the parent submission's updated_at
         const subIdInfo = db.prepare('SELECT submission_id FROM submission_projects WHERE id = ?').get(assignId);
         if (subIdInfo) {
-            db.prepare('UPDATE submissions SET updated_at = ? WHERE id = ?').run(new Date().toISOString(), subIdInfo.submission_id);
+            db.prepare('UPDATE submissions SET updated_at = ?, updated_by_staff = 0 WHERE id = ?').run(new Date().toISOString(), subIdInfo.submission_id);
         }
 
         res.json({ success: true });
@@ -230,7 +232,7 @@ router.delete('/assign-project/:assignId', (req, res) => {
         if (info.changes === 0) return res.status(404).json({ error: 'Assignment not found' });
 
         if (subIdInfo) {
-            db.prepare('UPDATE submissions SET updated_at = ? WHERE id = ?').run(new Date().toISOString(), subIdInfo.submission_id);
+            db.prepare('UPDATE submissions SET updated_at = ?, updated_by_staff = 0 WHERE id = ?').run(new Date().toISOString(), subIdInfo.submission_id);
         }
 
         res.json({ success: true });

@@ -127,8 +127,11 @@ function renderTable(q = '') {
             ? `<span class="skill-count-pill">${s.skills.length} skill${s.skills.length !== 1 ? 's' : ''}</span>`
             : `<span style="color:var(--text-muted);font-size:.8rem">—</span>`;
 
-        return `<tr class="staff-row" data-idx="${i}" title="Click for details" style="cursor:pointer">
-      <td><span class="staff-name-cell">${hl(s.staffName, q)}</span></td>
+        const staffUpdatedBadge = s.updatedByStaff ? `<span class="staff-updated-badge">Staff Updated</span>` : '';
+        const rowClass = s.updatedByStaff ? 'staff-row staff-updated' : 'staff-row';
+
+        return `<tr class="${rowClass}" data-idx="${i}" title="Click for details" style="cursor:pointer">
+      <td><span class="staff-name-cell">${hl(s.staffName, q)}</span>${staffUpdatedBadge}</td>
       <td><span style="font-size:.82rem;color:var(--text-secondary)">${hl(s.title, q) || '—'}</span></td>
       <td><span style="font-size:.82rem;color:var(--text-secondary)">${hl(s.department, q) || '—'}</span></td>
       <td><div class="proj-pills">${projLabels}</div></td>
