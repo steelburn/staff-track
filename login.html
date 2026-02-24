@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>StaffTrack — Login</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body style="display:flex;align-items:center;justify-content:center;min-height:100vh;padding:2rem">
+
+    <main class="main-container" style="max-width:400px;width:100%;margin:0;padding:2rem">
+        <div class="section-card" style="padding:2.5rem 2rem;text-align:center">
+            <div class="app-logo" style="justify-content:center;margin-bottom:1rem">
+                <div class="logo-icon" style="width:54px;height:54px;font-size:1.6rem">📋</div>
+            </div>
+            <h1 style="font-size:1.8rem;margin-bottom:.5rem;color:var(--text-primary)">StaffTrack</h1>
+            <p style="color:var(--text-secondary);font-size:.9rem;margin-bottom:2rem">Enter your email to continue</p>
+
+            <div class="form-group" style="text-align:left;gap:.6rem;margin-bottom:1.5rem">
+                <label for="login-email">Email Address</label>
+                <input type="email" id="login-email" placeholder="name@company.com" style="padding:.8rem 1rem">
+            </div>
+
+            <button id="btn-login" class="btn-primary" style="width:100%;justify-content:center;padding:.85rem">Log
+                In</button>
+            <p id="login-error" style="color:var(--accent-rose);font-size:.85rem;margin-top:1rem;display:none"></p>
+        </div>
+    </main>
+
+    <script src="login.js"></script>
+</body>
+
+</html>

@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>StaffTrack — Admin</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+
+    <header class="app-header">
+        <div class="header-inner" style="display:flex;justify-content:space-between;align-items:center">
+            <div>
+                <div class="app-logo">
+                    <div class="logo-icon">📋</div>
+                    <h1>StaffTrack</h1>
+                </div>
+                <p class="app-subtitle">Administration and Role Management</p>
+            </div>
+            <button class="btn-secondary" id="btn-logout" style="font-size:.8rem;padding:.4rem .8rem">Log Out</button>
+        </div>
+    </header>
+
+    <nav class="app-nav" id="main-nav">
+        <!-- Nav links injected by JS based on role -->
+    </nav>
+
+    <main class="main-container">
+
+        <div class="view-toolbar">
+            <div class="view-toolbar-left">
+                <h2 class="view-title">Role Management</h2>
+                <span class="view-subtitle">Assign HR and Coordinator privileges</span>
+            </div>
+            <div class="view-toolbar-right">
+                <input type="text" id="admin-search" placeholder="🔍 Search staff…" class="search-input">
+            </div>
+        </div>
+
+        <div class="section-card">
+            <div class="section-body" style="padding:0;overflow-x:auto">
+                <table class="report-table" id="admin-table">
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>Title</th>
+                            <th>Email</th>
+                            <th style="text-align:center">HR Access <br><span
+                                    style="font-size:.7rem;font-weight:400;color:var(--text-muted)">(All Reports)</span>
+                            </th>
+                            <th style="text-align:center">Coordinator <br><span
+                                    style="font-size:.7rem;font-weight:400;color:var(--text-muted)">(Manage
+                                    Projects)</span></th>
+                        </tr>
+                    </thead>
+                    <tbody id="admin-tbody">
+                        <tr>
+                            <td colspan="5" class="table-empty">Loading…</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+    </main>
+
+    <script src="admin.js"></script>
+</body>
+
+</html>

@@ -1,0 +1,34 @@
+# Dependencies
+node_modules/
+.npm/
+
+# Local data & logs
+data/
+backend/data/
+*.db
+*.db-journal
+*.db-wal
+backend/*.db
+backend/*.db-journal
+backend/*.db-wal
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+logs/
+*.log
+
+# Environment
+.env
+.env.local
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Brain/Artifacts (if you want to keep them out of main repo)
+.gemini/
+.agents/
+brain/

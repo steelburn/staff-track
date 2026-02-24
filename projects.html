@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>StaffTrack — Project View</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+
+    <header class="app-header">
+        <div class="header-inner">
+            <div class="app-logo">
+                <div class="logo-icon">📋</div>
+                <h1>StaffTrack</h1>
+            </div>
+            <p class="app-subtitle">Project staffing overview</p>
+        </div>
+    </header>
+
+    <nav class="app-nav">
+        <a href="/" class="nav-link">📝 My Submission</a>
+        <a href="/projects.html" class="nav-link active">🗂 Projects</a>
+        <a href="/staff-view.html" class="nav-link">👥 All Staff</a>
+    </nav>
+
+    <main class="main-container">
+
+        <!-- Toolbar -->
+        <div class="view-toolbar">
+            <div class="view-toolbar-left">
+                <h2 class="view-title">Project View</h2>
+                <span class="view-subtitle" id="proj-count">Loading…</span>
+            </div>
+            <div class="view-toolbar-right">
+                <label class="toggle-label">
+                    <input type="checkbox" id="toggle-empty" checked>
+                    <span class="toggle-track"><span class="toggle-thumb"></span></span>
+                    <span>Hide unassigned</span>
+                </label>
+                <input type="text" id="proj-search" placeholder="🔍 Search project / SOC…" class="search-input">
+                <button class="btn-secondary" id="btn-export-projects">⬇ Export CSV</button>
+            </div>
+        </div>
+
+        <!-- Project cards -->
+        <div id="projects-container">
+            <div class="loading-state">
+                <div class="loading-spinner"></div>
+                <p>Loading projects…</p>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- Assign Staff Modal (injected by JS) -->
+
+    <script src="projects.js"></script>
+</body>
+
+</html>

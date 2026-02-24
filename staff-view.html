@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>StaffTrack — All Staff</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+
+    <header class="app-header">
+        <div class="header-inner">
+            <div class="app-logo">
+                <div class="logo-icon">📋</div>
+                <h1>StaffTrack</h1>
+            </div>
+            <p class="app-subtitle">All staff and their project assignments</p>
+        </div>
+    </header>
+
+    <nav class="app-nav">
+        <a href="/" class="nav-link">📝 My Submission</a>
+        <a href="/projects.html" class="nav-link">🗂 Projects</a>
+        <a href="/staff-view.html" class="nav-link active">👥 All Staff</a>
+    </nav>
+
+    <main class="main-container">
+
+        <!-- Toolbar -->
+        <div class="view-toolbar">
+            <div class="view-toolbar-left">
+                <h2 class="view-title">All Staff</h2>
+                <span class="view-subtitle" id="staff-count">Loading…</span>
+            </div>
+            <div class="view-toolbar-right">
+                <input type="text" id="staff-search" placeholder="🔍 Search staff / project…" class="search-input">
+                <button class="btn-secondary" id="btn-export-staff">⬇ Export CSV</button>
+            </div>
+        </div>
+
+        <!-- Staff table -->
+        <div class="section-card">
+            <div class="section-body" style="padding:0;overflow-x:auto">
+                <table class="report-table" id="staff-table">
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>Title</th>
+                            <th>Department</th>
+                            <th>Projects</th>
+                            <th>Skills</th>
+                            <th>Last Updated</th>
+                        </tr>
+                    </thead>
+                    <tbody id="staff-tbody">
+                        <tr>
+                            <td colspan="6" class="table-empty">Loading…</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Staff detail panel (shown on row click) -->
+        <div id="staff-detail-panel" class="detail-panel" style="display:none">
+            <div class="detail-header">
+                <h3 id="detail-name"></h3>
+                <button class="modal-close" id="detail-close" title="Close">✕</button>
+            </div>
+            <div id="detail-body" class="detail-body"></div>
+        </div>
+
+    </main>
+
+    <script src="staff-view.js"></script>
+</body>
+
+</html>

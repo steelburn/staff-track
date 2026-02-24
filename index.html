@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>StaffTrack — Project Involvement Update</title>
+  <meta name="description" content="Update your project involvements, skills and details.">
+  <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+
+  <!-- ═══ Header ═══════════════════════════════════════════════════════════════ -->
+  <header class="app-header">
+    <div class="header-inner">
+      <div class="app-logo">
+        <div class="logo-icon">📋</div>
+        <h1>StaffTrack</h1>
+      </div>
+      <p class="app-subtitle">Update your skills &amp; project involvements</p>
+    </div>
+  </header>
+
+  <nav class="app-nav">
+    <a href="/" class="nav-link active">📝 My Submission</a>
+    <a href="/projects.html" class="nav-link">🗂 Projects</a>
+    <a href="/staff-view.html" class="nav-link">👥 All Staff</a>
+  </nav>
+
+  <!-- ═══ Main ══════════════════════════════════════════════════════════════════ -->
+  <main class="main-container">
+
+    <!-- ── Section 1: Staff Identity ───────────────────────────────────────── -->
+    <section class="section-card" id="section-identity">
+      <div class="section-header">
+        <span class="section-num blue">1</span>
+        <div>
+          <div class="section-title">Staff Identity</div>
+          <div class="section-desc">Your identity is loaded automatically. You may edit your contact or role details
+            below.</div>
+        </div>
+      </div>
+      <div class="section-body">
+        <div class="form-grid">
+
+          <div class="form-group full">
+            <label for="staff-name">Name / Login Identity</label>
+            <input type="text" id="staff-name" readonly>
+          </div>
+
+          <div class="form-group">
+            <label for="staff-title" id="lbl-title">Title</label>
+            <input type="text" id="staff-title" placeholder="—">
+          </div>
+
+          <div class="form-group">
+            <label for="staff-department" id="lbl-department">Department</label>
+            <input type="text" id="staff-department" placeholder="—">
+          </div>
+
+          <div class="form-group">
+            <label for="staff-manager" id="lbl-managerName">Manager</label>
+            <input type="text" id="staff-manager" placeholder="—">
+          </div>
+
+          <div class="form-group">
+            <label for="staff-email" id="lbl-email">E-Mail Address</label>
+            <input type="email" id="staff-email" placeholder="—" readonly>
+          </div>
+
+        </div>
+
+        <!-- Edit notice -->
+        <div class="edit-note" id="edit-note"></div>
+      </div>
+    </section>
+
+    <!-- ── Section 2: Skills ────────────────────────────────────────────────── -->
+    <section class="section-card" id="section-skills">
+      <div class="section-header">
+        <span class="section-num green">2</span>
+        <div>
+          <div class="section-title">Skills</div>
+          <div class="section-desc">Add your skills and rate your proficiency (1–5 stars).</div>
+        </div>
+      </div>
+      <div class="section-body">
+
+        <div class="grid-toolbar">
+          <span class="grid-count" id="skills-count">0 skills</span>
+          <button class="btn-add" id="btn-add-skill">
+            <svg viewBox="0 0 24 24" fill="none" stroke-width="2.5" stroke-linecap="round">
+              <line x1="12" y1="5" x2="12" y2="19" />
+              <line x1="5" y1="12" x2="19" y2="12" />
+            </svg>
+            Add Skill
+          </button>
+        </div>
+
+        <div id="skills-empty" class="grid-empty">
+          No skills added yet. Click <strong>Add Skill</strong> to get started.
+        </div>
+
+        <table class="grid-table" id="skills-table">
+          <thead>
+            <tr>
+              <th>Skill / Technology</th>
+              <th>Proficiency</th>
+              <th class="col-remove"></th>
+            </tr>
+          </thead>
+          <tbody id="skills-tbody"></tbody>
+        </table>
+
+      </div>
+    </section>
+
+    <!-- ── Section 3: Active Projects ──────────────────────────────────────── -->
+    <section class="section-card" id="section-projects">
+      <div class="section-header">
+        <span class="section-num amber">3</span>
+        <div>
+          <div class="section-title">Active Project Involvements</div>
+          <div class="section-desc">Search by SOC, project name, or customer. Fill in your role and expected end date.
+          </div>
+        </div>
+      </div>
+      <div class="section-body">
+
+        <div class="grid-toolbar">
+          <span class="grid-count" id="projects-count">0 projects</span>
+          <button class="btn-add" id="btn-add-project">
+            <svg viewBox="0 0 24 24" fill="none" stroke-width="2.5" stroke-linecap="round">
+              <line x1="12" y1="5" x2="12" y2="19" />
+              <line x1="5" y1="12" x2="19" y2="12" />
+            </svg>
+            Add Project
+          </button>
+        </div>
+
+        <div id="projects-empty" class="grid-empty">
+          No projects added yet. Click <strong>Add Project</strong> to get started.
+        </div>
+
+        <table class="grid-table" id="projects-table" style="table-layout:fixed">
+          <thead>
+            <tr>
+              <th style="width:35%">Project</th>
+              <th style="width:12%">SOC</th>
+              <th style="width:25%">My Role</th>
+              <th style="width:18%">Est. End Date</th>
+              <th class="col-remove" style="width:40px"></th>
+            </tr>
+          </thead>
+          <tbody id="projects-tbody"></tbody>
+        </table>
+
+      </div>
+    </section>
+
+    <!-- ── Actions ─────────────────────────────────────────────────────────── -->
+    <div class="submit-area">
+      <span id="save-status" style="align-self:center;font-size:.85rem;color:var(--accent-green)"></span>
+      <button class="btn-secondary" id="btn-load-previous">📂 Load Previous</button>
+      <button class="btn-secondary" id="btn-clear">🗑 Clear</button>
+      <button class="btn-secondary" id="btn-save">💾 Save Now</button>
+      <button class="btn-primary" id="btn-summary">📋 Generate Summary</button>
+    </div>
+
+  </main>
+
+  <script src="app.js"></script>
+</body>
+
+</html>
