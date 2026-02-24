@@ -119,7 +119,7 @@ function renderTable(q = '') {
     tbody.innerHTML = list.map((s, i) => {
         const projLabels = s.projects.length
             ? s.projects.slice(0, 3).map(p =>
-                `<span class="proj-pill">${hl(p.soc || p.projectName || '—', q)}</span>`
+                `<span class="proj-pill" title="${p.soc || p.projectName || ''}">${hl(p.soc || p.projectName || '—', q)}</span>`
             ).join('') + (s.projects.length > 3 ? `<span class="proj-pill muted">+${s.projects.length - 3} more</span>` : '')
             : `<span style="color:var(--text-muted);font-size:.8rem">—</span>`;
 
@@ -161,7 +161,7 @@ function showDetailPanel(s, q = '') {
 
             return `
           <tr>
-            <td>${p.soc ? `<span class="soc-badge">${p.soc}</span>` : '—'}</td>
+            <td>${p.soc ? `<span class="soc-badge" title="${p.soc}">${p.soc}</span>` : '—'}</td>
             <td>${p.projectName || '—'} ${cLabels}</td>
             <td style="color:var(--text-secondary);font-size:.82rem">${p.customer || '—'}</td>
             <td style="color:var(--text-secondary);font-size:.82rem">${p.role || '—'}</td>

@@ -443,7 +443,7 @@ function addProjectRow(data = {}) {
         <input type="text" class="p-name" placeholder="Search project name…" value="${data.projectName || ''}">
       </div>
     </td>
-    <td><input type="text" class="p-soc" placeholder="Auto-filled" value="${data.soc || ''}" readonly style="background:var(--bg-elevated)"></td>
+    <td><input type="text" class="p-soc" placeholder="Auto-filled" value="${data.soc || ''}" readonly style="background:var(--bg-elevated)" title="${data.soc || 'Auto-filled'}"></td>
     <td><input type="text" class="p-customer" placeholder="Auto-filled" value="${data.customer || ''}" readonly style="background:var(--bg-elevated)"></td>
     <td><input type="text" class="p-role" placeholder="e.g. Lead Dev, PM" value="${data.role || ''}"></td>
     <td><input type="date" class="p-end" value="${data.endDate || ''}"></td>
@@ -497,6 +497,7 @@ function addProjectRow(data = {}) {
 
             nameInput.value = p.project_name;
             socInput.value = p.soc || '';
+            socInput.title = p.soc || 'Auto-filled';
             custInput.value = p.customer || '';
             saveProjects();
         }
