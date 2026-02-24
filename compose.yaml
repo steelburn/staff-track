@@ -12,6 +12,8 @@ services:
       - ./projects.js:/usr/share/nginx/html/projects.js:ro
       - ./staff-view.html:/usr/share/nginx/html/staff-view.html:ro
       - ./staff-view.js:/usr/share/nginx/html/staff-view.js:ro
+      - ./orgchart.html:/usr/share/nginx/html/orgchart.html:ro
+      - ./orgchart.js:/usr/share/nginx/html/orgchart.js:ro
       - ./login.html:/usr/share/nginx/html/login.html:ro
       - ./login.js:/usr/share/nginx/html/login.js:ro
       - ./admin.html:/usr/share/nginx/html/admin.html:ro
