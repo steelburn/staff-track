@@ -64,6 +64,7 @@ async function initChart() {
         const treeData = buildHierarchy(staff);
 
         const options = {
+            contentKey: 'data',
             width: document.getElementById('chart-container').offsetWidth || 1200,
             height: 800,
             nodeWidth: 200,
@@ -73,14 +74,14 @@ async function initChart() {
             direction: 'top',
             zoom: true,
             pan: true,
-            nodeTemplate: (data) => {
+            nodeTemplate: (content) => {
                 return `
                     <div style="background:var(--bg-elevated); border:1px solid var(--border); border-radius:8px; width:100%; height:100%; display:flex; flex-direction:column; box-shadow: 0 4px 12px rgba(0,0,0,0.2); overflow:hidden;">
                         <div style="background:var(--accent-blue); color:white; padding:4px 8px; font-weight:600; font-size:12px; white-space:nowrap; text-overflow:ellipsis; overflow:hidden;">
-                            ${data.name}
+                            ${content.name}
                         </div>
                         <div style="padding:8px; color:var(--text-primary); font-size:11px; display:flex; align-items:center; justify-content:center; flex-grow:1; text-align:center;">
-                            ${data.title}
+                            ${content.title}
                         </div>
                     </div>
                 `;
@@ -102,7 +103,10 @@ function buildHierarchy(staff) {
         const node = {
             id: sanitizeId(s.email),
             name: s.name,
-            title: s.title || '',
+            data: {
+                name: s.name,
+                title: s.title || ''
+            },
             children: []
         };
         map.set(s.name, node);
@@ -123,7 +127,10 @@ function buildHierarchy(staff) {
     if (roots.length > 1) {
         return {
             name: 'StaffTrack Org',
-            title: 'Top Level',
+            data: {
+                name: 'StaffTrack Org',
+                title: 'Top Level'
+            },
             children: roots
         };
     }
