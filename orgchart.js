@@ -99,11 +99,24 @@ function buildFlatData(staff) {
         nodes.push(node);
     });
 
+    // Identify which nodes are parents (have children)
+    const parentIds = new Set(nodes.filter(n => n.pid).map(n => n.pid));
+
+    // Exclude orphans with no children:
+    // A node is kept if:
+    // 1. It has a parent (it's part of a branch)
+    // 2. OR it is a root AND it has children (it's the start of a branch)
+    const filteredNodes = nodes.filter(n => {
+        const hasParent = !!n.pid;
+        const hasChildren = parentIds.has(n.id);
+        return hasParent || hasChildren;
+    });
+
     // Handle multiple roots by creating a virtual top node if needed
-    const roots = nodes.filter(n => !n.pid);
+    const roots = filteredNodes.filter(n => !n.pid);
     if (roots.length > 1) {
         const virtualRootId = 'virtual_root';
-        nodes.push({
+        filteredNodes.push({
             id: virtualRootId,
             name: 'StaffTrack Organization',
             title: 'Top Level'
@@ -111,5 +124,5 @@ function buildFlatData(staff) {
         roots.forEach(r => r.pid = virtualRootId);
     }
 
-    return nodes;
+    return filteredNodes;
 }
