@@ -1630,11 +1630,7 @@ mark {
 }
 
 
-/* ApexTree Customizations */
-#chart-container svg {
+/* OrgChart customizations for BALKAN */
+.bjs-orgchart {
   background: transparent !important;
-}
-
-.apextree-node {
-  cursor: pointer;
 }

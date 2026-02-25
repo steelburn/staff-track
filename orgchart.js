@@ -44,10 +44,6 @@ function renderNav(activeTab) {
     });
 }
 
-function sanitizeId(id) {
-    return id.replace(/[^a-zA-Z0-9-]/g, '_');
-}
-
 document.addEventListener('DOMContentLoaded', async () => {
     renderNav('orgchart');
     await initChart();
@@ -61,35 +57,19 @@ async function initChart() {
         if (!res.ok) throw new Error('Failed to load staff data');
         const staff = await res.json();
 
-        const treeData = buildHierarchy(staff);
+        const chartData = buildFlatData(staff);
 
-        const options = {
-            contentKey: 'data',
-            width: document.getElementById('chart-container').offsetWidth || 1200,
-            height: 800,
-            nodeWidth: 200,
-            nodeHeight: 80,
-            childrenSpacing: 80,
-            siblingSpacing: 20,
-            direction: 'top',
-            zoom: true,
-            pan: true,
-            nodeTemplate: (content) => {
-                return `
-                    <div style="background:var(--bg-elevated); border:1px solid var(--border); border-radius:8px; width:100%; height:100%; display:flex; flex-direction:column; box-shadow: 0 4px 12px rgba(0,0,0,0.2); overflow:hidden;">
-                        <div style="background:var(--accent-blue); color:white; padding:4px 8px; font-weight:600; font-size:12px; white-space:nowrap; text-overflow:ellipsis; overflow:hidden;">
-                            ${content.name}
-                        </div>
-                        <div style="padding:8px; color:var(--text-primary); font-size:11px; display:flex; align-items:center; justify-content:center; flex-grow:1; text-align:center;">
-                            ${content.title}
-                        </div>
-                    </div>
-                `;
-            }
-        };
-
-        const tree = new ApexTree(document.getElementById('chart-container'), options);
-        tree.render(treeData);
+        var chart = new OrgChart(document.getElementById("chart-container"), {
+            template: "ana",
+            enableSearch: true,
+            mouseWheel: { zoom: true, ctrlZoom: true },
+            layout: OrgChart.mixed,
+            nodeBinding: {
+                field_0: "name",
+                field_1: "title"
+            },
+            nodes: chartData
+        });
 
     } catch (e) {
         console.error(e);
@@ -97,43 +77,39 @@ async function initChart() {
     }
 }
 
-function buildHierarchy(staff) {
-    const map = new Map();
+function buildFlatData(staff) {
+    // BALKAN prefers a flat array with { id: X, pid: ParentX, name: Y, title: Z }
+    const nodes = [];
+
+    // Create a name-to-email map for PID mapping if manager is specified by name
+    const nameMap = new Map();
+    staff.forEach(s => nameMap.set(s.name, s.email));
+
     staff.forEach(s => {
         const node = {
-            id: sanitizeId(s.email),
+            id: s.email,
             name: s.name,
-            data: {
-                name: s.name,
-                title: s.title || ''
-            },
-            children: []
+            title: s.title || ''
         };
-        map.set(s.name, node);
-    });
 
-    const roots = [];
-
-    staff.forEach(s => {
-        const node = map.get(s.name);
-        if (s.manager_name && map.has(s.manager_name)) {
-            const parent = map.get(s.manager_name);
-            parent.children.push(node);
-        } else {
-            roots.push(node);
+        if (s.manager_name && nameMap.has(s.manager_name)) {
+            node.pid = nameMap.get(s.manager_name);
         }
+
+        nodes.push(node);
     });
 
+    // Handle multiple roots by creating a virtual top node if needed
+    const roots = nodes.filter(n => !n.pid);
     if (roots.length > 1) {
-        return {
-            name: 'StaffTrack Org',
-            data: {
-                name: 'StaffTrack Org',
-                title: 'Top Level'
-            },
-            children: roots
-        };
+        const virtualRootId = 'virtual_root';
+        nodes.push({
+            id: virtualRootId,
+            name: 'StaffTrack Organization',
+            title: 'Top Level'
+        });
+        roots.forEach(r => r.pid = virtualRootId);
     }
 
-    return roots[0] || { name: 'Empty', title: 'No data' };
+    return nodes;
 }
