@@ -44,6 +44,10 @@ function renderNav(activeTab) {
     });
 }
 
+function sanitizeId(id) {
+    return id.replace(/[^a-zA-Z0-9-]/g, '_');
+}
+
 document.addEventListener('DOMContentLoaded', async () => {
     renderNav('orgchart');
     await initChart();
@@ -97,7 +101,7 @@ function buildHierarchy(staff) {
     const map = new Map();
     staff.forEach(s => {
         const node = {
-            id: s.email,
+            id: sanitizeId(s.email),
             name: s.name,
             title: s.title || '',
             children: []
