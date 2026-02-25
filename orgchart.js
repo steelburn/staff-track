@@ -64,7 +64,6 @@ async function initChart() {
         const treeData = buildHierarchy(staff);
 
         const options = {
-            contentKey: 'title',
             width: document.getElementById('chart-container').offsetWidth || 1200,
             height: 800,
             nodeWidth: 200,
@@ -74,14 +73,14 @@ async function initChart() {
             direction: 'top',
             zoom: true,
             pan: true,
-            nodeTemplate: (name, title) => {
+            nodeTemplate: (data) => {
                 return `
                     <div style="background:var(--bg-elevated); border:1px solid var(--border); border-radius:8px; width:100%; height:100%; display:flex; flex-direction:column; box-shadow: 0 4px 12px rgba(0,0,0,0.2); overflow:hidden;">
                         <div style="background:var(--accent-blue); color:white; padding:4px 8px; font-weight:600; font-size:12px; white-space:nowrap; text-overflow:ellipsis; overflow:hidden;">
-                            ${name}
+                            ${data.name}
                         </div>
                         <div style="padding:8px; color:var(--text-primary); font-size:11px; display:flex; align-items:center; justify-content:center; flex-grow:1; text-align:center;">
-                            ${title}
+                            ${data.title}
                         </div>
                     </div>
                 `;
