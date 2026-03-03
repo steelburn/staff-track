@@ -31,11 +31,38 @@
                 </div>
             </div>
             <div class="section-body">
-                <div class="grid-toolbar">
-                    <div class="grid-count" id="skills-count">Loading skills...</div>
-                    <div style="flex:1; max-width: 400px; margin-left: 2rem;">
-                        <input type="text" id="skill-search" placeholder="Search skills (e.g. Python, AWS)..."
-                            autocomplete="off">
+                <div class="grid-toolbar" style="flex-wrap:wrap; gap:1rem; align-items:flex-start;">
+                    <div style="flex:1; min-width:300px;">
+                        <div style="display:flex; gap:0.5rem; margin-bottom:0.75rem">
+                            <input type="text" id="skill-search" placeholder="Add skill filter (e.g. Python)..."
+                                autocomplete="off"
+                                style="flex:1; padding:.5rem; border:1px solid var(--border); border-radius:.25rem">
+                            <select id="min-rating-select"
+                                style="width:110px; padding:.5rem; border:1px solid var(--border); border-radius:.25rem">
+                                <option value="1">≥ 1 Star</option>
+                                <option value="2">≥ 2 Stars</option>
+                                <option value="3">≥ 3 Stars</option>
+                                <option value="4">≥ 4 Stars</option>
+                                <option value="5">5 Stars</option>
+                            </select>
+                            <button id="btn-add-filter" class="btn-secondary" style="padding:.5rem 1rem">Add</button>
+                        </div>
+                        <div id="active-filters" style="display:flex; flex-wrap:wrap; gap:0.5rem; min-height: 2rem;">
+                            <!-- Active filter chips -->
+                        </div>
+                    </div>
+                    <div style="display:flex; flex-direction:column; gap:0.75rem; align-items:flex-end;">
+                        <div class="view-toggle"
+                            style="display:flex; gap:0.25rem; background:var(--bg-hover); padding:0.25rem; border-radius:0.5rem">
+                            <button id="btn-view-skills" class="btn-toggle active"
+                                style="padding:0.25rem 0.75rem; border:none; background:white; border-radius:0.25rem; cursor:pointer; box-shadow:0 1px 2px rgba(0,0,0,0.1)">By
+                                Skill</button>
+                            <button id="btn-view-staff" class="btn-toggle"
+                                style="padding:0.25rem 0.75rem; border:none; background:transparent; border-radius:0.25rem; cursor:pointer; color:var(--text-muted)">By
+                                Staff</button>
+                        </div>
+                        <div class="grid-count" id="skills-count"
+                            style="margin:0; font-weight:600; color:var(--text-main)">Loading...</div>
                     </div>
                 </div>
 

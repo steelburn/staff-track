@@ -92,6 +92,39 @@
             </div>
         </div>
 
+        <div class="view-toolbar" style="margin-top:3rem">
+            <div class="view-toolbar-left">
+                <h2 class="view-title">Skill Consolidation (Data Governance)</h2>
+                <span class="view-subtitle">Merge duplicates, rename, or delete skills across all staff
+                    submissions.</span>
+            </div>
+            <div class="view-toolbar-right" style="display:flex;gap:0.5rem">
+                <button class="btn-secondary" id="btn-rename-skill" disabled>✏️ Rename 1</button>
+                <button class="btn-primary" id="btn-merge-skills" disabled>🔗 Merge N &rarr; 1</button>
+                <button class="btn-secondary" id="btn-split-skill" disabled>✂️ Split 1 &rarr; N</button>
+                <button class="btn-secondary" id="btn-delete-skill" disabled style="color:var(--danger)">🗑️ Delete
+                    1</button>
+            </div>
+        </div>
+
+        <div class="section-card" style="margin-top:1rem; overflow-x:auto;">
+            <table class="data-table" style="width:100%; border-collapse:collapse; text-align:left; font-size:0.9rem;">
+                <thead>
+                    <tr style="border-bottom:1px solid var(--border)">
+                        <th style="padding:.75rem;width:40px"></th>
+                        <th style="padding:.75rem">Skill Name</th>
+                        <th style="padding:.75rem;width:150px">Submissions Count</th>
+                    </tr>
+                </thead>
+                <tbody id="skills-catalog-tbody">
+                    <tr>
+                        <td colspan="3" style="padding:1rem;color:var(--text-muted);text-align:center">Loading skills...
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
     </main>
 
     <script src="system.js"></script>

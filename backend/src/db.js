@@ -99,6 +99,25 @@ function initSchema(db) {
         customer TEXT,
         end_date TEXT
       );
+
+      -- Canonical list of skills (Data Governance)
+      CREATE TABLE IF NOT EXISTS skills_catalog (
+        id TEXT PRIMARY KEY,
+        name TEXT UNIQUE NOT NULL,
+        category TEXT,
+        aliases TEXT DEFAULT '[]',
+        is_active INTEGER DEFAULT 1
+      );
+
+      -- Audit log for skill merge operations
+      CREATE TABLE IF NOT EXISTS skill_merge_log (
+        id TEXT PRIMARY KEY,
+        from_name TEXT NOT NULL,
+        to_name TEXT NOT NULL,
+        affected_count INTEGER DEFAULT 0,
+        merged_by TEXT,
+        merged_at TEXT NOT NULL
+      );
     `);
 }
 

@@ -168,4 +168,69 @@ router.get('/skills', (req, res) => {
     }
 });
 
+// ── GET /reports/staff-search ─────────────────────────────────────────────────
+// Returns staff matching specific skill criteria
+router.get('/staff-search', (req, res) => {
+    try {
+        const { skills } = req.query; // Expects JSON array string: [{"name":"Python","minRating":3}]
+        let filterSkills = [];
+        if (skills) {
+            try {
+                filterSkills = JSON.parse(skills);
+            } catch (e) {
+                return res.status(400).json({ error: 'Invalid skills parameter JSON' });
+            }
+        }
+
+        const db = getDb();
+
+        const subs = db.prepare(`
+            SELECT id, staff_email, staff_name, title, department, updated_at
+            FROM submissions 
+            WHERE (staff_email, updated_at) IN (
+                SELECT staff_email, MAX(updated_at)
+                FROM submissions
+                GROUP BY staff_email
+            )
+            ORDER BY staff_name
+        `).all();
+
+        const allSkills = db.prepare('SELECT submission_id, skill, rating FROM submission_skills').all();
+
+        const skillMap = new Map();
+        allSkills.forEach(s => {
+            if (!skillMap.has(s.submission_id)) skillMap.set(s.submission_id, []);
+            skillMap.get(s.submission_id).push({ skill: s.skill, rating: s.rating });
+        });
+
+        // Filter submissions
+        let matchedSubs = subs;
+        if (filterSkills.length > 0) {
+            matchedSubs = subs.filter(sub => {
+                const staffSkills = skillMap.get(sub.id) || [];
+                // Must have ALL required skills at or above minRating
+                return filterSkills.every(reqSkill => {
+                    const found = staffSkills.find(s => s.skill.toLowerCase() === reqSkill.name.toLowerCase());
+                    return found && found.rating >= (reqSkill.minRating || 1);
+                });
+            });
+        }
+
+        const result = matchedSubs.map(row => ({
+            id: row.id,
+            staffName: row.staff_name,
+            title: row.title || '',
+            department: row.department || '',
+            email: row.staff_email || '',
+            updatedAt: row.updated_at,
+            skills: skillMap.get(row.id) || []
+        }));
+
+        res.json(result);
+    } catch (err) {
+        console.error('GET /reports/staff-search error:', err);
+        res.status(500).json({ error: 'Failed to search staff' });
+    }
+});
+
 module.exports = router;

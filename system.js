@@ -120,4 +120,172 @@ document.addEventListener('DOMContentLoaded', () => {
 
     setupFile('staff', 'staff');
     setupFile('projects', 'projects');
+
+    // Init Skill Consolidation
+    initSkillConsolidation();
 });
+
+// ── Skill Consolidation Logic ─────────────────────────────────────────────────
+let catalogSkills = [];
+
+async function initSkillConsolidation() {
+    await loadCatalogSkills();
+    setupSkillActions();
+}
+
+async function loadCatalogSkills() {
+    const tbody = document.getElementById('skills-catalog-tbody');
+    if (!tbody) return;
+
+    try {
+        const res = await fetch('/api/admin/skills', {
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (!res.ok) throw new Error('Failed to load skills');
+        catalogSkills = await res.json();
+        renderCatalogSkills();
+    } catch (e) {
+        showToast(e.message, true);
+        tbody.innerHTML = `<tr><td colspan="3" style="padding:1rem;color:var(--danger)">Error loading skills.</td></tr>`;
+    }
+}
+
+function renderCatalogSkills() {
+    const tbody = document.getElementById('skills-catalog-tbody');
+    if (!tbody) return;
+
+    if (!catalogSkills.length) {
+        tbody.innerHTML = `<tr><td colspan="3" style="padding:1rem;color:var(--text-muted);text-align:center">No skills found.</td></tr>`;
+        updateSkillButtons();
+        return;
+    }
+
+    tbody.innerHTML = catalogSkills.map((s, i) => `
+        <tr style="border-bottom:1px solid var(--border)">
+            <td style="padding:.5rem"><input type="checkbox" class="chk-skill" data-name="${s.name.replace(/"/g, '&quot;')}"></td>
+            <td style="padding:.5rem;font-weight:500">${s.name}</td>
+            <td style="padding:.5rem"><span class="skill-count-pill" style="display:inline-block;padding:.1rem .5rem;background:var(--bg-hover);border-radius:1rem;font-size:.75rem">${s.count}</span></td>
+        </tr>
+    `).join('');
+
+    document.querySelectorAll('.chk-skill').forEach(chk => {
+        chk.addEventListener('change', updateSkillButtons);
+    });
+    updateSkillButtons();
+}
+
+function getSelectedSkills() {
+    return Array.from(document.querySelectorAll('.chk-skill:checked')).map(chk => chk.dataset.name);
+}
+
+function updateSkillButtons() {
+    const sel = getSelectedSkills();
+    const len = sel.length;
+    document.getElementById('btn-rename-skill').disabled = (len !== 1);
+    document.getElementById('btn-merge-skills').disabled = (len < 1); // Can technically "merge" 1 to itself/rename, but usually N>1
+    document.getElementById('btn-split-skill').disabled = (len !== 1);
+    document.getElementById('btn-delete-skill').disabled = (len !== 1);
+}
+
+function setupSkillActions() {
+    document.getElementById('btn-rename-skill')?.addEventListener('click', async () => {
+        const sel = getSelectedSkills();
+        if (sel.length !== 1) return;
+        const oldName = sel[0];
+        const newName = prompt(`Rename "${oldName}" to:`, oldName);
+        if (!newName || newName.trim() === '' || newName === oldName) return;
+
+        try {
+            const res = await fetch('/api/admin/skills/rename', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                body: JSON.stringify({ oldName, newName: newName.trim() })
+            });
+            const data = await res.json();
+            if (data.success) {
+                showToast(`Renamed "${oldName}" to "${newName}" (${data.affectedCount} submissions updated)`);
+                loadCatalogSkills();
+            } else throw new Error(data.error);
+        } catch (e) {
+            showToast(e.message, true);
+        }
+    });
+
+    document.getElementById('btn-merge-skills')?.addEventListener('click', async () => {
+        const sel = getSelectedSkills();
+        if (sel.length < 1) return;
+        const targetSkill = prompt(`Merge ${sel.length} skills into which canonical name?`, sel[0]);
+        if (!targetSkill || targetSkill.trim() === '') return;
+
+        if (!confirm(`Are you sure you want to merge:\n\n${sel.join('\n')}\n\nInto: "${targetSkill}"?`)) return;
+
+        try {
+            const res = await fetch('/api/admin/skills/merge', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                body: JSON.stringify({ targetSkill: targetSkill.trim(), sourceSkills: sel })
+            });
+            const data = await res.json();
+            if (data.success) {
+                showToast(`Merged into "${targetSkill}" (${data.affectedCount} specific skill updates made)`);
+                loadCatalogSkills();
+            } else throw new Error(data.error);
+        } catch (e) {
+            showToast(e.message, true);
+        }
+    });
+
+    document.getElementById('btn-split-skill')?.addEventListener('click', async () => {
+        const sel = getSelectedSkills();
+        if (sel.length !== 1) return;
+        const originalSkill = sel[0];
+
+        const newSkillsStr = prompt(`Split "${originalSkill}" into multiple skills (comma separated):`);
+        if (!newSkillsStr) return;
+
+        const newSkills = newSkillsStr.split(',').map(s => s.trim()).filter(s => s);
+        if (newSkills.length < 2) {
+            showToast('Please provide at least two skills separated by commas.', true);
+            return;
+        }
+
+        if (!confirm(`Are you sure you want to split "${originalSkill}" into:\n\n${newSkills.map(s => '- ' + s).join('\n')}\n?`)) return;
+
+        try {
+            const res = await fetch('/api/admin/skills/split', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                body: JSON.stringify({ originalSkill, newSkills })
+            });
+            const data = await res.json();
+            if (data.success) {
+                showToast(`Split "${originalSkill}" into ${newSkills.length} skills (${data.affectedCount} specific instances updated)`);
+                loadCatalogSkills();
+            } else throw new Error(data.error);
+        } catch (e) {
+            showToast(e.message, true);
+        }
+    });
+
+    document.getElementById('btn-delete-skill')?.addEventListener('click', async () => {
+        const sel = getSelectedSkills();
+        if (sel.length !== 1) return;
+        const skillName = sel[0];
+        if (!confirm(`Are you sure you want to DELETE all instances of "${skillName}"? This cannot be undone.`)) return;
+
+        try {
+            const res = await fetch('/api/admin/skills', {
+                method: 'DELETE',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                body: JSON.stringify({ skillName })
+            });
+            const data = await res.json();
+            if (data.success) {
+                showToast(`Deleted "${skillName}" (${data.deletedCount} instances removed)`);
+                loadCatalogSkills();
+            } else throw new Error(data.error);
+        } catch (e) {
+            showToast(e.message, true);
+        }
+    });
+}
