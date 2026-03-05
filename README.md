@@ -39,7 +39,10 @@ docker compose up -d
 - **Smart Autocomplete**: Dynamic search for Staff and Projects.
 - **Modern UI**: Segmented tab designs, smooth transitions, and a premium dark aesthetic.
 - **Mobile Responsive**: Optimized for various screen sizes with responsive grids and scrollable table containers.
-- **Self-Service Administration**: Dedicated pages for permission management, catalog maintenance, and bulk data imports.
+ - **Self-Service Administration**: Dedicated pages for permission management, catalog maintenance, and bulk data imports.
+- **CV Profiles**: Individual staff CV management with sections for personal info, education, certifications, work history, and past projects.
+- **Skill Consolidation**: Admin tools for skill governance including merge, split, and rename operations.
+- **Staff Search**: Advanced search functionality for finding staff by multiple skill criteria.
 
 ## 📁 Repository Structure
 
@@ -50,12 +53,18 @@ docker compose up -d
 - **Management Pages**:
   - `admin.html`: User permission and role management.
   - `catalog.html`: Global staff and project record maintenance.
-  - `system.html`: Bulk CSV data imports and system stats.
+  - `system.html`: Bulk CSV data imports, skill consolidation, and system stats.
 - **Standard Pages**:
   - `index.html`: My Submission / Home.
+  - `cv-profile.html`: CV profile management.
   - `projects.html`: Project-centric view with assignment tools.
   - `staff-view.html`: Organization-wide staff reporting.
   - `skills.html`: Skill aggregation and search.
+
+---
+## 📑 Documentation
+- [Feature Roadmap](docs/ROADMAP.md)
+- [Implementation Plans](docs/IMPLEMENTATION_PLANS.md)
 
 ---
 *Built with Antigravity*
