@@ -1,6 +1,7 @@
 'use strict';
 
-const token = sessionStorage.getItem('st_token');
+// Use auth module functions
+const token = window.StaffTrackAuth.getToken();
 const userStr = sessionStorage.getItem('st_user');
 if (!token || !userStr) {
     location.href = '/login.html';
@@ -8,41 +9,6 @@ if (!token || !userStr) {
 }
 const authUser = JSON.parse(userStr);
 
-function renderNav(activeTab) {
-    const nav = document.getElementById('main-nav');
-    if (!nav) return;
-
-    let html = '';
-    if (authUser.role !== 'admin') html += `<a href="/" class="nav-link ${activeTab === 'my' ? 'active' : ''}">📝 My Submission</a>`;
-
-    html += `<a href="/projects.html" class="nav-link ${activeTab === 'projects' ? 'active' : ''}">🗂 Projects</a>`;
-
-    if (authUser.role === 'admin' || authUser.is_hr || authUser.role === 'hr' || authUser.is_coordinator || authUser.role === 'coordinator') {
-        html += `<a href="/skills.html" class="nav-link ${activeTab === 'skills' ? 'active' : ''}">📊 Skills</a>`;
-    }
-
-    html += `<a href="/orgchart.html" class="nav-link ${activeTab === 'orgchart' ? 'active' : ''}">🌳 Org Chart</a>`;
-
-    if (authUser.role === 'admin' || authUser.is_hr || authUser.role === 'hr') {
-        html += `<a href="/staff-view.html" class="nav-link ${activeTab === 'staff' ? 'active' : ''}">👥 All Staff</a>`;
-    }
-    if (authUser.role === 'admin') {
-        html += `<a href="/catalog.html" class="nav-link ${activeTab === 'catalog' ? 'active' : ''}">⚙️ Catalog</a>`;
-        html += `<a href="/system.html" class="nav-link ${activeTab === 'system' ? 'active' : ''}">💻 System</a>`;
-        html += `<a href="/admin.html" class="nav-link">🛡️ Admin</a>`;
-    }
-
-    html += `<div style="margin-left:auto;display:flex;align-items:center;gap:1rem">
-      <span style="font-size:0.8rem;color:var(--text-secondary)">${authUser.email}</span>
-      <button class="btn-secondary" id="btn-logout" style="padding:.3rem .6rem;font-size:0.75rem">Logout</button>
-    </div>`;
-    nav.innerHTML = html;
-
-    document.getElementById('btn-logout')?.addEventListener('click', () => {
-        sessionStorage.clear();
-        location.href = '/login.html';
-    });
-}
 
 document.addEventListener('DOMContentLoaded', async () => {
     renderNav('orgchart');
@@ -51,9 +17,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
 async function initChart() {
     try {
-        const res = await fetch('/api/catalog/staff', {
-            headers: { 'Authorization': `Bearer ${token}` }
-        });
+        const res = await window.StaffTrackAuth.apiFetch('/api/catalog/staff');
         if (!res.ok) throw new Error('Failed to load staff data');
         const staff = await res.json();
 
@@ -68,7 +32,48 @@ async function initChart() {
                 field_0: "name",
                 field_1: "title"
             },
-            nodes: chartData
+            nodes: chartData,
+            // Event handler for node click - expand/focus on clicked node
+            nodeClick: function (sender, args) {
+                chart.focus(args.node.id, { expand: true, center: true });
+            }
+        });
+        window._orgChart = chart;
+
+        // Try to centre on the logged-in user after the chart has rendered
+        setTimeout(() => {
+            const userEmail = authUser.email;
+            if (userEmail && window._orgChart) {
+                const userExists = chartData.some(n => n.id === userEmail);
+                if (userExists) {
+                    try {
+                        // OrgChart API v7+: focus(); earlier versions: centre()
+                        if (typeof chart.focus === 'function') {
+                            chart.focus(userEmail);
+                        } else if (typeof chart.centre === 'function') {
+                            chart.centre(userEmail);
+                        }
+                    } catch (e) {
+                        console.warn('OrgChart focus/centre not available:', e.message);
+                    }
+                }
+            }
+        }, 800);
+
+        // Connect zoom buttons
+        document.getElementById('btn-zoom-in')?.addEventListener('click', () => {
+            if (window._orgChart) {
+                const cur = window._orgChart.getScale ? window._orgChart.getScale() : 1;
+                window._orgChart.setScale ? window._orgChart.setScale(Math.min((cur || 1) + 0.25, 3))
+                    : window._orgChart.zoom(1.25);
+            }
+        });
+        document.getElementById('btn-zoom-out')?.addEventListener('click', () => {
+            if (window._orgChart) {
+                const cur = window._orgChart.getScale ? window._orgChart.getScale() : 1;
+                window._orgChart.setScale ? window._orgChart.setScale(Math.max((cur || 1) - 0.25, 0.3))
+                    : window._orgChart.zoom(0.8);
+            }
         });
 
     } catch (e) {

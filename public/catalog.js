@@ -1,6 +1,7 @@
 'use strict';
 
-const token = sessionStorage.getItem('st_token');
+// Use auth module functions
+const token = window.StaffTrackAuth.getToken();
 const userStr = sessionStorage.getItem('st_user');
 
 if (!token || !userStr) {
@@ -19,22 +20,6 @@ try {
     location.href = '/login.html';
 }
 
-// ── Navigation ───────────────────────────────────────────────────────────────
-function renderNav() {
-    const nav = document.getElementById('main-nav');
-    if (!nav) return;
-
-    let html = `
-        <a href="/projects.html" class="nav-link">🗂 Projects</a>
-        <a href="/skills.html" class="nav-link">📊 Skills</a>
-        <a href="/orgchart.html" class="nav-link">🌳 Org Chart</a>
-        <a href="/staff-view.html" class="nav-link">👥 All Staff</a>
-        <a href="/catalog.html" class="nav-link active">⚙️ Catalog</a>
-        <a href="/system.html" class="nav-link">💻 System</a>
-        <a href="/admin.html" class="nav-link">🛡️ Admin</a>
-    `;
-    nav.innerHTML = html;
-}
 
 document.getElementById('btn-logout').addEventListener('click', () => {
     sessionStorage.clear();
@@ -59,8 +44,8 @@ let catalogSearchQ = '';
 async function loadData() {
     try {
         const [catStaffRes, catProjRes] = await Promise.all([
-            fetch('/api/admin/catalog/staff', { headers: { 'Authorization': `Bearer ${token}` } }),
-            fetch('/api/admin/catalog/projects', { headers: { 'Authorization': `Bearer ${token}` } })
+            window.StaffTrackAuth.apiFetch('/api/admin/catalog/staff'),
+            window.StaffTrackAuth.apiFetch('/api/admin/catalog/projects')
         ]);
 
         if (catStaffRes.ok) catalogStaff = await catStaffRes.json();
@@ -130,9 +115,8 @@ function renderCatalog() {
 async function deleteStaff(email) {
     if (!confirm(`Delete ${email} from staff catalog?`)) return;
     try {
-        const res = await fetch(`/api/admin/staff/${encodeURIComponent(email)}`, {
-            method: 'DELETE',
-            headers: { 'Authorization': `Bearer ${token}` }
+        const res = await window.StaffTrackAuth.apiFetch(`/api/admin/staff/${encodeURIComponent(email)}`, {
+            method: 'DELETE'
         });
         if (res.ok) {
             catalogStaff = catalogStaff.filter(s => s.email !== email);
@@ -145,9 +129,8 @@ async function deleteStaff(email) {
 async function deleteProject(id) {
     if (!confirm('Delete this project from catalog?')) return;
     try {
-        const res = await fetch(`/api/admin/projects/${id}`, {
-            method: 'DELETE',
-            headers: { 'Authorization': `Bearer ${token}` }
+        const res = await window.StaffTrackAuth.apiFetch(`/api/admin/projects/${id}`, {
+            method: 'DELETE'
         });
         if (res.ok) {
             catalogProjects = catalogProjects.filter(p => p.id !== id);

@@ -56,7 +56,7 @@ body {
 }
 
 .header-inner {
-  max-width: 900px;
+  max-width: 1440px;
   margin: 0 auto;
   padding: 0 1.5rem;
   position: relative
@@ -98,7 +98,7 @@ body {
 
 /* Layout */
 .main-container {
-  max-width: 900px;
+  max-width: 1440px;
   margin: 0 auto;
   padding: 2rem 1.5rem 4rem;
   display: flex;
@@ -1627,6 +1627,44 @@ mark {
   padding: 1rem;
   display: block;
   position: relative;
+}
+
+/* Zoom Controls */
+.zoom-controls {
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  z-index: 100;
+}
+
+.zoom-btn {
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  font-size: 1.25rem;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.zoom-btn:hover {
+  background: var(--bg-hover);
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
+.zoom-btn:active {
+  transform: scale(0.95);
 }
 
 

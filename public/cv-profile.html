@@ -1,0 +1,677 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My CV Profile | StaffTrack</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body class="full-width">
+    <header class="app-header">
+        <div class="header-inner">
+            <div class="app-logo">
+                <div class="logo-icon">📄</div>
+                <h1>StaffTrack</h1>
+            </div>
+            <p class="app-subtitle">Manage your CV and professional profile</p>
+        </div>
+    </header>
+
+    <nav class="app-nav" id="main-nav"></nav>
+
+    <main class="main-container full-width">
+        <div class="section-card">
+            <div class="section-header">
+                <div class="section-num blue">👤</div>
+                <div>
+                    <h2 class="section-title">My CV Profile</h2>
+                    <p class="section-desc">Fill in your professional details across the tabs below</p>
+                </div>
+            </div>
+            <div class="section-body">
+                <!-- Tab Navigation -->
+                <div class="tab-group">
+                    <button class="tab-btn active" data-tab="my-submission">
+                        <span>📋</span> My Submission
+                    </button>
+
+
+                    <button class="tab-btn" data-tab="education">
+                        <span>🎓</span> Education
+                    </button>
+                    <button class="tab-btn" data-tab="certifications">
+                        <span>📜</span> Certifications
+                    </button>
+                    <button class="tab-btn" data-tab="work-history">
+                        <span>🏢</span> Work History
+                    </button>
+                    <button class="tab-btn" data-tab="past-projects">
+                        <span>📁</span> Past Projects
+                    </button>
+                    <button class="tab-btn" data-tab="generate-cv">
+                        <span>🖨️</span> Generate CV
+                    </button>
+                </div>
+
+                <!-- Tab Content: My Submission -->
+                <div class="tab-content active" id="tab-my-submission">
+                    <!-- Section: Staff Details -->
+                    <div class="section-header"
+                        style="margin-top:1.5rem; border-top:1px solid var(--border); padding-top:1rem;">
+                        <div class="section-num green">1</div>
+                        <div>
+                            <h3 class="section-title">Staff Details</h3>
+                            <p class="section-desc">Verify your identity and reporting line.</p>
+                        </div>
+                    </div>
+                    <div class="section-body">
+                        <div class="form-grid">
+                            <div class="form-group">
+                                <label for="staff-name">Name</label>
+                                <input type="text" id="staff-name">
+                            </div>
+                            <div class="form-group">
+                                <label for="staff-title">Job Title</label>
+                                <input type="text" id="staff-title" placeholder="e.g. Senior Developer">
+                            </div>
+                            <div class="form-group">
+                                <label for="staff-department">Department</label>
+                                <input type="text" id="staff-department" placeholder="e.g. Engineering">
+                            </div>
+                            <div class="form-group">
+                                <label for="staff-manager">Reporting Manager</label>
+                                <input type="text" id="staff-manager" placeholder="e.g. Jane Doe">
+                            </div>
+                            <div class="form-group">
+                                <label for="staff-email">Email</label>
+                                <input type="email" id="staff-email">
+                            </div>
+
+                            <!-- Moved from Profile Tab -->
+                            <div class="form-group">
+                                <label for="cv-phone">Phone</label>
+                                <input type="tel" id="cv-phone" placeholder="+60 (12) 345-6789">
+                            </div>
+                            <div class="form-group">
+                                <label for="cv-linkedin">LinkedIn URL</label>
+                                <input type="url" id="cv-linkedin" placeholder="https://linkedin.com/in/...">
+                            </div>
+                            <div class="form-group">
+                                <label for="cv-location">Location</label>
+                                <input type="text" id="cv-location" placeholder="City, Country">
+                            </div>
+                            <div class="form-group" style="grid-column: 1 / -1; margin-top:0.5rem;">
+                                <label for="cv-summary">Professional Summary</label>
+                                <textarea id="cv-summary" rows="4" placeholder="Brief professional summary..."></textarea>
+                            </div>
+                            <div class="form-group" style="grid-column: 1 / -1; margin-top:0.5rem;">
+                                <label for="cv-photo">Profile Photo</label>
+                                <div style="display:flex; gap:1rem; align-items:center;">
+                                    <div id="photo-preview-container" style="display:none; flex-shrink:0;">
+                                        <img id="photo-preview" style="max-width:100px; max-height:100px; border-radius:8px; border:1px solid var(--border); object-fit:cover;">
+                                    </div>
+                                    <div style="flex-grow:1;">
+                                        <input type="file" id="cv-photo" accept="image/*" style="padding:.5rem; border:1px dashed var(--border); border-radius:8px; background:var(--bg-elevated); color:var(--text-secondary); width:100%; margin-bottom:0.5rem;">
+                                        <button class="btn-secondary" id="btn-upload-photo" style="font-size:0.85rem; padding:0.4rem 0.8rem;">📷 Upload Photo</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div id="edit-note" class="edit-note"></div>
+                    </div>
+
+                    <!-- Section: Core Capabilities (Skills) -->
+                    <div class="section-header"
+                        style="margin-top:1.5rem; border-top:1px solid var(--border); padding-top:1rem;">
+                        <div class="section-num amber">2</div>
+                        <div>
+                            <h3 class="section-title">Core Capabilities</h3>
+                            <p class="section-desc">List your key skills and rate your proficiency (1–5 stars).</p>
+                        </div>
+                    </div>
+                    <div class="section-body">
+                        <div class="grid-toolbar">
+                            <span class="grid-count" id="skills-count">0 skills</span>
+                            <button class="btn-add" id="btn-add-skill">
+                                <svg viewBox="0 0 24 24" fill="none" stroke-width="2.5" stroke-linecap="round">
+                                    <line x1="12" y1="5" x2="12" y2="19" />
+                                    <line x1="5" y1="12" x2="19" y2="12" />
+                                </svg>
+                                Add Skill
+                            </button>
+                        </div>
+                        <div class="table-container">
+                            <table class="grid-table" id="skills-table">
+                                <thead>
+                                    <tr>
+                                        <th>Skill Name</th>
+                                        <th style="width: 140px;">Proficiency</th>
+                                        <th class="col-actions"></th>
+                                    </tr>
+                                </thead>
+                                <tbody id="skills-tbody"></tbody>
+                            </table>
+                            <div id="skills-empty" class="grid-empty">No skills added yet. Click 'Add Skill' to begin.
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Section: Active Projects -->
+                    <div class="section-header"
+                        style="margin-top:1.5rem; border-top:1px solid var(--border); padding-top:1rem;">
+                        <div class="section-num blue">3</div>
+                        <div>
+                            <h3 class="section-title">Active Projects</h3>
+                            <p class="section-desc">List your current project assignments.</p>
+                        </div>
+                    </div>
+                    <div class="section-body">
+                        <div class="grid-toolbar">
+                            <span class="grid-count" id="projects-count">0 projects</span>
+                            <button class="btn-add" id="btn-add-project">
+                                <svg viewBox="0 0 24 24" fill="none" stroke-width="2.5" stroke-linecap="round">
+                                    <line x1="12" y1="5" x2="12" y2="19" />
+                                    <line x1="5" y1="12" x2="19" y2="12" />
+                                </svg>
+                                Add Project
+                            </button>
+                        </div>
+                        <div class="table-container">
+                            <table class="grid-table" id="projects-table-sub">
+                                <thead>
+                                    <tr>
+                                        <th>Project Name (Search to Link)</th>
+                                        <th>SOC Ref</th>
+                                        <th>Customer</th>
+                                        <th>Your Role</th>
+                                        <th style="width: 130px;">End Date</th>
+                                        <th class="col-actions"></th>
+                                    </tr>
+                                </thead>
+                                <tbody id="projects-tbody-sub"></tbody>
+                            </table>
+                            <div id="projects-empty" class="grid-empty">No projects assigned yet. Click 'Add Project' to
+                                begin.</div>
+                        </div>
+                        <div class="submit-area"
+                            style="margin-top:2rem; border-top:1px solid var(--border); padding-top:1.5rem;">
+                            <button class="btn-primary" id="btn-save" style="font-size:1rem; padding:0.6rem 1.25rem;">💾
+                                Save Progress</button>
+                            <span class="save-indicator" id="save-status"
+                                style="margin-left:1rem; font-size:0.85rem; font-weight:600;"></span>
+                            <div style="margin-left:auto; display:flex; gap:0.5rem;">
+                                <button class="btn-secondary" id="btn-load-previous">📂 Load Previous</button>
+                                <button class="btn-secondary" id="btn-summary">📄 Summary</button>
+                                <button class="btn-secondary" id="btn-clear"
+                                    style="color:var(--danger,#ef4444); border-color:var(--danger,#ef4444);">🗑
+                                    Reset</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+
+                <!-- Tab Content: Education -->
+                <div class="tab-content" id="tab-education">
+                    <div class="section-header"
+                        style="margin-top:1.5rem; border-top:1px solid var(--border); padding-top:1rem;">
+                        <div class="section-num purple">4</div>
+                        <div>
+                            <h3 class="section-title">Education</h3>
+                            <p class="section-desc">Your academic qualifications</p>
+                        </div>
+                    </div>
+                    <div class="section-body">
+                        <div class="grid-toolbar">
+                            <span class="grid-count" id="education-count">0 entries</span>
+                            <button class="btn-add" id="btn-add-education">
+                                <svg viewBox="0 0 24 24" fill="none" stroke-width="2.5" stroke-linecap="round">
+                                    <line x1="12" y1="5" x2="12" y2="19" />
+                                    <line x1="5" y1="12" x2="19" y2="12" />
+                                </svg>
+                                Add Education
+                            </button>
+                        </div>
+
+                        <div id="education-empty" class="grid-empty">
+                            No education entries yet. Click <strong>Add Education</strong> to get started.
+                        </div>
+
+                        <div id="education-list" class="grid-2" style="display:none;">
+                            <!-- Education cards will be rendered here -->
+                        </div>
+
+                        <!-- Add/Edit Education Form (hidden by default) -->
+                        <div id="education-form" class="section-card" style="margin-top:1.5rem; display:none;">
+                            <div class="section-header">
+                                <div class="section-num green">+</div>
+                                <div>
+                                    <h3 class="section-title" id="education-form-title">Add Education</h3>
+                                </div>
+                            </div>
+                            <div class="section-body">
+                                <input type="hidden" id="education-id">
+                                <div class="form-grid">
+                                    <div class="form-group">
+                                        <label for="edu-institution">Institution (required)</label>
+                                        <input type="text" id="edu-institution"
+                                            placeholder="e.g., University of Technology" required>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="edu-degree">Degree</label>
+                                        <input type="text" id="edu-degree" placeholder="e.g., Bachelor of Science">
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="edu-field">Field of Study</label>
+                                        <input type="text" id="edu-field" placeholder="e.g., Computer Science">
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="edu-start-year">Start Year</label>
+                                        <input type="number" id="edu-start-year" placeholder="e.g., 2018" min="1900"
+                                            max="2099">
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="edu-end-year">End Year</label>
+                                        <input type="number" id="edu-end-year" placeholder="e.g., 2022" min="1900"
+                                            max="2099">
+                                    </div>
+                                </div>
+                                <div class="form-group" style="margin-top:1rem;">
+                                    <label for="edu-description">Description</label>
+                                    <textarea id="edu-description" rows="3"
+                                        placeholder="Additional details about your studies..."></textarea>
+                                </div>
+                                <p id="edu-proof-hint"
+                                    style="font-size:0.78rem; color:var(--text-muted); margin-top:0.75rem;">💡 Tip: Save
+                                    this entry first, then use the <strong>Edit</strong> button to attach a proof
+                                    document (PDF or image).</p>
+                                <!-- Proof upload — visible only in edit mode -->
+                                <div id="edu-proof-section"
+                                    style="display:none; margin-top:1rem; padding:1rem; background:var(--bg-elevated); border:1px dashed var(--border); border-radius:8px;">
+                                    <div
+                                        style="font-size:0.85rem; font-weight:600; color:var(--text-secondary); margin-bottom:0.5rem;">
+                                        📎 Proof Document <span style="font-weight:400;">(optional — attached to CV
+                                            export)</span></div>
+                                    <div id="edu-proof-existing" style="display:none; margin-bottom:0.5rem;"></div>
+                                    <div style="display:flex; gap:0.5rem; align-items:center; flex-wrap:wrap;">
+                                        <input type="file" id="edu-proof" accept=".pdf,.jpg,.jpeg,.png,.gif,.webp"
+                                            style="flex:1; min-width:0; padding:.4rem; border:1px dashed var(--border); border-radius:6px; background:var(--bg); color:var(--text-secondary); font-size:0.82rem;">
+                                        <button class="btn-secondary" id="btn-upload-edu-proof"
+                                            style="white-space:nowrap; padding:0.4rem 0.9rem; font-size:0.82rem;">⬆
+                                            Upload</button>
+                                    </div>
+                                </div>
+                                <div class="submit-area" style="margin-top:1.5rem;">
+                                    <button class="btn-primary" id="btn-save-education">💾 Save Education</button>
+                                    <button class="btn-secondary" id="btn-cancel-education">Cancel</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tab Content: Certifications -->
+                <div class="tab-content" id="tab-certifications">
+                    <div class="section-header"
+                        style="margin-top:1.5rem; border-top:1px solid var(--border); padding-top:1rem;">
+                        <div class="section-num rose">5</div>
+                        <div>
+                            <h3 class="section-title">Certifications</h3>
+                            <p class="section-desc">Your professional certifications</p>
+                        </div>
+                    </div>
+                    <div class="section-body">
+                        <div class="grid-toolbar">
+                            <span class="grid-count" id="certifications-count">0 entries</span>
+                            <button class="btn-add" id="btn-add-certification">
+                                <svg viewBox="0 0 24 24" fill="none" stroke-width="2.5" stroke-linecap="round">
+                                    <line x1="12" y1="5" x2="12" y2="19" />
+                                    <line x1="5" y1="12" x2="19" y2="12" />
+                                </svg>
+                                Add Certification
+                            </button>
+                        </div>
+
+                        <div id="certifications-empty" class="grid-empty">
+                            No certifications yet. Click <strong>Add Certification</strong> to get started.
+                        </div>
+
+                        <div id="certifications-list" class="grid-2" style="display:none;">
+                            <!-- Certification cards will be rendered here -->
+                        </div>
+
+                        <!-- Add/Edit Certification Form (hidden by default) -->
+                        <div id="certification-form" class="section-card" style="margin-top:1.5rem; display:none;">
+                            <div class="section-header">
+                                <div class="section-num green">+</div>
+                                <div>
+                                    <h3 class="section-title" id="certification-form-title">Add Certification</h3>
+                                </div>
+                            </div>
+                            <div class="section-body">
+                                <input type="hidden" id="certification-id">
+                                <div class="form-grid">
+                                    <div class="form-group">
+                                        <label for="cert-name">Certification Name (required)</label>
+                                        <input type="text" id="cert-name" placeholder="e.g., AWS Certified Developer"
+                                            required>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="cert-issuer">Issuer</label>
+                                        <input type="text" id="cert-issuer" placeholder="e.g., Amazon Web Services">
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="cert-date-obtained">Date Obtained</label>
+                                        <input type="date" id="cert-date-obtained">
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="cert-expiry-date">Expiry Date</label>
+                                        <input type="date" id="cert-expiry-date">
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="cert-credential-id">Credential ID</label>
+                                        <input type="text" id="cert-credential-id" placeholder="e.g., ABC123456">
+                                    </div>
+                                </div>
+                                <div class="form-group" style="margin-top:1rem;">
+                                    <label for="cert-description">Description</label>
+                                    <textarea id="cert-description" rows="3"
+                                        placeholder="Additional details about your certification..."></textarea>
+                                </div>
+                                <p id="cert-proof-hint"
+                                    style="font-size:0.78rem; color:var(--text-muted); margin-top:0.75rem;">💡 Tip: Save
+                                    this entry first, then use the <strong>Edit</strong> button to attach a proof
+                                    document (PDF or image).</p>
+                                <!-- Proof upload — visible only in edit mode -->
+                                <div id="cert-proof-section"
+                                    style="display:none; margin-top:1rem; padding:1rem; background:var(--bg-elevated); border:1px dashed var(--border); border-radius:8px;">
+                                    <div
+                                        style="font-size:0.85rem; font-weight:600; color:var(--text-secondary); margin-bottom:0.5rem;">
+                                        📎 Proof Document <span style="font-weight:400;">(optional — attached to CV
+                                            export)</span></div>
+                                    <div id="cert-proof-existing" style="display:none; margin-bottom:0.5rem;"></div>
+                                    <div style="display:flex; gap:0.5rem; align-items:center; flex-wrap:wrap;">
+                                        <input type="file" id="cert-proof" accept=".pdf,.jpg,.jpeg,.png,.gif,.webp"
+                                            style="flex:1; min-width:0; padding:.4rem; border:1px dashed var(--border); border-radius:6px; background:var(--bg); color:var(--text-secondary); font-size:0.82rem;">
+                                        <button class="btn-secondary" id="btn-upload-cert-proof"
+                                            style="white-space:nowrap; padding:0.4rem 0.9rem; font-size:0.82rem;">⬆
+                                            Upload</button>
+                                    </div>
+                                </div>
+                                <div class="submit-area" style="margin-top:1.5rem;">
+                                    <button class="btn-primary" id="btn-save-certification">💾 Save
+                                        Certification</button>
+                                    <button class="btn-secondary" id="btn-cancel-certification">Cancel</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tab Content: Work History -->
+                <div class="tab-content" id="tab-work-history">
+                    <div class="section-header"
+                        style="margin-top:1.5rem; border-top:1px solid var(--border); padding-top:1rem;">
+                        <div class="section-num blue">6</div>
+                        <div>
+                            <h3 class="section-title">Work History</h3>
+                            <p class="section-desc">Your prior employer history (most recent first)</p>
+                        </div>
+                    </div>
+                    <div class="section-body">
+                        <div class="grid-toolbar">
+                            <span class="grid-count" id="work-history-count">0 entries</span>
+                            <button class="btn-add" id="btn-add-work-history">
+                                <svg viewBox="0 0 24 24" fill="none" stroke-width="2.5" stroke-linecap="round">
+                                    <line x1="12" y1="5" x2="12" y2="19" />
+                                    <line x1="5" y1="12" x2="19" y2="12" />
+                                </svg>
+                                Add Work History
+                            </button>
+                        </div>
+
+                        <div id="work-history-empty" class="grid-empty">
+                            No work history entries yet. Click <strong>Add Work History</strong> to get started.
+                        </div>
+
+                        <div id="work-history-list" class="grid-2" style="display:none;">
+                            <!-- Work history cards will be rendered here -->
+                        </div>
+
+                        <!-- Add/Edit Work History Form (hidden by default) -->
+                        <div id="work-history-form" class="section-card" style="margin-top:1.5rem; display:none;">
+                            <div class="section-header">
+                                <div class="section-num green">+</div>
+                                <div>
+                                    <h3 class="section-title" id="work-history-form-title">Add Work History</h3>
+                                </div>
+                            </div>
+                            <div class="section-body">
+                                <input type="hidden" id="work-history-id">
+                                <div class="form-grid">
+                                    <div class="form-group">
+                                        <label for="wh-employer">Employer (required)</label>
+                                        <input type="text" id="wh-employer" placeholder="e.g., Tech Corp Inc." required>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="wh-job-title">Job Title</label>
+                                        <input type="text" id="wh-job-title"
+                                            placeholder="e.g., Senior Software Engineer">
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="wh-start-date">Start Date</label>
+                                        <input type="date" id="wh-start-date">
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="wh-end-date">End Date</label>
+                                        <input type="date" id="wh-end-date">
+                                    </div>
+                                    <div class="form-group"
+                                        style="display:flex; align-items:center; gap:0.5rem; margin-top:1.5rem;">
+                                        <input type="checkbox" id="wh-is-current" style="width:auto; margin:0;">
+                                        <label for="wh-is-current" style="margin:0;">Current Employer</label>
+                                    </div>
+                                </div>
+                                <div class="form-group" style="margin-top:1rem;">
+                                    <label for="wh-description">Description</label>
+                                    <textarea id="wh-description" rows="3"
+                                        placeholder="Key responsibilities and achievements..."></textarea>
+                                </div>
+                                <div class="submit-area" style="margin-top:1.5rem;">
+                                    <button class="btn-primary" id="btn-save-work-history">💾 Save Work History</button>
+                                    <button class="btn-secondary" id="btn-cancel-work-history">Cancel</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tab Content: Past Projects -->
+                <div class="tab-content" id="tab-past-projects">
+                    <div class="section-header"
+                        style="margin-top:1.5rem; border-top:1px solid var(--border); padding-top:1rem;">
+                        <div class="section-num blue">7</div>
+                        <div>
+                            <h3 class="section-title">Past Projects</h3>
+                            <p class="section-desc">Add projects that are not in the managed projects database</p>
+                        </div>
+                    </div>
+                    <div class="section-body">
+                        <div class="grid-toolbar">
+                            <span class="grid-count" id="past-projects-count">0 entries</span>
+                            <button class="btn-add" id="btn-add-past-project">
+                                <svg viewBox="0 0 24 24" fill="none" stroke-width="2.5" stroke-linecap="round">
+                                    <line x1="12" y1="5" x2="12" y2="19" />
+                                    <line x1="5" y1="12" x2="19" y2="12" />
+                                </svg>
+                                Add Past Project
+                            </button>
+                        </div>
+
+                        <div id="past-projects-empty" class="grid-empty">
+                            No past projects yet. Click <strong>Add Past Project</strong> to get started.
+                        </div>
+
+                        <div id="past-projects-list" class="grid-2" style="display:none;">
+                            <!-- Past project cards will be rendered here -->
+                        </div>
+
+                        <!-- Add/Edit Past Project Form (hidden by default) -->
+                        <div id="past-project-form" class="section-card" style="margin-top:1.5rem; display:none;">
+                            <div class="section-header">
+                                <div class="section-num green">+</div>
+                                <div>
+                                    <h3 class="section-title" id="past-project-form-title">Add Past Project</h3>
+                                </div>
+                            </div>
+                            <div class="section-body">
+                                <input type="hidden" id="past-project-id">
+                                <div class="form-grid">
+                                    <div class="form-group" style="grid-column: 1 / -1;">
+                                        <label for="pp-work-history-id">Associated Employer (optional)</label>
+                                        <select id="pp-work-history-id">
+                                            <option value="">— No Association —</option>
+                                        </select>
+                                        <p class="section-desc" style="margin-top:0.25rem; font-size:0.75rem;">If this
+                                            is for your current company, select it to get suggestions from the Project
+                                            Catalog.</p>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="pp-project-name">Project Name (required)</label>
+                                        <input type="text" id="pp-project-name"
+                                            placeholder="e.g., E-Commerce Platform Redesign" required
+                                            list="project-catalog-list">
+                                        <datalist id="project-catalog-list"></datalist>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="pp-role">Role</label>
+                                        <input type="text" id="pp-role" placeholder="e.g., Lead Developer">
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="pp-start-date">Start Date</label>
+                                        <input type="date" id="pp-start-date">
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="pp-end-date">End Date</label>
+                                        <input type="date" id="pp-end-date">
+                                    </div>
+                                    <div class="form-group" style="grid-column: 1 / -1;">
+                                        <label for="pp-technologies">Technologies</label>
+                                        <input type="text" id="pp-technologies"
+                                            placeholder="e.g., React, Node.js, PostgreSQL (comma separated)">
+                                    </div>
+                                </div>
+                                <div class="form-group" style="margin-top:1rem;">
+                                    <label for="pp-description">Description</label>
+                                    <textarea id="pp-description" rows="4"
+                                        placeholder="Describe the project, your responsibilities, and achievements..."></textarea>
+                                </div>
+                                <div class="submit-area" style="margin-top:1.5rem;">
+                                    <button class="btn-primary" id="btn-save-past-project">💾 Save Past Project</button>
+                                    <button class="btn-secondary" id="btn-cancel-past-project">Cancel</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tab Content: Generate CV -->
+            <div class="tab-content" id="tab-generate-cv">
+                <div class="section-header"
+                    style="margin-top:1.5rem; border-top:1px solid var(--border); padding-top:1rem;">
+                    <div class="section-num green">🖨️</div>
+                    <div>
+                        <h3 class="section-title">Generate &amp; Export CV</h3>
+                        <p class="section-desc">Choose a style, generate your CV, then print or save as PDF</p>
+                    </div>
+                </div>
+                <div class="section-body">
+
+                    <!-- HR/Admin: generate for another user -->
+                    <div id="gen-target-section"
+                        style="display:none; margin-bottom:1.5rem; padding:1rem; background:var(--bg-elevated); border:1px solid var(--border); border-radius:10px;">
+                        <label for="gen-target-email"
+                            style="font-weight:600; font-size:0.85rem; color:var(--text-secondary); display:block; margin-bottom:0.4rem;">🎯
+                            Generate for Staff Member</label>
+                        <div style="display:flex; gap:0.5rem;">
+                            <input type="email" id="gen-target-email" placeholder="staff@email.com" style="flex:1;">
+                            <button class="btn-secondary" id="btn-load-gen-target">Load Profile</button>
+                        </div>
+                        <p style="font-size:0.75rem; color:var(--text-muted); margin:0.4rem 0 0;">Leave blank to
+                            generate your own CV</p>
+                    </div>
+
+                    <!-- Template Picker -->
+                    <div style="margin-bottom:1.5rem;">
+                        <div
+                            style="font-weight:600; font-size:0.9rem; margin-bottom:0.75rem; color:var(--text-secondary);">
+                            📐 Choose Template Style</div>
+                        <div id="template-picker" style="display:flex; gap:1rem; flex-wrap:wrap;">
+                            <div style="color:var(--text-muted); font-size:0.85rem;">Loading templates…</div>
+                        </div>
+                    </div>
+
+                    <!-- Generate Action -->
+                    <div class="submit-area" style="margin-bottom:1.5rem;">
+                        <button class="btn-primary" id="btn-generate-cv">✨ Generate CV</button>
+                        <span id="gen-status"
+                            style="margin-left:1rem; font-size:0.85rem; color:var(--text-muted);"></span>
+                    </div>
+
+                    <!-- CV Preview -->
+                    <div id="cv-preview-section" style="display:none;">
+                        <div
+                            style="display:flex; align-items:center; justify-content:space-between; margin-bottom:0.75rem;">
+                            <div style="font-weight:600; font-size:0.9rem; color:var(--text-secondary);">👁 CV Preview
+                            </div>
+                            <div style="display:flex; gap:0.5rem;">
+                                <button class="btn-secondary" id="btn-print-cv">🖨️ Print / Save PDF</button>
+                                <button class="btn-secondary" id="btn-open-cv">↗ Open in New Tab</button>
+                            </div>
+                        </div>
+                        <iframe id="cv-preview-frame"
+                            style="width:100%; height:800px; border:1px solid var(--border); border-radius:10px; background:#fff;"
+                            sandbox="allow-scripts allow-modals"></iframe>
+                    </div>
+
+                    <!-- Snapshots History -->
+                    <div style="margin-top:2rem; border-top:1px solid var(--border); padding-top:1.5rem;">
+                        <div
+                            style="display:flex; align-items:center; justify-content:space-between; margin-bottom:1rem;">
+                            <div style="font-weight:600; font-size:0.9rem; color:var(--text-secondary);">📸 CV Snapshot
+                                History</div>
+                            <button class="btn-secondary" id="btn-clear-snapshots"
+                                style="font-size:0.8rem; padding:0.3rem 0.7rem; color:var(--danger,#ef4444); border-color:var(--danger,#ef4444); display:none;">🗑
+                                Clear All Snapshots</button>
+                        </div>
+                        <div id="snapshots-empty" class="grid-empty">No snapshots yet. Generate a CV to create your
+                            first snapshot.</div>
+                        <div class="table-container" id="snapshots-table-container" style="display:none;">
+                            <table class="grid-table" id="snapshots-table">
+                                <thead>
+                                    <tr>
+                                        <th>Generated On</th>
+                                        <th>Template</th>
+                                        <th>Generated By</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="snapshots-tbody"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        </div>
+    </main>
+
+    <script src="auth.js"></script>
+    <script src="menu.js"></script>
+    <script src="cv-profile.js"></script>
+</body>
+
+</html>

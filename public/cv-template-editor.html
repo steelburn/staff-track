@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CV Template Editor | StaffTrack</title>
+    <link rel="stylesheet" href="style.css">
+    <style>
+        .editor-layout {
+            display: grid;
+            grid-template-columns: 280px 1fr;
+            gap: 1.5rem;
+            align-items: start;
+        }
+
+        .template-list-panel {
+            position: sticky;
+            top: 1rem;
+            max-height: calc(100vh - 120px);
+            overflow-y: auto;
+        }
+
+        .template-list-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0.65rem 0.9rem;
+            border-radius: 8px;
+            cursor: pointer;
+            border: 1px solid var(--border);
+            background: var(--bg-elevated);
+            margin-bottom: 0.5rem;
+            transition: border-color 0.15s, background 0.15s;
+        }
+
+        .template-list-item:hover {
+            border-color: var(--accent-blue);
+            background: var(--bg);
+        }
+
+        .template-list-item.active {
+            border-color: var(--accent-blue);
+            background: var(--bg);
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.12);
+        }
+
+        /* Main editor: Markdown | CSS | Preview side-by-side */
+        .three-col-editor {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 1rem;
+            align-items: start;
+        }
+
+        .editor-area {
+            display: flex;
+            flex-direction: column;
+            gap: 0.4rem;
+        }
+
+        .editor-area>label {
+            font-size: 0.82rem;
+            font-weight: 600;
+            color: var(--text-secondary);
+            display: flex;
+            align-items: center;
+            gap: 0.35rem;
+        }
+
+        .code-textarea {
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 0.8rem;
+            line-height: 1.55;
+            resize: vertical;
+            min-height: 580px;
+            background: var(--bg);
+            color: var(--text-primary);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 0.75rem;
+            tab-size: 2;
+            width: 100%;
+        }
+
+        .preview-frame {
+            width: 100%;
+            height: 580px;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            background: #fff;
+        }
+
+        .var-chip {
+            display: inline-block;
+            background: var(--bg-elevated);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 0.18rem 0.45rem;
+            font-family: monospace;
+            font-size: 0.72rem;
+            color: var(--accent-blue);
+            cursor: pointer;
+            margin: 2px;
+            transition: background 0.1s;
+        }
+
+        .var-chip:hover {
+            background: var(--accent-blue);
+            color: #fff;
+        }
+
+        /* Markdown guide styles */
+        .md-guide table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.72rem;
+        }
+
+        .md-guide th {
+            text-align: left;
+            padding: 0.3rem 0.4rem;
+            color: var(--text-muted);
+            border-bottom: 1px solid var(--border);
+            font-size: 0.68rem;
+            text-transform: uppercase;
+        }
+
+        .md-guide td {
+            padding: 0.25rem 0.4rem;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+            vertical-align: top;
+        }
+
+        .md-guide td:first-child {
+            font-family: monospace;
+            color: var(--accent-blue);
+            white-space: nowrap;
+        }
+
+        .md-guide td:last-child {
+            color: var(--text-secondary);
+        }
+
+        @media (max-width: 1100px) {
+            .editor-layout {
+                grid-template-columns: 1fr;
+            }
+
+            .three-col-editor {
+                grid-template-columns: 1fr 1fr;
+            }
+
+            .template-list-panel {
+                position: static;
+                max-height: none;
+            }
+        }
+
+        @media (max-width: 700px) {
+            .three-col-editor {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+
+<body class="full-width">
+    <header class="app-header">
+        <div class="header-inner">
+            <div class="app-logo">
+                <div class="logo-icon">📋</div>
+                <h1>StaffTrack</h1>
+            </div>
+            <p class="app-subtitle">CV Template Editor</p>
+        </div>
+    </header>
+
+    <nav class="app-nav" id="main-nav"></nav>
+
+    <main class="main-container full-width">
+        <div class="section-card">
+            <div class="section-header">
+                <div class="section-num blue">📋</div>
+                <div>
+                    <h2 class="section-title">CV Template Editor</h2>
+                    <p class="section-desc">Edit Markdown layout and CSS — live preview updates as you type</p>
+                </div>
+                <div style="margin-left:auto;">
+                    <button class="btn-add" id="btn-new-template">
+                        <svg viewBox="0 0 24 24" fill="none" stroke-width="2.5" stroke-linecap="round">
+                            <line x1="12" y1="5" x2="12" y2="19" />
+                            <line x1="5" y1="12" x2="19" y2="12" />
+                        </svg>
+                        New Template
+                    </button>
+                </div>
+            </div>
+
+            <div class="section-body">
+                <div class="editor-layout">
+                    <!-- Left Sidebar: Template List + Variables + Markdown Guide -->
+                    <div class="template-list-panel">
+                        <div class="section-card" style="padding:1rem; margin-bottom:1rem;">
+                            <div
+                                style="font-weight:600; font-size:0.85rem; color:var(--text-secondary); margin-bottom:0.75rem;">
+                                📚 Templates</div>
+                            <div id="template-list">
+                                <div class="grid-empty">Loading…</div>
+                            </div>
+                        </div>
+
+                        <!-- Template Variables -->
+                        <div class="section-card" style="padding:1rem; margin-bottom:1rem;">
+                            <div
+                                style="display:flex; align-items:center; justify-content:space-between; margin-bottom:0.5rem;">
+                                <div style="font-weight:600; font-size:0.85rem; color:var(--text-secondary);">🔧
+                                    Variables</div>
+                                <button class="btn-secondary" id="btn-toggle-vars"
+                                    style="padding:0.2rem 0.5rem; font-size:0.72rem;">Hide</button>
+                            </div>
+                            <div id="var-reference">
+                                <div style="font-size:0.72rem; color:var(--text-muted); margin-bottom:0.4rem;">Click to
+                                    insert at cursor:</div>
+
+                                <div
+                                    style="font-size:0.68rem; font-weight:600; color:var(--text-muted); margin:0.4rem 0 0.2rem; text-transform:uppercase;">
+                                    Scalars</div>
+                                <div>
+                                    <span class="var-chip" data-var="{{name}}">{{name}}</span>
+                                    <span class="var-chip" data-var="{{email}}">{{email}}</span>
+                                    <span class="var-chip" data-var="{{title}}">{{title}}</span>
+                                    <span class="var-chip" data-var="{{department}}">{{department}}</span>
+                                    <span class="var-chip" data-var="{{managerName}}">{{managerName}}</span>
+                                    <span class="var-chip" data-var="{{phone}}">{{phone}}</span>
+                                    <span class="var-chip" data-var="{{linkedin}}">{{linkedin}}</span>
+                                    <span class="var-chip" data-var="{{location}}">{{location}}</span>
+                                    <span class="var-chip" data-var="{{summary}}">{{summary}}</span>
+                                    <span class="var-chip" data-var="{{generatedAt}}">{{generatedAt}}</span>
+                                </div>
+
+                                <div
+                                    style="font-size:0.68rem; font-weight:600; color:var(--text-muted); margin:0.6rem 0 0.2rem; text-transform:uppercase;">
+                                    Loops</div>
+                                <div>
+                                    <span class="var-chip"
+                                        data-var="{{#skills}}&#10;- {{skill}} ({{rating}})&#10;{{/skills}}">{{#skills}}…{{/skills}}</span>
+                                    <span class="var-chip"
+                                        data-var="{{#projects}}&#10;{{project_name}} · {{role}} · {{end_date}}&#10;{{/projects}}">{{#projects}}…{{/projects}}</span>
+                                    <span class="var-chip"
+                                        data-var="{{#workHistory}}&#10;**{{employer}}** — {{job_title}}&#10;({{start_date}} – {{end_date}})&#10;{{description}}&#10;&#10;{{/workHistory}}">{{#workHistory}}…{{/workHistory}}</span>
+                                    <span class="var-chip"
+                                        data-var="{{#pastProjects}}&#10;**{{project_name}}** · {{role}}&#10;{{start_date}} – {{end_date}}&#10;{{description}}&#10;_Tech: {{technologies}}_&#10;&#10;{{/pastProjects}}">{{#pastProjects}}…{{/pastProjects}}</span>
+                                    <span class="var-chip"
+                                        data-var="{{#education}}&#10;**{{institution}}** — {{degree}}&#10;{{start_year}}–{{end_year}}&#10;{{description}}&#10;&#10;{{/education}}">{{#education}}…{{/education}}</span>
+                                    <span class="var-chip"
+                                        data-var="{{#certifications}}&#10;**{{name}}** · {{issuer}}&#10;Obtained: {{date_obtained}}&#10;{{/certifications}}">{{#certifications}}…{{/certifications}}</span>
+                                </div>
+
+                                <div
+                                    style="font-size:0.68rem; font-weight:600; color:var(--text-muted); margin:0.6rem 0 0.2rem; text-transform:uppercase;">
+                                    Conditionals</div>
+                                <div>
+                                    <span class="var-chip"
+                                        data-var="{{#linkedin}}[LinkedIn]({{linkedin}}){{/linkedin}}">{{#linkedin}}…{{/linkedin}}</span>
+                                    <span class="var-chip"
+                                        data-var="{{#summary}}{{summary}}{{/summary}}">{{#summary}}…{{/summary}}</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Markdown Guide -->
+                        <div class="section-card" style="padding:1rem;">
+                            <div
+                                style="font-weight:600; font-size:0.85rem; color:var(--text-secondary); margin-bottom:0.6rem;">
+                                📖 Markdown Guide</div>
+                            <div class="md-guide">
+                                <table>
+                                    <thead>
+                                        <tr>
+                                            <th>Syntax</th>
+                                            <th>Result</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr>
+                                        <tr><td># H1 … ###### H6</td><td>Headings</td></tr>
+                                        <tr><td>---</td><td>Horizontal rule</td></tr>
+                                        <tr><td>**bold**</td><td><strong>bold</strong></td></tr>
+                                        <tr><td>*italic*</td><td><em>italic</em></td></tr>
+                                        <tr><td>***bold italic***</td><td><strong><em>both</em></strong></td></tr>
+                                        <tr><td>~~strike~~</td><td><s>through</s></td></tr>
+                                        <tr><td>- item / * item</td><td>Bullet list</td></tr>
+                                        <tr><td>1. First</td><td>Numbered list</td></tr>
+                                        <tr><td>&gt; text</td><td>Blockquote</td></tr>
+                                        <tr><td>`inline`</td><td><code>code</code></td></tr>
+                                        <tr><td>```lang…</td><td>Code block</td></tr>
+                                        <tr><td>[text](url)</td><td>Link</td></tr>
+                                        <tr><td>![alt](url)</td><td>Image</td></tr>
+                                        <tr><td>blank line</td><td>Paragraph</td></tr>
+                                    </tbody>
+                                </table>
+                                <div style="font-size:0.7rem;font-weight:600;color:var(--text-muted);margin:0.6rem 0 0.2rem;text-transform:uppercase;">GFM Tables</div>
+                                <div style="font-family:monospace;font-size:0.68rem;color:var(--accent-blue);background:var(--bg-base);border-radius:6px;padding:0.4rem 0.6rem;line-height:1.7;">| Col A | Col B |<br>|-------|------:|<br>| cell | right |</div>
+                                <div style="font-size:0.68rem;color:var(--text-muted);margin-top:0.25rem;"><code>:---:</code> centre &middot; <code>---:</code> right</div>
+                                <div style="font-size:0.7rem;font-weight:600;color:var(--text-muted);margin:0.6rem 0 0.2rem;text-transform:uppercase;">Per-Section CSS</div>
+                                <div style="font-family:monospace;font-size:0.68rem;color:var(--accent-blue);background:var(--bg-base);border-radius:6px;padding:0.4rem 0.6rem;line-height:1.7;">{{section:skills}}<br>## Skills...<br>{{/section:skills}}</div>
+                                <div style="font-size:0.68rem;color:var(--text-muted);margin-top:0.25rem;">CSS: <code>#skills { u2026 }</code></div>
+                                <div style="margin-top:0.6rem;font-size:0.7rem;color:var(--text-muted);">Preview uses <strong>sample data</strong>. Real CVs use staff data.</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Editor Panel -->
+                    <div class="editor-pane" id="editor-pane">
+                        <div class="section-card" style="padding:1.25rem;">
+                            <div style="color:var(--text-muted); font-size:0.9rem; text-align:center; padding:2rem 0;">
+                                Select a template from the list to begin editing, or click <strong>New
+                                    Template</strong>.
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Editor Panel Template (cloned by JS) -->
+    <template id="editor-template">
+        <div class="section-card" style="padding:1.25rem;">
+            <div style="display:flex; align-items:center; gap:1rem; margin-bottom:1rem; flex-wrap:wrap;">
+                <input type="text" id="tmpl-name" placeholder="Template Name"
+                    style="flex:1; min-width:180px; font-size:1rem; font-weight:600;">
+                <label style="display:flex; align-items:center; gap:0.5rem; font-size:0.85rem; cursor:pointer;">
+                    <input type="checkbox" id="tmpl-is-default" style="width:auto; margin:0;"> Set as Default
+                </label>
+                <div style="margin-left:auto; display:flex; gap:0.5rem; flex-wrap:wrap;">
+                    <button class="btn-primary" id="btn-save-template">💾 Save</button>
+                    <button class="btn-secondary" id="btn-reset-template">↺ Revert</button>
+                    <button class="btn-remove" id="btn-delete-template" style="width:auto; padding:0.45rem 0.9rem;">🗑
+                        Delete</button>
+                </div>
+            </div>
+
+            <!-- 3-column: Markdown | CSS | Live Preview -->
+            <div class="three-col-editor">
+                <div class="editor-area">
+                    <label for="tmpl-markdown">📝 Markdown Template</label>
+                    <textarea id="tmpl-markdown" class="code-textarea" spellcheck="false"
+                        placeholder="# {{name}}&#10;&#10;**{{title}}** | {{department}}&#10;&#10;---&#10;&#10;## Summary&#10;&#10;{{summary}}"></textarea>
+                </div>
+                <div class="editor-area">
+                    <label for="tmpl-css">🎨 CSS Styles</label>
+                    <textarea id="tmpl-css" class="code-textarea" spellcheck="false"
+                        placeholder="body { font-family: sans-serif; padding: 32px; }&#10;h1 { color: #1a1a2e; }"></textarea>
+                </div>
+                <div class="editor-area">
+                    <label>👁 Live Preview <span
+                            style="font-size:0.68rem; color:var(--text-muted); font-weight:400;">(sample data, updates
+                            as you type)</span></label>
+                    <iframe id="tmpl-preview-frame" class="preview-frame" sandbox="allow-same-origin allow-scripts"></iframe>
+                </div>
+            </div>
+        </div>
+    </template>
+
+    <script src="auth.js"></script>
+    <script src="menu.js"></script>
+    <script src="cv-template-editor.js"></script>
+</body>
+
+</html>

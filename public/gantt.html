@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gantt Charts - StaffTrack</title>
+    <link rel="stylesheet" href="style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        .gantt-container {
+            width: 100%;
+            overflow-x: auto;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            margin-bottom: 2rem;
+            padding: 1rem;
+        }
+
+        .gantt-svg {
+            min-width: 800px;
+            font-family: 'Inter', sans-serif;
+            user-select: none;
+        }
+
+        .gantt-grid line {
+            stroke: var(--border);
+            stroke-width: 1;
+            stroke-dasharray: 4, 4;
+        }
+
+        .gantt-grid text {
+            fill: var(--text-secondary);
+            font-size: 12px;
+            font-weight: 500;
+        }
+
+        .gantt-bar {
+            fill: var(--accent-blue);
+            opacity: 0.8;
+            rx: 4;
+            transition: opacity 0.2s, fill 0.2s;
+            cursor: pointer;
+        }
+
+        .gantt-bar:hover {
+            opacity: 1;
+            fill: #3b82f6;
+        }
+
+        .gantt-bar-bg {
+            fill: var(--bg-elevated);
+            rx: 4;
+        }
+
+        .gantt-label {
+            fill: var(--text-primary);
+            font-size: 13px;
+            font-weight: 500;
+        }
+
+        .gantt-sublabel {
+            fill: var(--text-secondary);
+            font-size: 11px;
+        }
+
+        .gantt-bar-text {
+            fill: #fff;
+            font-size: 11px;
+            font-weight: 600;
+            pointer-events: none;
+        }
+
+        .tooltip {
+            position: absolute;
+            background: #1e293b;
+            color: #fff;
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-size: 12px;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.2s;
+            z-index: 100;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            white-space: nowrap;
+        }
+
+        .chart-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+        }
+
+        .gantt-controls {
+            display: flex;
+            justify-content: flex-end;
+            margin-bottom: 1rem;
+        }
+
+        .gantt-controls button {
+            margin: 0 5px;
+            padding: 5px 10px;
+            background: var(--accent-blue);
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+
+        .gantt-controls button:hover {
+            background: #3b82f6;
+        }
+    </style>
+</head>
+
+<body class="full-width theme-light">
+    <!-- Navbar -->
+    <header class="app-header">
+        <div class="header-inner">
+            <div class="app-logo">
+                <div class="logo-icon">📊</div>
+                <h1>StaffTrack</h1>
+            </div>
+            <p class="app-subtitle">Project timelines and resource utilization overview</p>
+        </div>
+    </header>
+
+    <nav class="app-nav" id="main-nav"></nav>
+
+    <!-- Main Content -->
+    <main class="main-container full-width">
+        <div id="tooltip" class="tooltip"></div>
+
+        <div class="section-card">
+            <div class="section-header">
+                <div class="section-num blue">📈</div>
+                <div>
+                    <h2 class="section-title">Active Projects Timeline</h2>
+                    <p class="section-desc">Overview of all currently active projects and their targeted completion dates.</p>
+                </div>
+            </div>
+            <div class="section-body full-width">
+                <div class="gantt-container" id="gantt-projects-container">
+                    <div style="padding: 2rem; text-align: center; color: var(--text-secondary);">Loading projects data...</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="section-card">
+            <div class="section-header">
+                <div class="section-num green">👥</div>
+                <div>
+                    <h2 class="section-title">Resource Utilization Gantt</h2>
+                    <p class="section-desc">Timeline of staff assignments across projects.</p>
+                </div>
+            </div>
+            <div class="section-body full-width">
+                <div class="gantt-container" id="gantt-resources-container">
+                    <div style="padding: 2rem; text-align: center; color: var(--text-secondary);">Loading resource data...</div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script src="auth.js"></script>
+    <script src="menu.js"></script>
+    <script src="gantt.js"></script>
+</body>
+
+</html>

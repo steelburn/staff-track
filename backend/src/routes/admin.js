@@ -1,27 +1,21 @@
 'use strict';
 const express = require('express');
 const { getDb } = require('../db');
-const { sessions } = require('./auth');
+const { verifyToken, requireRole } = require('./auth');
 const { parseCSV } = require('../utils');
 const { v4: uuidv4 } = require('uuid');
 
 const router = express.Router();
 
-function requireAdmin(req, res, next) {
-    const token = req.headers.authorization?.replace('Bearer ', '');
-    const user = sessions.get(token);
-    if (!user || user.role !== 'admin') {
-        return res.status(403).json({ error: 'Requires Admin role' });
-    }
-    next();
-}
+// requireAdmin must include verifyToken so req.user is populated
+const requireAdmin = [verifyToken, requireRole('admin')];
 
 // ── GET /admin/roles ──────────────────────────────────────────────────────────
-// Get the overrides mapping for HR and Coordinators
-router.get('/roles', requireAdmin, (req, res) => {
+// Get all users with their roles
+router.get('/roles', verifyToken, requireRole('admin'), (req, res) => {
     try {
         const db = getDb();
-        const rows = db.prepare('SELECT * FROM user_roles').all();
+        const rows = db.prepare('SELECT * FROM user_roles ORDER BY email').all();
         res.json(rows);
     } catch (err) {
         console.error('GET /admin/roles error:', err);
@@ -30,32 +24,65 @@ router.get('/roles', requireAdmin, (req, res) => {
 });
 
 // ── POST /admin/roles ─────────────────────────────────────────────────────────
-// Update overrides for an email
-router.post('/roles', requireAdmin, (req, res) => {
+// Create or update a user's role
+router.post('/roles', verifyToken, requireRole('admin'), (req, res) => {
     try {
         const db = getDb();
-        const { email, is_hr, is_coordinator } = req.body;
+        const { email, role, is_active = true } = req.body;
 
         if (!email) return res.status(400).json({ error: 'email is required' });
-        const key = email.trim().toLowerCase();
+        if (!role) return res.status(400).json({ error: 'role is required' });
 
-        const existing = db.prepare('SELECT email FROM user_roles WHERE email = ?').get(key);
-
-        if (existing) {
-            db.prepare('UPDATE user_roles SET is_hr = ?, is_coordinator = ? WHERE email = ?')
-                .run(is_hr ? 1 : 0, is_coordinator ? 1 : 0, key);
-        } else {
-            db.prepare('INSERT INTO user_roles (email, is_hr, is_coordinator) VALUES (?, ?, ?)')
-                .run(key, is_hr ? 1 : 0, is_coordinator ? 1 : 0);
+        // Validate role
+        const validRoles = ['admin', 'hr', 'coordinator', 'sa', 'sales', 'staff'];
+        if (!validRoles.includes(role)) {
+            return res.status(400).json({ error: 'Invalid role. Must be one of: ' + validRoles.join(', ') });
         }
 
-        // Clean up empty rows if they have no roles (to keep DB clean)
-        db.prepare('DELETE FROM user_roles WHERE is_hr = 0 AND is_coordinator = 0').run();
+        const key = email.trim().toLowerCase();
+        const now = new Date().toISOString();
 
-        res.json({ success: true, email: key, is_hr, is_coordinator });
+        const existing = db.prepare('SELECT * FROM user_roles WHERE email = ?').get(key);
+
+        if (existing) {
+            db.prepare('UPDATE user_roles SET role = ?, is_active = ?, updated_at = ? WHERE email = ?')
+                .run(role, is_active ? 1 : 0, now, key);
+        } else {
+            db.prepare('INSERT INTO user_roles (email, role, is_active, created_at, updated_at) VALUES (?, ?, ?, ?, ?)')
+                .run(key, role, is_active ? 1 : 0, now, now);
+        }
+
+        res.json({ success: true, email: key, role, is_active });
     } catch (err) {
         console.error('POST /admin/roles error:', err);
         res.status(500).json({ error: 'Failed to update roles' });
+    }
+});
+
+// ── DELETE /admin/roles/:email ─────────────────────────────────────────────────
+// Remove a user's role (deactivate)
+router.delete('/roles/:email', verifyToken, requireRole('admin'), (req, res) => {
+    try {
+        const db = getDb();
+        const email = req.params.email.toLowerCase();
+
+        const existing = db.prepare('SELECT * FROM user_roles WHERE email = ?').get(email);
+        if (!existing) {
+            return res.status(404).json({ error: 'User not found' });
+        }
+
+        // Don't allow deleting admin
+        if (existing.role === 'admin') {
+            return res.status(400).json({ error: 'Cannot deactivate admin user' });
+        }
+
+        db.prepare('UPDATE user_roles SET is_active = 0, updated_at = ? WHERE email = ?')
+            .run(new Date().toISOString(), email);
+
+        res.json({ success: true });
+    } catch (err) {
+        console.error('DELETE /admin/roles/:email error:', err);
+        res.status(500).json({ error: 'Failed to deactivate user' });
     }
 });
 
@@ -249,7 +276,7 @@ router.post('/skills/merge', requireAdmin, (req, res) => {
         }
 
         const db = getDb();
-        const user = sessions.get(req.headers.authorization?.replace('Bearer ', ''));
+        const mergeBy = req.user.email;
 
         let affectedCount = 0;
         const tx = db.transaction(() => {
@@ -271,7 +298,7 @@ router.post('/skills/merge', requireAdmin, (req, res) => {
             `);
             const now = new Date().toISOString();
             for (const source of sourceSkills) {
-                logInsert.run(uuidv4(), source, targetSkill, 0, user ? user.email : 'admin', now);
+                logInsert.run(uuidv4(), source, targetSkill, 0, mergeBy, now);
             }
 
             // Deduplicate: if a user now has multiple entries for targetSkill, keep the one with highest rating
@@ -305,7 +332,7 @@ router.post('/skills/rename', requireAdmin, (req, res) => {
         }
 
         const db = getDb();
-        const user = sessions.get(req.headers.authorization?.replace('Bearer ', ''));
+        const mergeBy = req.user.email;
 
         let affectedCount = 0;
         const tx = db.transaction(() => {
@@ -319,7 +346,7 @@ router.post('/skills/rename', requireAdmin, (req, res) => {
             db.prepare(`
                 INSERT INTO skill_merge_log (id, from_name, to_name, affected_count, merged_by, merged_at)
                 VALUES (?, ?, ?, ?, ?, ?)
-            `).run(uuidv4(), oldName, newName, affectedCount, user ? user.email : 'admin', new Date().toISOString());
+            `).run(uuidv4(), oldName, newName, affectedCount, mergeBy, new Date().toISOString());
 
             db.prepare(`
                 DELETE FROM submission_skills
@@ -351,7 +378,7 @@ router.post('/skills/split', requireAdmin, (req, res) => {
         }
 
         const db = getDb();
-        const user = sessions.get(req.headers.authorization?.replace('Bearer ', ''));
+        const mergeBy = req.user.email;
 
         let affectedCount = 0;
         const tx = db.transaction(() => {
@@ -387,7 +414,7 @@ router.post('/skills/split', requireAdmin, (req, res) => {
                 db.prepare('INSERT OR IGNORE INTO skills_catalog (id, name, is_active) VALUES (?, ?, 1)')
                     .run(uuidv4(), trimmedNewSkill);
 
-                logInsert.run(uuidv4(), originalSkill, trimmedNewSkill, affectedCount, user ? user.email : 'admin', now);
+                logInsert.run(uuidv4(), originalSkill, trimmedNewSkill, affectedCount, mergeBy, now);
 
                 db.prepare(`
                     DELETE FROM submission_skills

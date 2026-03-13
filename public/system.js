@@ -1,6 +1,7 @@
 'use strict';
 
-const token = sessionStorage.getItem('st_token');
+// Use auth module functions
+const token = window.StaffTrackAuth.getToken();
 const userStr = sessionStorage.getItem('st_user');
 
 if (!token || !userStr) {
@@ -19,27 +20,6 @@ try {
     location.href = '/login.html';
 }
 
-// ── Navigation ───────────────────────────────────────────────────────────────
-function renderNav() {
-    const nav = document.getElementById('main-nav');
-    if (!nav) return;
-
-    let html = `
-        <a href="/projects.html" class="nav-link">🗂 Projects</a>
-        <a href="/skills.html" class="nav-link">📊 Skills</a>
-        <a href="/orgchart.html" class="nav-link">🌳 Org Chart</a>
-        <a href="/staff-view.html" class="nav-link">👥 All Staff</a>
-        <a href="/catalog.html" class="nav-link">⚙️ Catalog</a>
-        <a href="/system.html" class="nav-link active">💻 System</a>
-        <a href="/admin.html" class="nav-link">🛡️ Admin</a>
-    `;
-    nav.innerHTML = html;
-}
-
-document.getElementById('btn-logout').addEventListener('click', () => {
-    sessionStorage.clear();
-    location.href = '/login.html';
-});
 
 // ── Helper ───────────────────────────────────────────────────────────────────
 function showToast(msg, isErr = false) {
@@ -62,9 +42,9 @@ async function handleImport(type, csv) {
     btn.textContent = '⌛ Processing...';
 
     try {
-        const res = await fetch(`/api/admin/import-${type}`, {
+        const res = await window.StaffTrackAuth.apiFetch(`/api/admin/import-${type}`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ csv })
         });
         const data = await res.json();
@@ -138,9 +118,7 @@ async function loadCatalogSkills() {
     if (!tbody) return;
 
     try {
-        const res = await fetch('/api/admin/skills', {
-            headers: { 'Authorization': `Bearer ${token}` }
-        });
+        const res = await window.StaffTrackAuth.apiFetch('/api/admin/skills');
         if (!res.ok) throw new Error('Failed to load skills');
         catalogSkills = await res.json();
         renderCatalogSkills();
@@ -196,9 +174,9 @@ function setupSkillActions() {
         if (!newName || newName.trim() === '' || newName === oldName) return;
 
         try {
-            const res = await fetch('/api/admin/skills/rename', {
+            const res = await window.StaffTrackAuth.apiFetch('/api/admin/skills/rename', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ oldName, newName: newName.trim() })
             });
             const data = await res.json();
@@ -220,9 +198,9 @@ function setupSkillActions() {
         if (!confirm(`Are you sure you want to merge:\n\n${sel.join('\n')}\n\nInto: "${targetSkill}"?`)) return;
 
         try {
-            const res = await fetch('/api/admin/skills/merge', {
+            const res = await window.StaffTrackAuth.apiFetch('/api/admin/skills/merge', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ targetSkill: targetSkill.trim(), sourceSkills: sel })
             });
             const data = await res.json();
@@ -252,9 +230,9 @@ function setupSkillActions() {
         if (!confirm(`Are you sure you want to split "${originalSkill}" into:\n\n${newSkills.map(s => '- ' + s).join('\n')}\n?`)) return;
 
         try {
-            const res = await fetch('/api/admin/skills/split', {
+            const res = await window.StaffTrackAuth.apiFetch('/api/admin/skills/split', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ originalSkill, newSkills })
             });
             const data = await res.json();
@@ -274,9 +252,9 @@ function setupSkillActions() {
         if (!confirm(`Are you sure you want to DELETE all instances of "${skillName}"? This cannot be undone.`)) return;
 
         try {
-            const res = await fetch('/api/admin/skills', {
+            const res = await window.StaffTrackAuth.apiFetch('/api/admin/skills', {
                 method: 'DELETE',
-                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ skillName })
             });
             const data = await res.json();

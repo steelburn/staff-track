@@ -1,48 +1,13 @@
 'use strict';
 
-const token = sessionStorage.getItem('st_token');
+// Use auth module functions
+const token = window.StaffTrackAuth.getToken();
 const userStr = sessionStorage.getItem('st_user');
 if (!token || !userStr) {
     location.href = '/login.html';
     throw new Error('Not logged in');
 }
 const authUser = JSON.parse(userStr);
-
-function renderNav(activeTab) {
-    const nav = document.getElementById('main-nav');
-    if (!nav) return;
-
-    let html = '';
-    if (authUser.role !== 'admin') {
-        html += `<a href="/" class="nav-link ${activeTab === 'my' ? 'active' : ''}">📝 My Submission</a>`;
-    }
-
-    html += `<a href="/projects.html" class="nav-link ${activeTab === 'projects' ? 'active' : ''}">🗂 Projects</a>`;
-    if (authUser.role === 'admin' || authUser.is_hr || authUser.role === 'hr' || authUser.is_coordinator || authUser.role === 'coordinator') {
-        html += `<a href="/skills.html" class="nav-link ${activeTab === 'skills' ? 'active' : ''}">📊 Skills</a>`;
-    }
-
-    html += `<a href="/orgchart.html" class="nav-link ${activeTab === 'orgchart' ? 'active' : ''}">🌳 Org Chart</a>`;
-
-    if (authUser.role === 'admin' || authUser.is_hr || authUser.role === 'hr') {
-        html += `<a href="/staff-view.html" class="nav-link ${activeTab === 'staff' ? 'active' : ''}">👥 All Staff</a>`;
-    }
-    if (authUser.role === 'admin') {
-        html += `<a href="/catalog.html" class="nav-link ${activeTab === 'catalog' ? 'active' : ''}">⚙️ Catalog</a>`;
-        html += `<a href="/system.html" class="nav-link ${activeTab === 'system' ? 'active' : ''}">💻 System</a>`;
-        html += `<a href="/admin.html" class="nav-link">🛡️ Admin</a>`;
-    }
-    html += `<div style="margin-left:auto;display:flex;align-items:center;gap:1rem">
-      <span style="font-size:0.8rem;color:var(--text-secondary)">${authUser.email}</span>
-      <button class="btn-secondary" id="btn-logout" style="padding:.3rem .6rem;font-size:0.75rem">Logout</button>
-    </div>`;
-    nav.innerHTML = html;
-
-    document.getElementById('btn-logout')?.addEventListener('click', () => {
-        sessionStorage.clear();
-        location.href = '/login.html';
-    });
-}
 
 // ── AppState ──────────────────────────────────────────────────────────────────
 const AppState = {
@@ -69,7 +34,7 @@ function scheduleAutoSave() {
 async function saveToBackend() {
     const payload = {
         staffName: AppState.staff.name,
-        staffData: { ...AppState.staff },
+        staffData: { ...AppState.staff, email: authUser.email },
         editedFields: [...AppState.editedFields],
         skills: AppState.skills.map(({ skill, rating }) => ({ skill, rating })),
         projects: AppState.projects.map(({ soc, projectName, customer, role, endDate }) =>
@@ -78,7 +43,7 @@ async function saveToBackend() {
 
     try {
         if (!AppState.submissionId) {
-            const res = await fetch('/api/submissions', {
+            const res = await window.StaffTrackAuth.apiFetch('/api/submissions', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(payload),
@@ -89,7 +54,7 @@ async function saveToBackend() {
             sessionStorage.setItem('stafftrack_id', data.id);
             setSaveStatus('Draft saved ✓');
         } else {
-            const res = await fetch(`/api/submissions/${AppState.submissionId}`, {
+            const res = await window.StaffTrackAuth.apiFetch(`/api/submissions/${AppState.submissionId}`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(payload),
@@ -105,7 +70,7 @@ async function saveToBackend() {
 
 async function loadFromBackend(id) {
     try {
-        const res = await fetch(`/api/submissions/${id}`);
+        const res = await window.StaffTrackAuth.apiFetch(`/api/submissions/${id}`);
         if (!res.ok) return false;
         const data = await res.json();
         AppState.submissionId = id;
@@ -130,7 +95,7 @@ async function loadFromBackend(id) {
 // ── Load-previous helpers ─────────────────────────────────────────────────────
 async function fetchSubmissionsByName(name) {
     try {
-        const res = await fetch('/api/submissions');
+        const res = await window.StaffTrackAuth.apiFetch('/api/submissions');
         if (res.ok) {
             const list = await res.json();
             return list.filter(s => s.staffName.toLowerCase() === name.toLowerCase());
@@ -650,8 +615,8 @@ async function init() {
 
     try {
         const [staffRes, projectsRes] = await Promise.all([
-            fetch('/api/catalog/staff'),
-            fetch('/api/catalog/projects')
+            window.StaffTrackAuth.apiFetch('/api/catalog/staff'),
+            window.StaffTrackAuth.apiFetch('/api/catalog/projects')
         ]);
         if (staffRes.ok) STAFF_DATA = await staffRes.json();
         if (projectsRes.ok) ALL_PROJECTS_CSV = await projectsRes.json();
@@ -676,7 +641,7 @@ async function init() {
         btn.textContent = '⏳ Loading…';
         btn.disabled = true;
         try {
-            const res = await fetch('/api/submissions');
+            const res = await window.StaffTrackAuth.apiFetch('/api/submissions');
             const all = res.ok ? await res.json() : [];
             if (!all.length) {
                 showToast('No saved submissions found');
@@ -707,7 +672,7 @@ async function init() {
         const identityName = dbUser ? dbUser.name : authUser.email;
 
         try {
-            const res = await fetch('/api/submissions');
+            const res = await window.StaffTrackAuth.apiFetch('/api/submissions');
             const all = res.ok ? await res.json() : [];
             const mySubs = all.filter(s => s.staffName.toLowerCase() === identityName.toLowerCase());
 
@@ -747,7 +712,7 @@ async function init() {
 window.addEventListener('focus', async () => {
     if (!AppState.submissionId) return;
     try {
-        const res = await fetch(`/api/submissions/${AppState.submissionId}`);
+        const res = await window.StaffTrackAuth.apiFetch(`/api/submissions/${AppState.submissionId}`);
         if (!res.ok) return;
         const data = await res.json();
         let changed = false;

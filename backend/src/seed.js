@@ -13,7 +13,7 @@ function runSeed(db) {
     if (staffCount === 0) {
         try {
             console.log('Seeding Staff records...');
-            const txt = fs.readFileSync(path.join(__dirname, '../files/AD_Reporting_Structure_Detailed.csv'), 'utf-8');
+            const txt = fs.readFileSync(path.join(__dirname, '../../public/files/AD_Reporting_Structure_Detailed.csv'), 'utf-8');
             const staffList = parseCSV(txt);
 
             const insert = db.prepare(`
@@ -59,7 +59,7 @@ function runSeed(db) {
     if (projCount === 0) {
         try {
             console.log('Seeding Projects Catalog...');
-            const txt = fs.readFileSync(path.join(__dirname, '../files/extracted_projects.csv'), 'utf-8');
+            const txt = fs.readFileSync(path.join(__dirname, '../../public/files/extracted_projects.csv'), 'utf-8');
             const projList = parseCSV(txt);
 
             const insert = db.prepare(`

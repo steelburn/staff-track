@@ -1,13 +1,24 @@
 'use strict';
 const express = require('express');
 const { getDb } = require('../db');
-const { requireCoordinator } = require('./auth');
+const { verifyToken, requireRole } = require('./auth');
 
 const router = express.Router();
 
+// Coordinator or admin can update projects
+const requireCoordinator = (req, res, next) => {
+    if (!req.user) {
+        return res.status(401).json({ error: 'Unauthorized' });
+    }
+    if (!['admin', 'coordinator'].includes(req.user.role)) {
+        return res.status(403).json({ error: 'Forbidden: Requires Coordinator role' });
+    }
+    next();
+};
+
 // ── GET /catalog/staff ────────────────────────────────────────────────────────
 // Returns baseline staff info from CSV
-router.get('/staff', (req, res) => {
+router.get('/staff', verifyToken, (req, res) => {
     try {
         const db = getDb();
         const rows = db.prepare('SELECT email, name, title, department, manager_name FROM staff ORDER BY name ASC').all();
@@ -20,7 +31,7 @@ router.get('/staff', (req, res) => {
 
 // ── GET /catalog/projects ─────────────────────────────────────────────────────
 // Returns baseline projects from CSV
-router.get('/projects', (req, res) => {
+router.get('/projects', verifyToken, (req, res) => {
     try {
         const db = getDb();
         const rows = db.prepare('SELECT id, soc, project_name, customer, end_date FROM projects_catalog ORDER BY project_name ASC').all();
@@ -33,7 +44,7 @@ router.get('/projects', (req, res) => {
 
 // ── PUT /catalog/projects/:id ─────────────────────────────────────────────
 // Allows coordinators to update a project's general end date
-router.put('/projects/:id', requireCoordinator, (req, res) => {
+router.put('/projects/:id', verifyToken, requireCoordinator, (req, res) => {
     try {
         const db = getDb();
         const { id } = req.params;

@@ -1,6 +1,7 @@
 'use strict';
 
-const token = sessionStorage.getItem('st_token');
+// Use auth module functions
+const token = window.StaffTrackAuth.getToken();
 const userStr = sessionStorage.getItem('st_user');
 
 if (!token || !userStr) {
@@ -19,27 +20,6 @@ try {
     location.href = '/login.html';
 }
 
-// ── Navigation ───────────────────────────────────────────────────────────────
-function renderNav() {
-    const nav = document.getElementById('main-nav');
-    if (!nav) return;
-
-    let html = `
-        <a href="/projects.html" class="nav-link">🗂 Projects</a>
-        <a href="/skills.html" class="nav-link">📊 Skills</a>
-        <a href="/orgchart.html" class="nav-link">🌳 Org Chart</a>
-        <a href="/staff-view.html" class="nav-link">👥 All Staff</a>
-        <a href="/catalog.html" class="nav-link">⚙️ Catalog</a>
-        <a href="/system.html" class="nav-link">💻 System</a>
-        <a href="/admin.html" class="nav-link active">🛡️ Admin</a>
-    `;
-    nav.innerHTML = html;
-}
-
-document.getElementById('btn-logout').addEventListener('click', () => {
-    sessionStorage.clear();
-    location.href = '/login.html';
-});
 
 // ── Helper ───────────────────────────────────────────────────────────────────
 function showToast(msg, isErr = false) {
@@ -57,8 +37,8 @@ let roleOverrides = new Map(); // email -> { is_hr, is_coordinator }
 async function loadData() {
     try {
         const [staffRes, rolesRes] = await Promise.all([
-            fetch('/api/catalog/staff'),
-            fetch('/api/admin/roles', { headers: { 'Authorization': `Bearer ${token}` } })
+            window.StaffTrackAuth.apiFetch('/api/catalog/staff'),
+            window.StaffTrackAuth.apiFetch('/api/admin/roles')
         ]);
 
         if (staffRes.ok) staffData = await staffRes.json();
@@ -129,10 +109,18 @@ function renderRoles() {
 
 async function updateRole(email, is_hr, is_coordinator) {
     try {
-        const res = await fetch('/api/admin/roles', {
+        // Convert boolean flags to role string
+        let role = 'staff';
+        if (is_hr) {
+            role = 'hr';
+        } else if (is_coordinator) {
+            role = 'coordinator';
+        }
+
+        const res = await window.StaffTrackAuth.apiFetch('/api/admin/roles', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-            body: JSON.stringify({ email, is_hr, is_coordinator })
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email, role, is_active: true })
         });
         if (!res.ok) throw new Error('Save failed');
         roleOverrides.set(email, { is_hr, is_coordinator });

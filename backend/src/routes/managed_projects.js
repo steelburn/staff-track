@@ -2,12 +2,23 @@
 const express = require('express');
 const { v4: uuidv4 } = require('uuid');
 const { getDb } = require('../db');
-const { sessions, requireCoordinator } = require('./auth'); // simple token validation
+const { verifyToken, requireRole } = require('./auth');
 
 const router = express.Router();
 
+// Coordinator or admin can manage projects
+const requireCoordinator = (req, res, next) => {
+    if (!req.user) {
+        return res.status(401).json({ error: 'Unauthorized' });
+    }
+    if (!['admin', 'coordinator'].includes(req.user.role)) {
+        return res.status(403).json({ error: 'Forbidden: Requires Coordinator role' });
+    }
+    next();
+};
+
 // ── GET /managed-projects ─────────────────────────────────────────────────────
-router.get('/', requireCoordinator, (req, res) => {
+router.get('/', verifyToken, requireCoordinator, (req, res) => {
     try {
         const db = getDb();
         let rows;
@@ -25,7 +36,7 @@ router.get('/', requireCoordinator, (req, res) => {
 });
 
 // ── POST /managed-projects ────────────────────────────────────────────────────
-router.post('/', requireCoordinator, (req, res) => {
+router.post('/', verifyToken, requireCoordinator, (req, res) => {
     try {
         const db = getDb();
         const { soc, name, customer, type_infra, type_software, type_infra_support, type_software_support, end_date } = req.body;
@@ -84,7 +95,7 @@ router.post('/', requireCoordinator, (req, res) => {
 });
 
 // ── PUT /managed-projects/:id ─────────────────────────────────────────────────
-router.put('/:id', requireCoordinator, (req, res) => {
+router.put('/:id', verifyToken, requireCoordinator, (req, res) => {
     try {
         const db = getDb();
         const { soc, name, customer, type_infra, type_software, type_infra_support, type_software_support, end_date } = req.body;

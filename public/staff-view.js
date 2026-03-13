@@ -1,6 +1,7 @@
 'use strict';
 
-const token = sessionStorage.getItem('st_token');
+// Use auth module functions
+const token = window.StaffTrackAuth.getToken();
 const userStr = sessionStorage.getItem('st_user');
 if (!token || !userStr) {
     location.href = '/login.html';
@@ -8,40 +9,6 @@ if (!token || !userStr) {
 }
 const authUser = JSON.parse(userStr);
 
-function renderNav(activeTab) {
-    const nav = document.getElementById('main-nav');
-    if (!nav) return;
-
-    let html = '';
-    if (authUser.role !== 'admin') html += `<a href="/" class="nav-link ${activeTab === 'my' ? 'active' : ''}">📝 My Submission</a>`;
-
-    html += `<a href="/projects.html" class="nav-link ${activeTab === 'projects' ? 'active' : ''}">🗂 Projects</a>`;
-    if (authUser.role === 'admin' || authUser.is_hr || authUser.is_coordinator || authUser.role === 'hr' || authUser.role === 'coordinator') {
-        html += `<a href="/skills.html" class="nav-link ${activeTab === 'skills' ? 'active' : ''}">📊 Skills</a>`;
-    }
-
-    html += `<a href="/orgchart.html" class="nav-link ${activeTab === 'orgchart' ? 'active' : ''}">🌳 Org Chart</a>`;
-
-    if (authUser.role === 'admin' || authUser.is_hr || authUser.role === 'hr') {
-        html += `<a href="/staff-view.html" class="nav-link ${activeTab === 'staff' ? 'active' : ''}">👥 All Staff</a>`;
-    }
-    if (authUser.role === 'admin') {
-        html += `<a href="/catalog.html" class="nav-link ${activeTab === 'catalog' ? 'active' : ''}">⚙️ Catalog</a>`;
-        html += `<a href="/system.html" class="nav-link ${activeTab === 'system' ? 'active' : ''}">💻 System</a>`;
-        html += `<a href="/admin.html" class="nav-link">🛡️ Admin</a>`;
-    }
-
-    html += `<div style="margin-left:auto;display:flex;align-items:center;gap:1rem">
-      <span style="font-size:0.8rem;color:var(--text-secondary)">${authUser.email}</span>
-      <button class="btn-secondary" id="btn-logout" style="padding:.3rem .6rem;font-size:0.75rem">Logout</button>
-    </div>`;
-    nav.innerHTML = html;
-
-    document.getElementById('btn-logout')?.addEventListener('click', () => {
-        sessionStorage.clear();
-        location.href = '/login.html';
-    });
-}
 
 // ── Data ──────────────────────────────────────────────────────────────────────
 let STAFF_REPORT = []; // from /api/reports/staff
@@ -190,6 +157,16 @@ function showDetailPanel(s, q = '') {
       <span>${s.department || '—'}</span>
       ${s.email ? `<span class="separator">·</span><a href="mailto:${s.email}" style="color:var(--accent-blue)">${s.email}</a>` : ''}
     </div>
+    ${s.managerName ? `<div style="font-size:.82rem;color:var(--text-secondary);margin:.25rem 0 .75rem">📎 Reports to: <strong>${s.managerName}</strong></div>` : ''}
+    ${(authUser.role === 'admin' || authUser.role === 'hr')
+            ? `<div style="margin-bottom:1rem">
+                 <a href="/cv-profile.html?email=${encodeURIComponent(s.email)}&tab=generate-cv"
+                    class="btn-secondary" style="display:inline-block;font-size:.82rem;padding:.35rem .8rem;text-decoration:none">
+                   🖨️ Generate CV
+                 </a>
+               </div>`
+            : ''
+        }
     <h4 style="margin:.75rem 0 .25rem;font-size:.82rem;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.05em">Projects (${s.projects.length})</h4>
     ${projects}
     <h4 style="margin:.75rem 0 .25rem;font-size:.82rem;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.05em">Skills (${s.skills.length})</h4>
@@ -203,7 +180,7 @@ function showDetailPanel(s, q = '') {
 async function init() {
     renderNav('staff');
     try {
-        const res = await fetch('/api/reports/staff');
+        const res = await window.StaffTrackAuth.apiFetch('/api/reports/staff');
         if (res.ok) STAFF_REPORT = await res.json();
     } catch (e) { console.error('Failed to load staff report', e); }
 

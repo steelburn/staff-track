@@ -1,6 +1,7 @@
 'use strict';
 
-const token = sessionStorage.getItem('st_token');
+// Use auth module functions
+const token = window.StaffTrackAuth.getToken();
 const userStr = sessionStorage.getItem('st_user');
 if (!token || !userStr) {
   location.href = '/login.html';
@@ -8,40 +9,6 @@ if (!token || !userStr) {
 }
 const authUser = JSON.parse(userStr);
 
-function renderNav(activeTab) {
-  const nav = document.getElementById('main-nav');
-  if (!nav) return;
-
-  let html = '';
-  if (authUser.role !== 'admin') html += `<a href="/" class="nav-link ${activeTab === 'my' ? 'active' : ''}">📝 My Submission</a>`;
-
-  html += `<a href="/projects.html" class="nav-link ${activeTab === 'projects' ? 'active' : ''}">🗂 Projects</a>`;
-  if (authUser.role === 'admin' || authUser.is_hr || authUser.is_coordinator || authUser.role === 'hr' || authUser.role === 'coordinator') {
-    html += `<a href="/skills.html" class="nav-link ${activeTab === 'skills' ? 'active' : ''}">📊 Skills</a>`;
-  }
-
-  html += `<a href="/orgchart.html" class="nav-link ${activeTab === 'orgchart' ? 'active' : ''}">🌳 Org Chart</a>`;
-
-  if (authUser.role === 'admin' || authUser.is_hr || authUser.role === 'hr') {
-    html += `<a href="/staff-view.html" class="nav-link ${activeTab === 'staff' ? 'active' : ''}">👥 All Staff</a>`;
-  }
-  if (authUser.role === 'admin') {
-    html += `<a href="/catalog.html" class="nav-link ${activeTab === 'catalog' ? 'active' : ''}">⚙️ Catalog</a>`;
-    html += `<a href="/system.html" class="nav-link ${activeTab === 'system' ? 'active' : ''}">💻 System</a>`;
-    html += `<a href="/admin.html" class="nav-link">🛡️ Admin</a>`;
-  }
-
-  html += `<div style="margin-left:auto;display:flex;align-items:center;gap:1rem">
-      <span style="font-size:0.8rem;color:var(--text-secondary)">${authUser.email}</span>
-      <button class="btn-secondary" id="btn-logout" style="padding:.3rem .6rem;font-size:0.75rem">Logout</button>
-    </div>`;
-  nav.innerHTML = html;
-
-  document.getElementById('btn-logout')?.addEventListener('click', () => {
-    sessionStorage.clear();
-    location.href = '/login.html';
-  });
-}
 
 // ── Data ──────────────────────────────────────────────────────────────────────
 let ALL_PROJECTS_CSV = []; // from extracted_projects.csv (full project list)
@@ -222,7 +189,7 @@ function render() {
       if (!confirm(`Are you sure you want to unassign ${s.name} from ${p.projectName || p.soc}?`)) return;
 
       try {
-        const res = await fetch(`/api/submissions/assign-project/${s.assignmentId}`, {
+        const res = await window.StaffTrackAuth.apiFetch(`/api/submissions/assign-project/${s.assignmentId}`, {
           method: 'DELETE',
           headers: { 'Authorization': `Bearer ${token}` }
         });
@@ -406,7 +373,7 @@ function showCreateProjectModal() {
     btn.disabled = true;
     btn.textContent = 'Creating...';
     try {
-      const res = await fetch('/api/managed-projects', {
+      const res = await window.StaffTrackAuth.apiFetch('/api/managed-projects', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify({
@@ -495,7 +462,7 @@ function showEditProjectModal(id, p) {
     btn.disabled = true;
     btn.textContent = 'Saving...';
     try {
-      const res = await fetch(`/api/managed-projects/${id}`, {
+      const res = await window.StaffTrackAuth.apiFetch(`/api/managed-projects/${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify({
@@ -613,7 +580,7 @@ function showAssignModal(project) {
     submitBtn.disabled = true;
 
     try {
-      const res = await fetch('/api/submissions/assign-project', {
+      const res = await window.StaffTrackAuth.apiFetch('/api/submissions/assign-project', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -696,7 +663,7 @@ function showEditAssignModal(staff, project) {
     submitBtn.textContent = 'Saving...';
 
     try {
-      const res = await fetch(`/api/submissions/assign-project/${staff.assignmentId}`, {
+      const res = await window.StaffTrackAuth.apiFetch(`/api/submissions/assign-project/${staff.assignmentId}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -722,16 +689,22 @@ function showEditAssignModal(staff, project) {
 // ── Load data ─────────────────────────────────────────────────────────────────
 async function loadData() {
   try {
-    const headers = { 'Authorization': `Bearer ${token}` };
-    const [projRes, managedRes, csvProjRes, csvStaffRes] = await Promise.all([
-      fetch('/api/reports/projects', { headers }),
-      fetch('/api/managed-projects', { headers }),
-      fetch('/api/catalog/projects'),
-      fetch('/api/catalog/staff')
+    // Only admin and coordinator roles can access /api/managed-projects
+    // (backend returns 403 for all others — HR, staff etc)
+    const canAccessManagedProjects = authUser.role === 'admin' || authUser.role === 'coordinator';
+
+    const [projRes, csvProjRes, csvStaffRes] = await Promise.all([
+      window.StaffTrackAuth.apiFetch('/api/reports/projects'),
+      window.StaffTrackAuth.apiFetch('/api/catalog/projects'),
+      window.StaffTrackAuth.apiFetch('/api/catalog/staff')
     ]);
 
+    if (canAccessManagedProjects) {
+      const managedRes = await window.StaffTrackAuth.apiFetch('/api/managed-projects');
+      if (managedRes.ok) MANAGED_PROJECTS = await managedRes.json();
+    }
+
     if (projRes.ok) API_PROJECTS = await projRes.json();
-    if (managedRes.ok) MANAGED_PROJECTS = await managedRes.json();
     if (csvProjRes.ok) ALL_PROJECTS_CSV = await csvProjRes.json();
     if (csvStaffRes.ok) STAFF_DATA = await csvStaffRes.json();
 

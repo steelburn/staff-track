@@ -2,11 +2,12 @@
 const express = require('express');
 const { v4: uuidv4 } = require('uuid');
 const { getDb } = require('../db');
+const { verifyToken, requireRole } = require('./auth');
 
 const router = express.Router();
 
 // ── GET /submissions — list all ──────────────────────────────────────────────
-router.get('/', (req, res) => {
+router.get('/', verifyToken, requireRole('admin', 'hr', 'coordinator'), (req, res) => {
     try {
         const db = getDb();
         const rows = db.prepare('SELECT id, staff_email, staff_name, created_at, updated_at FROM submissions ORDER BY updated_at DESC').all();
@@ -23,12 +24,49 @@ router.get('/', (req, res) => {
     }
 });
 
+// ── GET /submissions/me — fetch the calling user's own submission ──────────────
+router.get('/me', verifyToken, (req, res) => {
+    try {
+        const db = getDb();
+        const email = req.user.email.toLowerCase();
+        const sub = db.prepare('SELECT * FROM submissions WHERE LOWER(staff_email) = ? ORDER BY updated_at DESC LIMIT 1').get(email);
+        if (!sub) return res.status(404).json({ error: 'No submission found' });
+
+        const skills = db.prepare('SELECT skill, rating FROM submission_skills WHERE submission_id = ?').all(sub.id);
+        const projects = db.prepare('SELECT soc, project_name AS projectName, customer, role, end_date AS endDate FROM submission_projects WHERE submission_id = ?').all(sub.id);
+
+        res.json({
+            id: sub.id,
+            createdAt: sub.created_at,
+            updatedAt: sub.updated_at,
+            staffName: sub.staff_name,
+            staffData: {
+                email: sub.staff_email,
+                title: sub.title || '',
+                department: sub.department || '',
+                managerName: sub.manager_name || ''
+            },
+            editedFields: JSON.parse(sub.edited_fields || '[]'),
+            skills,
+            projects
+        });
+    } catch (err) {
+        console.error('GET /submissions/me error:', err);
+        res.status(500).json({ error: 'Failed to fetch submission' });
+    }
+});
+
 // ── GET /submissions/:id — fetch one ─────────────────────────────────────────
-router.get('/:id', (req, res) => {
+router.get('/:id', verifyToken, (req, res) => {
     try {
         const db = getDb();
         const sub = db.prepare('SELECT * FROM submissions WHERE id = ?').get(req.params.id);
         if (!sub) return res.status(404).json({ error: 'Not found' });
+
+        // Staff can only view their own submission
+        if (req.user.role === 'staff' && sub.staff_email !== req.user.email) {
+            return res.status(403).json({ error: 'Forbidden: You can only view your own submission' });
+        }
 
         const skills = db.prepare('SELECT skill, rating FROM submission_skills WHERE submission_id = ?').all(sub.id);
         const projects = db.prepare('SELECT soc, project_name AS projectName, customer, role, end_date AS endDate FROM submission_projects WHERE submission_id = ?').all(sub.id);
@@ -55,7 +93,7 @@ router.get('/:id', (req, res) => {
 });
 
 // ── POST /submissions — create new ───────────────────────────────────────────
-router.post('/', (req, res) => {
+router.post('/', verifyToken, (req, res) => {
     try {
         const db = getDb();
         const id = uuidv4();
@@ -69,14 +107,18 @@ router.post('/', (req, res) => {
 });
 
 // ── PUT /submissions/:id — update existing ───────────────────────────────────
-router.put('/:id', (req, res) => {
+router.put('/:id', verifyToken, (req, res) => {
     try {
         const db = getDb();
         const id = req.params.id;
-        const now = new Date().toISOString();
 
-        // Check if exists
-        const existing = db.prepare('SELECT created_at FROM submissions WHERE id = ?').get(id);
+        // Staff can only update their own submission
+        const existing = db.prepare('SELECT created_at, staff_email FROM submissions WHERE id = ?').get(id);
+        if (existing && req.user.role === 'staff' && existing.staff_email !== req.user.email) {
+            return res.status(403).json({ error: 'Forbidden: You can only update your own submission' });
+        }
+
+        const now = new Date().toISOString();
         const createdAt = existing ? existing.created_at : now;
 
         upsertSubmission(db, id, req.body, now, createdAt);
@@ -143,7 +185,7 @@ function upsertSubmission(db, id, body, updatedAt, createdAt) {
 }
 
 // ── POST /submissions/assign-project — add project to a staff member ──────────
-router.post('/assign-project', (req, res) => {
+router.post('/assign-project', verifyToken, requireRole('admin', 'hr', 'coordinator'), (req, res) => {
     try {
         const db = getDb();
         const { staffName, staffData, project } = req.body;
@@ -196,7 +238,7 @@ router.post('/assign-project', (req, res) => {
 });
 
 // ── PUT /submissions/assign-project/:assignId — edit project assignment ───────────────────
-router.put('/assign-project/:assignId', (req, res) => {
+router.put('/assign-project/:assignId', verifyToken, requireRole('admin', 'hr', 'coordinator'), (req, res) => {
     try {
         const db = getDb();
         const { role, endDate } = req.body;
@@ -220,7 +262,7 @@ router.put('/assign-project/:assignId', (req, res) => {
 });
 
 // ── DELETE /submissions/assign-project/:assignId — unassign project ──────────────────────
-router.delete('/assign-project/:assignId', (req, res) => {
+router.delete('/assign-project/:assignId', verifyToken, requireRole('admin', 'hr', 'coordinator'), (req, res) => {
     try {
         const db = getDb();
         const assignId = req.params.assignId;
@@ -243,7 +285,7 @@ router.delete('/assign-project/:assignId', (req, res) => {
 });
 
 // ── DELETE /submissions/:id ───────────────────────────────────────────────────
-router.delete('/:id', (req, res) => {
+router.delete('/:id', verifyToken, requireRole('admin', 'hr'), (req, res) => {
     try {
         const db = getDb();
         // Cascade delete will handle skills/projects

@@ -1,13 +1,15 @@
 'use strict';
 const express = require('express');
 const { getDb } = require('../db');
+const { verifyToken, requireRole } = require('./auth');
 
 const router = express.Router();
 
+// All report routes require authentication and a reporting role
+const requireReporter = [verifyToken, requireRole('admin', 'hr', 'coordinator')];
+
 // ── GET /reports/projects ─────────────────────────────────────────────────────
-// Returns every unique project found in submissions, with the list of staff
-// assigned to it.
-router.get('/projects', (req, res) => {
+router.get('/projects', requireReporter, (req, res) => {
     try {
         const db = getDb();
 
@@ -59,12 +61,11 @@ router.get('/projects', (req, res) => {
 });
 
 // ── GET /reports/staff ────────────────────────────────────────────────────────
-// Returns all submissions with staff info and their project list.
-router.get('/staff', (req, res) => {
+router.get('/staff', requireReporter, (req, res) => {
     try {
         const db = getDb();
 
-        const subs = db.prepare('SELECT id, staff_email, staff_name, title, department, updated_at, updated_by_staff FROM submissions ORDER BY staff_name').all();
+        const subs = db.prepare('SELECT id, staff_email, staff_name, title, department, manager_name, updated_at, updated_by_staff FROM submissions ORDER BY staff_name').all();
         const skills = db.prepare('SELECT submission_id, skill, rating FROM submission_skills').all();
         const projects = db.prepare(`
           SELECT 
@@ -103,6 +104,7 @@ router.get('/staff', (req, res) => {
             title: row.title || '',
             department: row.department || '',
             email: row.staff_email || '',
+            managerName: row.manager_name || '',
             updatedAt: row.updated_at,
             updatedByStaff: !!row.updated_by_staff,
             skills: skillMap.get(row.id) || [],
@@ -117,8 +119,7 @@ router.get('/staff', (req, res) => {
 });
 
 // ── GET /reports/skills ───────────────────────────────────────────────────────
-// Returns all unique skills with the list of staff who possess them.
-router.get('/skills', (req, res) => {
+router.get('/skills', requireReporter, (req, res) => {
     try {
         const db = getDb();
 
@@ -169,8 +170,7 @@ router.get('/skills', (req, res) => {
 });
 
 // ── GET /reports/staff-search ─────────────────────────────────────────────────
-// Returns staff matching specific skill criteria
-router.get('/staff-search', (req, res) => {
+router.get('/staff-search', requireReporter, (req, res) => {
     try {
         const { skills } = req.query; // Expects JSON array string: [{"name":"Python","minRating":3}]
         let filterSkills = [];
