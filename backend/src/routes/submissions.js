@@ -56,6 +56,44 @@ router.get('/me', verifyToken, (req, res) => {
     }
 });
 
+// ── GET /submissions/email/:email — fetch by user email ──────────────
+router.get('/email/:email', verifyToken, (req, res) => {
+    try {
+        const db = getDb();
+        const email = req.params.email.toLowerCase();
+        
+        // Non-staff can view any. Staff can only view their own.
+        if (req.user.role === 'staff' && email !== req.user.email.toLowerCase()) {
+            return res.status(403).json({ error: 'Forbidden: You can only view your own submission' });
+        }
+
+        const sub = db.prepare('SELECT * FROM submissions WHERE LOWER(staff_email) = ? ORDER BY updated_at DESC LIMIT 1').get(email);
+        if (!sub) return res.status(404).json({ error: 'No submission found' });
+
+        const skills = db.prepare('SELECT skill, rating FROM submission_skills WHERE submission_id = ?').all(sub.id);
+        const projects = db.prepare('SELECT soc, project_name AS projectName, customer, role, end_date AS endDate FROM submission_projects WHERE submission_id = ?').all(sub.id);
+
+        res.json({
+            id: sub.id,
+            createdAt: sub.created_at,
+            updatedAt: sub.updated_at,
+            staffName: sub.staff_name,
+            staffData: {
+                email: sub.staff_email,
+                title: sub.title || '',
+                department: sub.department || '',
+                managerName: sub.manager_name || ''
+            },
+            editedFields: JSON.parse(sub.edited_fields || '[]'),
+            skills,
+            projects
+        });
+    } catch (err) {
+        console.error('GET /submissions/email/:email error:', err);
+        res.status(500).json({ error: 'Failed to fetch submission' });
+    }
+});
+
 // ── GET /submissions/:id — fetch one ─────────────────────────────────────────
 router.get('/:id', verifyToken, (req, res) => {
     try {

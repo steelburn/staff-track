@@ -27,6 +27,7 @@ services:
       - PORT=3000
       - AUTH_SERVICE_URL=https://appcore.beesuite.app
       - AUTH_SERVICE_ENDPOINT=/api/auth/login
+      - JWT_SECRET=dev_secret_change_me_in_prod
     networks:
       - stafftrack
     restart: unless-stopped

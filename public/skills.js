@@ -1,19 +1,7 @@
 'use strict';
 
-// Use auth module functions
-const token = window.StaffTrackAuth.getToken();
-const userStr = sessionStorage.getItem('st_user');
-if (!token || !userStr) {
-    location.href = '/login.html';
-    throw new Error('Not logged in');
-}
-const authUser = JSON.parse(userStr);
-
-// Security Check: Only Admin, HR, Coordinator
-if (authUser.role !== 'admin' && !authUser.is_hr && !authUser.is_coordinator && authUser.role !== 'hr' && authUser.role !== 'coordinator') {
-    location.href = '/';
-    throw new Error('Unauthorized');
-}
+const authUser = requireAuth();
+requirePermission(authUser, ['admin', 'hr', 'coordinator']);
 
 
 // ── State ─────────────────────────────────────────────────────────────────────

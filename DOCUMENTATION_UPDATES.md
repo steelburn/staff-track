@@ -15,6 +15,12 @@
 ### 3. docs/IMPLEMENTATION_PLANS.md
 - Marked Skill Search & Consolidation (Features 6 & 8) as ✅ COMPLETED
 
+### 4. Latest Updates (March 2026)
+- **Gantt Chart Performance**: Implemented canvas virtualization for smooth rendering of large datasets.
+- **CV Template Editor**: Added "Show/Hide" toggles for Markdown and CSS columns to maximize preview area.
+- **Staff Management**: Enabled staff removal and fixed CV generation to use correct user profile.
+- **Project Coordination**: Coordinators can now edit projects and view filtered Gantt charts.
+
 ## Current Project Status
 
 ### Completed Features

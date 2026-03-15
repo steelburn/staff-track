@@ -1,24 +1,10 @@
 'use strict';
 
 // Use auth module functions
-const token = window.StaffTrackAuth.getToken();
-const userStr = sessionStorage.getItem('st_user');
 
-if (!token || !userStr) {
-    location.href = '/login.html';
-    throw new Error('Not logged in');
-}
 
-let authUser;
-try {
-    authUser = JSON.parse(userStr);
-    if (authUser.role !== 'admin') {
-        location.href = '/'; // kick non-admins out
-        throw new Error('Not admin');
-    }
-} catch {
-    location.href = '/login.html';
-}
+const authUser = requireAuth();
+requireAdmin(authUser);
 
 
 // ── Helper ───────────────────────────────────────────────────────────────────
@@ -113,6 +99,8 @@ async function initSkillConsolidation() {
     setupSkillActions();
 }
 
+let skillSearchQ = '';
+
 async function loadCatalogSkills() {
     const tbody = document.getElementById('skills-catalog-tbody');
     if (!tbody) return;
@@ -132,13 +120,20 @@ function renderCatalogSkills() {
     const tbody = document.getElementById('skills-catalog-tbody');
     if (!tbody) return;
 
-    if (!catalogSkills.length) {
-        tbody.innerHTML = `<tr><td colspan="3" style="padding:1rem;color:var(--text-muted);text-align:center">No skills found.</td></tr>`;
+    let list = catalogSkills;
+    const q = skillSearchQ.toLowerCase();
+
+    if (q) {
+        list = list.filter(s => (s.name || '').toLowerCase().includes(q));
+    }
+
+    if (!list.length) {
+        tbody.innerHTML = `<tr><td colspan="3" style="padding:1rem;color:var(--text-muted);text-align:center">${skillSearchQ ? 'No matching skills found.' : 'No skills found.'}</td></tr>`;
         updateSkillButtons();
         return;
     }
 
-    tbody.innerHTML = catalogSkills.map((s, i) => `
+    tbody.innerHTML = list.map((s, i) => `
         <tr style="border-bottom:1px solid var(--border)">
             <td style="padding:.5rem"><input type="checkbox" class="chk-skill" data-name="${s.name.replace(/"/g, '&quot;')}"></td>
             <td style="padding:.5rem;font-weight:500">${s.name}</td>
@@ -166,6 +161,50 @@ function updateSkillButtons() {
 }
 
 function setupSkillActions() {
+    // Search
+    document.getElementById('skill-search')?.addEventListener('input', e => {
+        skillSearchQ = e.target.value.trim();
+        renderCatalogSkills();
+    });
+
+    // Propose Merges
+    document.getElementById('btn-propose-merges')?.addEventListener('click', () => {
+        const map = new Map(); // lowercase -> array of names
+        catalogSkills.forEach(s => {
+            const low = s.name.toLowerCase();
+            if (!map.has(low)) map.set(low, []);
+            map.get(low).push(s.name);
+        });
+
+        const toCheck = new Set();
+        let proposedGroups = 0;
+
+        for (const [low, names] of map.entries()) {
+            if (names.length > 1) {
+                names.forEach(n => toCheck.add(n));
+                proposedGroups++;
+            }
+        }
+
+        if (proposedGroups === 0) {
+            showToast('No case-based duplicates found.');
+            return;
+        }
+
+        let checkedCount = 0;
+        document.querySelectorAll('.chk-skill').forEach(chk => {
+            if (toCheck.has(chk.dataset.name)) {
+                chk.checked = true;
+                checkedCount++;
+            } else {
+                chk.checked = false;
+            }
+        });
+
+        updateSkillButtons();
+        showToast(`Proposed ${proposedGroups} groups for merging (${checkedCount} skills selected)`);
+    });
+
     document.getElementById('btn-rename-skill')?.addEventListener('click', async () => {
         const sel = getSelectedSkills();
         if (sel.length !== 1) return;

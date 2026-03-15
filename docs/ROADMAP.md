@@ -262,9 +262,10 @@ Plus schema changes to `submission_projects`: add `start_date`, `description`, `
 |:---:|:---|:---:|:---|
 | **1** | 🔍 Skill Search/Sort + 🧩 Skill Consolidation | 🟢 Low | ✅ Completed |
 | **2** | 📄 CV Generation (MVP) | 🟢 Low | ✅ Completed (Profile Page + Preview + PDF Export) |
-| **3** | 📥 Exports (CV + Reports) | 🟡 Medium | Tied to CV Gen phase 1c, plus HR/mgmt reports |
+| **3** | 📉 Gantt Chart Performance | 🟢 Low | ✅ Completed (Canvas Virtualization + Optimization) |
 | **4** | 🔐 Access Control | 🟢 Low | ✅ Completed (JWT, refresh tokens, audit log, 6 roles) |
-| **5** | 🔗 External Integration | 🟡 Medium | DreamFactory + REST API adapters |
+| **5** | 📥 Exports (CV + Reports) | 🟡 Medium | Tied to CV Gen phase 1c, plus HR/mgmt reports |
+| **6** | 🔗 External Integration | 🟡 Medium | DreamFactory + REST API adapters |
 | — | 🏢 Org Chart Enhancement | — | ⏸️ On hold |
 | — | 🔌 Retrofit | — | ⏸️ On hold |
 

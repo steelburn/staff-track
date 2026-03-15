@@ -334,7 +334,12 @@
                 <label style="display:flex; align-items:center; gap:0.5rem; font-size:0.85rem; cursor:pointer;">
                     <input type="checkbox" id="tmpl-is-default" style="width:auto; margin:0;"> Set as Default
                 </label>
-                <div style="margin-left:auto; display:flex; gap:0.5rem; flex-wrap:wrap;">
+                <div style="margin-left:auto; display:flex; gap:0.5rem; flex-wrap:wrap; align-items:center;">
+                    <div class="toggle-group" style="display:flex; gap:0.25rem; margin-right:0.5rem; background:var(--bg-elevated); padding:0.25rem; border-radius:6px; border:1px solid var(--border);">
+                        <button class="btn-icon btn-toggle-col" data-col="markdown" title="Toggle Markdown (M)" style="width:32px; height:32px;">📝</button>
+                        <button class="btn-icon btn-toggle-col" data-col="css" title="Toggle CSS (C)" style="width:32px; height:32px;">🎨</button>
+                        <button class="btn-icon btn-toggle-col" data-col="preview" title="Toggle Preview (P)" style="width:32px; height:32px;">👁️</button>
+                    </div>
                     <button class="btn-primary" id="btn-save-template">💾 Save</button>
                     <button class="btn-secondary" id="btn-reset-template">↺ Revert</button>
                     <button class="btn-remove" id="btn-delete-template" style="width:auto; padding:0.45rem 0.9rem;">🗑
@@ -344,17 +349,21 @@
 
             <!-- 3-column: Markdown | CSS | Live Preview -->
             <div class="three-col-editor">
-                <div class="editor-area">
-                    <label for="tmpl-markdown">📝 Markdown Template</label>
+                <div class="editor-area" id="col-markdown">
+                    <label for="tmpl-markdown">
+                        <span>📝 Markdown Template</span>
+                    </label>
                     <textarea id="tmpl-markdown" class="code-textarea" spellcheck="false"
                         placeholder="# {{name}}&#10;&#10;**{{title}}** | {{department}}&#10;&#10;---&#10;&#10;## Summary&#10;&#10;{{summary}}"></textarea>
                 </div>
-                <div class="editor-area">
-                    <label for="tmpl-css">🎨 CSS Styles</label>
+                <div class="editor-area" id="col-css">
+                    <label for="tmpl-css">
+                        <span>🎨 CSS Styles</span>
+                    </label>
                     <textarea id="tmpl-css" class="code-textarea" spellcheck="false"
                         placeholder="body { font-family: sans-serif; padding: 32px; }&#10;h1 { color: #1a1a2e; }"></textarea>
                 </div>
-                <div class="editor-area">
+                <div class="editor-area" id="col-preview">
                     <label>👁 Live Preview <span
                             style="font-size:0.68rem; color:var(--text-muted); font-weight:400;">(sample data, updates
                             as you type)</span></label>
@@ -364,9 +373,9 @@
         </div>
     </template>
 
-    <script src="auth.js"></script>
-    <script src="menu.js"></script>
-    <script src="cv-template-editor.js"></script>
+    <script src="auth.js?v=7"></script>
+    <script src="menu.js?v=7"></script>
+    <script src="cv-template-editor.js?v=7"></script>
 </body>
 
 </html>

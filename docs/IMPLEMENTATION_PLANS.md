@@ -2,7 +2,43 @@
 
 This document provides technical blueprints for upcoming features, ensuring consistency with the project's architecture.
 
-## 1. ApexCharts Integration for Visual Analytics
+## 1. Gantt Chart Optimization — ✅ COMPLETED
+
+### Objective
+Resolve performance issues with the Gantt Chart, specifically addressing rendering latency for large datasets.
+
+### Technical Implementation
+- **Canvas Virtualization**: Implemented a virtualized rendering system that only draws bars within the visible viewport.
+- **Efficient Recalculations**: Optimized date-to-pixel calculations and rendering loops.
+- **Viewport Fixes**: Ensured the Gantt chart scales correctly with large numbers of users.
+
+---
+
+## 2. CV Template Editor UI Enhancements — ✅ COMPLETED
+
+### Objective
+Optimize the UI for CV Template editing by allowing more space for live preview.
+
+### Technical Implementation
+- **Column Toggling**: Added "Show/Hide" buttons for Markdown and CSS sections.
+- **Full-Width Preview**: The Live Preview pane expands when editor columns are hidden.
+
+---
+
+## 3. Staff & CV Management Fixes — ✅ COMPLETED
+
+### Objective
+Address several functional issues in staff and CV workflows.
+
+### Technical Implementation
+- **Staff Removal**: Added functionality to remove staff members in the staff view.
+- **Contextual CV Generation**: Fixed CV generation to use the selected user's profile instead of the logged-in user's.
+- **Project Editing**: Enabled project information editing for coordinators and admins.
+- **Filtered Gantt Views**: Allowed coordinators to view filtered Gantt charts of their projects.
+
+---
+
+## 4. ApexCharts Integration for Visual Analytics (Future)
 
 ### Objective
 Provide a visual dashboard on the `staff-view.html` page using ApexCharts.
@@ -15,7 +51,7 @@ Provide a visual dashboard on the `staff-view.html` page using ApexCharts.
 
 ---
 
-## 2. Server-Side Pagination
+## 5. Server-Side Pagination (Future)
 
 ### Objective
 Improve performance for the Skills and Staff View pages.
@@ -35,7 +71,7 @@ Improve performance for the Skills and Staff View pages.
 
 ---
 
-## 3. Skill Autocomplete Enhancement
+## 6. Skill Autocomplete Enhancement (Future)
 
 ### Objective
 Standardize skill naming by suggesting values from the `skills_catalog`.

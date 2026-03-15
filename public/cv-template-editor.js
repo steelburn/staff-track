@@ -1,10 +1,8 @@
 'use strict';
 
-const token = window.StaffTrackAuth.getToken();
-const userStr = sessionStorage.getItem('st_user');
-if (!token || !userStr) { location.href = '/login.html'; throw new Error('Not logged in'); }
-const authUser = JSON.parse(userStr);
-if (authUser.role !== 'admin') { location.href = '/'; throw new Error('Admin only'); }
+const authUser = requireAuth();
+requireAdmin(authUser);
+
 
 function showToast(msg, isError = false) {
     const t = document.createElement('div');
@@ -297,7 +295,24 @@ function renderEditor(tmpl) {
     });
 
     // Auto-render preview immediately
-    setTimeout(renderPreview, 50);
+    setTimeout(() => {
+        renderPreview();
+        // Initialize toggle button states based on current visibility (defaults to visible)
+        document.querySelectorAll('.btn-toggle-col').forEach(btn => {
+            const col = btn.dataset.col;
+            const colEl = document.getElementById(`col-${col}`);
+            const isVisible = !colEl || colEl.style.display !== 'none';
+            if (isVisible) {
+                btn.style.background = 'var(--accent-blue)';
+                btn.style.color = '#fff';
+                btn.style.opacity = '1';
+            } else {
+                btn.style.background = 'transparent';
+                btn.style.color = 'var(--text-primary)';
+                btn.style.opacity = '0.5';
+            }
+        });
+    }, 50);
 }
 
 async function saveTemplate() {
@@ -449,9 +464,64 @@ function wireToggles() {
     document.getElementById('btn-new-template')?.addEventListener('click', newTemplate);
 }
 
+function wireColumnToggles() {
+    document.addEventListener('click', e => {
+        const btn = e.target.closest('.btn-toggle-col');
+        if (!btn) return;
+
+        const col = btn.dataset.col;
+        const colEl = document.getElementById(`col-${col}`);
+        if (!colEl) return;
+
+        const isHidden = colEl.style.display === 'none';
+        colEl.style.display = isHidden ? '' : 'none';
+        
+        // Update button visual state
+        if (isHidden) {
+            btn.classList.remove('inactive');
+            btn.style.opacity = '1';
+            btn.style.background = 'var(--accent-blue)';
+            btn.style.color = '#fff';
+        } else {
+            btn.classList.add('inactive');
+            btn.style.opacity = '0.5';
+            btn.style.background = 'transparent';
+            btn.style.color = 'var(--text-primary)';
+        }
+
+        updateEditorGrid();
+    });
+}
+
+function updateEditorGrid() {
+    const container = document.querySelector('.three-col-editor');
+    if (!container) return;
+
+    const colMd = document.getElementById('col-markdown');
+    const colCss = document.getElementById('col-css');
+    const colPreview = document.getElementById('col-preview');
+
+    const mdVisible = colMd && colMd.style.display !== 'none';
+    const cssVisible = colCss && colCss.style.display !== 'none';
+    const previewVisible = colPreview && colPreview.style.display !== 'none';
+
+    let columns = [];
+    if (mdVisible) columns.push('1.2fr');
+    if (cssVisible) columns.push('1fr');
+    if (previewVisible) columns.push('1.5fr');
+
+    if (columns.length === 0) {
+        container.style.display = 'none';
+    } else {
+        container.style.display = 'grid';
+        container.style.gridTemplateColumns = columns.join(' ');
+    }
+}
+
 document.addEventListener('DOMContentLoaded', () => {
     renderNav('cv-template-editor');
     wireToggles();
+    wireColumnToggles();
     wireVarChips();
     loadTemplates();
 });

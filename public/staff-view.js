@@ -1,15 +1,6 @@
 'use strict';
 
-// Use auth module functions
-const token = window.StaffTrackAuth.getToken();
-const userStr = sessionStorage.getItem('st_user');
-if (!token || !userStr) {
-    location.href = '/login.html';
-    throw new Error('Not logged in');
-}
-const authUser = JSON.parse(userStr);
-
-
+const authUser = requireAuth();
 // ── Data ──────────────────────────────────────────────────────────────────────
 let STAFF_REPORT = []; // from /api/reports/staff
 
@@ -159,11 +150,16 @@ function showDetailPanel(s, q = '') {
     </div>
     ${s.managerName ? `<div style="font-size:.82rem;color:var(--text-secondary);margin:.25rem 0 .75rem">📎 Reports to: <strong>${s.managerName}</strong></div>` : ''}
     ${(authUser.role === 'admin' || authUser.role === 'hr')
-            ? `<div style="margin-bottom:1rem">
+            ? `<div style="margin-bottom:1rem; display:flex; gap:0.5rem; align-items:center;">
                  <a href="/cv-profile.html?email=${encodeURIComponent(s.email)}&tab=generate-cv"
                     class="btn-secondary" style="display:inline-block;font-size:.82rem;padding:.35rem .8rem;text-decoration:none">
                    🖨️ Generate CV
                  </a>
+                 ${authUser.role === 'admin' ? `
+                    <button id="btn-remove-staff" class="btn-danger" style="font-size:.82rem;padding:.35rem .8rem;border:none;border-radius:4px;cursor:pointer">
+                        🗑️ Remove Staff
+                    </button>
+                 ` : ''}
                </div>`
             : ''
         }
@@ -173,6 +169,35 @@ function showDetailPanel(s, q = '') {
     ${skills}`;
 
     panel.style.display = 'block';
+
+    // Event listener for Remove Staff button (Admin only)
+    if (authUser.role === 'admin') {
+        const removeBtn = document.getElementById('btn-remove-staff');
+        if (removeBtn) {
+            removeBtn.addEventListener('click', async (e) => {
+                e.preventDefault();
+                const confirmMsg = `Are you sure you want to remove ${s.staffName} (${s.email})?\n\nThis will delete their staff catalog entry. Note: Submissions and CV profiles are kept but the user will no longer appear in the staff list.`;
+                if (!confirm(confirmMsg)) return;
+
+                try {
+                    const res = await window.StaffTrackAuth.apiFetch(`/api/admin/staff/${encodeURIComponent(s.email)}`, {
+                        method: 'DELETE'
+                    });
+                    if (res.ok) {
+                        alert('Staff member removed successfully');
+                        location.reload();
+                    } else {
+                        const err = await res.json();
+                        alert('Error: ' + (err.error || 'Failed to remove staff member'));
+                    }
+                } catch (err) {
+                    console.error('Remove staff error:', err);
+                    alert('Failed to reach server');
+                }
+            });
+        }
+    }
+
     panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
 

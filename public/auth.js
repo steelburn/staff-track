@@ -46,30 +46,43 @@ window.StaffTrackAuth = {
     },
 
     // ── API Helper ──────────────────────────────────────────────────────────────
+    _refreshPromise: null,
+
     refreshToken: async function() {
+        if (this._refreshPromise) return this._refreshPromise;
+
         var refreshToken = this.getRefreshToken();
         if (!refreshToken) {
             return null;
         }
 
-        try {
-            var res = await fetch('/api/auth/refresh', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ refreshToken: refreshToken })
-            });
+        console.log('Refreshing token...');
+        this._refreshPromise = (async () => {
+            try {
+                var res = await fetch('/api/auth/refresh', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ refreshToken: refreshToken })
+                });
 
-            if (!res.ok) {
+                if (!res.ok) {
+                    console.error('Token refresh request failed');
+                    return null;
+                }
+
+                var data = await res.json();
+                console.log('Token refresh successful');
+                this.setTokens(data.accessToken, null, data.user);
+                return data.accessToken;
+            } catch (err) {
+                console.error('Token refresh failed:', err);
                 return null;
+            } finally {
+                this._refreshPromise = null;
             }
+        })();
 
-            var data = await res.json();
-            this.setTokens(data.accessToken, null, data.user);
-            return data.accessToken;
-        } catch (err) {
-            console.error('Token refresh failed:', err);
-            return null;
-        }
+        return this._refreshPromise;
     },
 
     apiFetch: async function(url, options) {
@@ -77,9 +90,11 @@ window.StaffTrackAuth = {
         
         // Check if token needs refresh
         if (this.isTokenExpired()) {
+            console.log('Token expired or missing, attempting refresh for:', url);
             var newToken = await this.refreshToken();
             if (!newToken) {
                 // Token refresh failed, redirect to login
+                console.warn('Token refresh failed, redirecting to login');
                 this.clearTokens();
                 location.href = '/login.html';
                 throw new Error('Session expired. Please log in again.');
@@ -90,10 +105,17 @@ window.StaffTrackAuth = {
         if (!options.headers) {
             options.headers = {};
         }
-        if (!options.headers.Authorization) {
-            options.headers.Authorization = 'Bearer ' + this.getToken();
+        
+        // Case-insensitive check for Authorization header
+        const hasAuth = Object.keys(options.headers).some(k => k.toLowerCase() === 'authorization');
+        
+        if (!hasAuth) {
+            const token = this.getToken();
+            console.log('Adding Auth Header for URL:', url, 'Token exists:', !!token);
+            options.headers['Authorization'] = 'Bearer ' + token;
         }
 
+        console.log('Final Fetch Headers for:', url, options.headers);
         return fetch(url, options);
     },
 
@@ -102,10 +124,6 @@ window.StaffTrackAuth = {
         var token = this.getToken();
         var userStr = sessionStorage.getItem('st_user');
 
-        if (!token || !userStr) {
-            location.href = '/login.html';
-            throw new Error('Not logged in');
-        }
 
         try {
             var user = JSON.parse(userStr);

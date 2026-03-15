@@ -18,12 +18,15 @@ document.getElementById('btn-login').addEventListener('click', async () => {
 
     try {
         // Encode password as Base64 for external auth service
+        console.log('Login effort - password length:', password.length);
         const passwordBase64 = btoa(password);
+        const body = JSON.stringify({ email, password: passwordBase64 });
+        console.log('JSON payload to be sent:', body);
         
         const res = await fetch('/api/auth/login', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ email, password: passwordBase64 })
+            body: body
         });
 
         const data = await res.json();

@@ -98,7 +98,10 @@
                 <span class="view-subtitle">Merge duplicates, rename, or delete skills across all staff
                     submissions.</span>
             </div>
-            <div class="view-toolbar-right" style="display:flex;gap:0.5rem">
+            <div class="view-toolbar-right" style="display:flex;gap:0.5rem;align-items:center">
+                <input type="text" id="skill-search" placeholder="🔍 Search skills…" class="search-input" style="width:200px; margin-right:0.5rem">
+                <button class="btn-secondary" id="btn-propose-merges">🔎 Propose Merges</button>
+                <div style="width:1px; height:24px; background:var(--border); margin:0 0.5rem"></div>
                 <button class="btn-secondary" id="btn-rename-skill" disabled>✏️ Rename 1</button>
                 <button class="btn-primary" id="btn-merge-skills" disabled>🔗 Merge N &rarr; 1</button>
                 <button class="btn-secondary" id="btn-split-skill" disabled>✂️ Split 1 &rarr; N</button>
@@ -127,9 +130,9 @@
 
     </main>
 
-    <script src="auth.js"></script>
-    <script src="menu.js"></script>
-    <script src="system.js"></script>
+    <script src="auth.js?v=7"></script>
+    <script src="menu.js?v=7"></script>
+    <script src="system.js?v=7"></script>
 </body>
 
 </html>

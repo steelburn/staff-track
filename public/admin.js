@@ -1,24 +1,7 @@
 'use strict';
 
-// Use auth module functions
-const token = window.StaffTrackAuth.getToken();
-const userStr = sessionStorage.getItem('st_user');
-
-if (!token || !userStr) {
-    location.href = '/login.html';
-    throw new Error('Not logged in');
-}
-
-let user;
-try {
-    user = JSON.parse(userStr);
-    if (user.role !== 'admin') {
-        location.href = '/'; // kick non-admins out
-        throw new Error('Not admin');
-    }
-} catch {
-    location.href = '/login.html';
-}
+const authUser = requireAuth();
+requireAdmin(authUser);
 
 
 // ── Helper ───────────────────────────────────────────────────────────────────

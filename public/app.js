@@ -1,13 +1,6 @@
 'use strict';
 
 // Use auth module functions
-const token = window.StaffTrackAuth.getToken();
-const userStr = sessionStorage.getItem('st_user');
-if (!token || !userStr) {
-    location.href = '/login.html';
-    throw new Error('Not logged in');
-}
-const authUser = JSON.parse(userStr);
 
 // ── AppState ──────────────────────────────────────────────────────────────────
 const AppState = {
@@ -641,8 +634,12 @@ async function init() {
         btn.textContent = '⏳ Loading…';
         btn.disabled = true;
         try {
-            const res = await window.StaffTrackAuth.apiFetch('/api/submissions');
-            const all = res.ok ? await res.json() : [];
+            const res = await window.StaffTrackAuth.apiFetch(authUser.role === 'staff' ? '/api/submissions/me' : '/api/submissions');
+            let all = [];
+            if (res.ok) {
+                const data = await res.json();
+                all = Array.isArray(data) ? data : [data];
+            }
             if (!all.length) {
                 showToast('No saved submissions found');
             } else {
@@ -672,8 +669,12 @@ async function init() {
         const identityName = dbUser ? dbUser.name : authUser.email;
 
         try {
-            const res = await window.StaffTrackAuth.apiFetch('/api/submissions');
-            const all = res.ok ? await res.json() : [];
+            const res = await window.StaffTrackAuth.apiFetch(authUser.role === 'staff' ? '/api/submissions/me' : '/api/submissions');
+            let all = [];
+            if (res.ok) {
+                const data = await res.json();
+                all = Array.isArray(data) ? data : [data];
+            }
             const mySubs = all.filter(s => s.staffName.toLowerCase() === identityName.toLowerCase());
 
             if (mySubs.length > 0) {

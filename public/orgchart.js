@@ -1,13 +1,6 @@
 'use strict';
 
-// Use auth module functions
-const token = window.StaffTrackAuth.getToken();
-const userStr = sessionStorage.getItem('st_user');
-if (!token || !userStr) {
-    location.href = '/login.html';
-    throw new Error('Not logged in');
-}
-const authUser = JSON.parse(userStr);
+const authUser = requireAuth();
 
 
 document.addEventListener('DOMContentLoaded', async () => {
@@ -111,11 +104,23 @@ function buildFlatData(staff) {
     // A node is kept if:
     // 1. It has a parent (it's part of a branch)
     // 2. OR it is a root AND it has children (it's the start of a branch)
-    const filteredNodes = nodes.filter(n => {
+    let filteredNodes = nodes.filter(n => {
         const hasParent = !!n.pid;
         const hasChildren = parentIds.has(n.id);
         return hasParent || hasChildren;
     });
+
+    // BalkanJS Trial Limit: 200 nodes
+    // If still > 195 (leave buffer), sort and slice
+    if (filteredNodes.length > 195) {
+        console.warn(`OrgChart: ${filteredNodes.length} nodes exceeds trial limit. Capping to 195.`);
+        // Prioritize roots and those with more children
+        filteredNodes = filteredNodes.sort((a, b) => {
+            const aHasChildren = parentIds.has(a.id) ? 1 : 0;
+            const bHasChildren = parentIds.has(b.id) ? 1 : 0;
+            return bHasChildren - aHasChildren;
+        }).slice(0, 195);
+    }
 
     // Handle multiple roots by creating a virtual top node if needed
     const roots = filteredNodes.filter(n => !n.pid);
@@ -129,5 +134,6 @@ function buildFlatData(staff) {
         roots.forEach(r => r.pid = virtualRootId);
     }
 
+    console.log(`OrgChart: Final node count = ${filteredNodes.length}`);
     return filteredNodes;
 }

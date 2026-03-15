@@ -51,6 +51,7 @@ function logAuthEvent(db, email, action, success, req) {
 function verifyToken(req, res, next) {
     const authHeader = req.headers.authorization;
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
+        console.log(`${new Date().toISOString()} Auth failed: No Bearer token provided in header`);
         return res.status(401).json({ error: 'No token provided' });
     }
 
@@ -64,6 +65,7 @@ function verifyToken(req, res, next) {
             .get(tokenHash, new Date().toISOString());
 
         if (!tokenRecord) {
+            console.log(`${new Date().toISOString()} Auth failed: Token not found, revoked, or expired. Hash: ${tokenHash}`);
             return res.status(401).json({ error: 'Invalid or expired token' });
         }
 
@@ -83,7 +85,7 @@ function verifyToken(req, res, next) {
         };
         next();
     } catch (err) {
-        console.error('Token verification error:', err);
+        console.error(`${new Date().toISOString()} Token verification error (JWT):`, err.message);
         return res.status(401).json({ error: 'Invalid token' });
     }
 }
@@ -105,6 +107,13 @@ function requireRole(...allowedRoles) {
 router.post('/login', async (req, res) => {
     try {
         const { email, password } = req.body;
+        console.log(`${new Date().toISOString()} Login attempt:`, { 
+            email, 
+            receivedKeys: Object.keys(req.body),
+            passwordType: typeof password,
+            passwordLength: password ? password.length : 0,
+            passwordProvided: !!password 
+        });
         const db = getDb();
 
         if (!email) {

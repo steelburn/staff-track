@@ -17,6 +17,13 @@ const PORT = process.env.PORT || 3000;
 app.use(helmet());
 app.use(express.json({ limit: '1mb' }));
 
+// Request logger for debugging
+app.use((req, res, next) => {
+    console.log(`${new Date().toISOString()} ${req.method} ${req.url}`, req.body);
+    next();
+});
+
+
 // Serve uploaded files (photos, proofs) from the persistent data volume
 app.use('/uploads', express.static('/data/uploads'));
 

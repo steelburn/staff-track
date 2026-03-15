@@ -1,16 +1,25 @@
 'use strict';
 
-// Use auth module functions
-const token = window.StaffTrackAuth.getToken();
-const userStr = sessionStorage.getItem('st_user');
-if (!token || !userStr) {
-    location.href = '/login.html';
-    throw new Error('Not logged in');
+const authUser = requireAuth();
+
+// ── Utility ────
+function showToast(msg, isErr = false) {
+    const t = document.createElement('div');
+    t.className = 'toast';
+    if (isErr) {
+        t.style.background = 'var(--accent-rose)';
+        t.style.borderColor = 'rgba(0,0,0,0.1)';
+    }
+    t.textContent = msg;
+    document.body.appendChild(t);
+    setTimeout(() => { t.classList.add('hide'); setTimeout(() => t.remove(), 400); }, 2500);
 }
-const authUser = JSON.parse(userStr);
+
+// Use auth module functions
 
 // ── State ────
 let profileExists = false;
+let targetProfileEmail = authUser.email;
 let certificationsData = [];
 let certificationsLoaded = false;
 let workHistoryData = [];
@@ -47,43 +56,8 @@ function wireUpTabSwitching() {
 
             // Activate target
             btn.classList.add('active');
-            const targetContent = document.getElementById(`tab-${targetTab}`);
+            const targetContent = document.getElementById(`${targetTab}-tab`);
             if (targetContent) targetContent.classList.add('active');
-
-            // Lazy load education tab
-            if (targetTab === 'education' && !educationLoaded) {
-                loadEducation();
-                educationLoaded = true;
-            }
-
-            // Lazy load certifications tab
-            if (targetTab === 'certifications' && !certificationsLoaded) {
-                loadCertifications();
-                certificationsLoaded = true;
-            }
-
-            // Lazy load work-history tab
-            if (targetTab === 'work-history' && !workHistoryLoaded) {
-                loadWorkHistory();
-                workHistoryLoaded = true;
-            }
-
-            // Lazy load past-projects tab
-            if (targetTab === 'past-projects' && !pastProjectsLoaded) {
-                loadPastProjects();
-                pastProjectsLoaded = true;
-            }
-
-            // Generate CV tab: always reinit (no lazy loading)
-            if (targetTab === 'generate-cv') {
-                initGenerateCvTab();
-            }
-
-            // Lazy load submission tab
-            if (targetTab === 'my-submission' && !submissionLoaded) {
-                initSubmissionTab();
-                submissionLoaded = true;
-            }
 
             // Scroll to top so tab bar and content are both visible
             window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -317,18 +291,17 @@ function makeAutocomplete({ inputEl, getItems, renderItem, onSelect, minLen = 1 
 }
 
 function initSubmissionTab() {
-    if (authUser.role === 'admin') {
-        const area = document.querySelector('.submit-area');
-        if (area) area.style.display = 'none';
-        return;
-    }
-
-    // Init identity
+    // Buttons are now wired up in separate section in init()
+    // This function primarily handles specific identity logic for the submission tab
+    
+    // Identity fields setup
     const nameInput = document.getElementById('staff-name');
-    nameInput.readOnly = true;
-    nameInput.style.background = 'var(--bg-elevated)';
-    nameInput.style.color = 'var(--text-secondary)';
-    nameInput.style.cursor = 'not-allowed';
+    if (nameInput) {
+        nameInput.readOnly = true;
+        nameInput.style.background = 'var(--bg-elevated)';
+        nameInput.style.color = 'var(--text-secondary)';
+        nameInput.style.cursor = 'not-allowed';
+    }
 
     const emailInput = document.getElementById('staff-email');
     if (emailInput) {
@@ -345,6 +318,7 @@ function initSubmissionTab() {
     };
 
     Object.entries(fields).forEach(([key, el]) => {
+        if (!el) return;
         el.addEventListener('input', () => {
             const original = AppState.originalStaff[key] || '';
             const label = el.closest('.form-group')?.querySelector('label');
@@ -362,70 +336,6 @@ function initSubmissionTab() {
             scheduleAutoSave();
         });
     });
-
-    // Init buttons
-    document.getElementById('btn-add-skill').addEventListener('click', () => {
-        addSkillRow({ id: uid(), skill: '', rating: 0 });
-        updateSkillsCount();
-        scheduleAutoSave();
-    });
-
-    document.getElementById('btn-add-project').addEventListener('click', () => {
-        addProjectRowSub({});
-        updateProjectsCountSub();
-        scheduleAutoSave();
-    });
-
-    document.getElementById('btn-save')?.addEventListener('click', async () => {
-        await saveToBackend();
-        await saveProfile();
-        showToast('Saved to server ✓');
-        loadProfile();
-    });
-    
-    document.getElementById('btn-save-profile')?.addEventListener('click', async () => {
-        await saveToBackend();
-        await saveProfile();
-        showToast('Saved to server ✓');
-        loadProfile();
-    });
-
-    document.getElementById('btn-upload-photo')?.addEventListener('click', async () => {
-        await uploadPhoto();
-    });
-
-    document.getElementById('btn-load-previous')?.addEventListener('click', async () => {
-        const btn = document.getElementById('btn-load-previous');
-        btn.textContent = '⏳ Loading…';
-        btn.disabled = true;
-        try {
-            const res = await window.StaffTrackAuth.apiFetch('/api/submissions');
-            const all = res.ok ? await res.json() : [];
-            if (!all.length) {
-                showToast('No saved submissions found');
-            } else {
-                showLoadModal(all);
-            }
-        } catch { showToast('Could not reach server'); }
-        btn.textContent = '📂 Load Previous';
-        btn.disabled = false;
-    });
-
-    document.getElementById('btn-clear')?.addEventListener('click', () => {
-        if (!confirm('Clear form and start over?')) return;
-        AppState.submissionId = null;
-        AppState.staff = { name: '', title: '', department: '', managerName: '', email: '' };
-        AppState.originalStaff = {};
-        AppState.editedFields.clear();
-        AppState.skills = [];
-        AppState.projects = [];
-        sessionStorage.removeItem('stafftrack_id');
-        location.reload();
-    });
-
-    // Load data
-    loadSubmissionData();
-    loadProfile();
 }
 
 async function loadSubmissionData() {
@@ -438,13 +348,21 @@ async function loadSubmissionData() {
         if (projectsRes.ok) ALL_PROJECTS_CSV = await projectsRes.json();
     } catch (e) { console.error('Data load failed', e); }
 
-    const dbUser = STAFF_DATA.find(s => (s.email || '').toLowerCase() === authUser.email.toLowerCase());
-    const identityName = dbUser ? dbUser.name : authUser.email;
+    const dbUser = STAFF_DATA.find(s => (s.email || '').toLowerCase() === targetProfileEmail.toLowerCase());
+    const identityName = dbUser ? dbUser.name : targetProfileEmail;
+
+    const mentionEl = document.getElementById('target-staff-mention');
+    if (mentionEl && targetProfileEmail.toLowerCase() !== authUser.email.toLowerCase()) {
+        mentionEl.textContent = `(Generating CV for: ${identityName})`;
+    } else if (mentionEl) {
+        mentionEl.textContent = '';
+    }
 
     try {
-        const res = await window.StaffTrackAuth.apiFetch('/api/submissions');
+        const res = await window.StaffTrackAuth.apiFetch(`/api/submissions/email/${encodeURIComponent(targetProfileEmail)}`);
         const all = res.ok ? await res.json() : [];
-        const mySubs = all.filter(s => s.staffName.toLowerCase() === identityName.toLowerCase());
+        // The new endpoint might return just one or an array. Let's assume array for compatibility.
+        const mySubs = Array.isArray(all) ? all : (all ? [all] : []);
 
         if (mySubs.length > 0) {
             const latestId = mySubs[0].id;
@@ -458,7 +376,7 @@ async function loadSubmissionData() {
                 title: dbUser ? (dbUser.title || '') : '',
                 department: dbUser ? (dbUser.department || '') : '',
                 managerName: dbUser ? (dbUser.manager_name || '') : '',
-                email: dbUser ? (dbUser.email || authUser.email) : authUser.email,
+                email: dbUser ? (dbUser.email || targetProfileEmail) : targetProfileEmail,
             };
             AppState.originalStaff = { ...snap };
             AppState.staff = { ...snap };
@@ -679,7 +597,7 @@ function restoreForm() {
 
 // ── Profile Functions ───
 async function loadProfile() {
-    const email = authUser.email;
+    const email = targetProfileEmail;
     const profileFields = ['cv-phone', 'cv-linkedin', 'cv-location', 'cv-summary'];
     const photoContainer = document.getElementById('photo-preview-container');
     const photoPreview = document.getElementById('photo-preview');
@@ -743,7 +661,7 @@ async function loadProfile() {
 }
 
 async function saveProfile() {
-    const email = authUser.email;
+    const email = targetProfileEmail;
     const summary = document.getElementById('cv-summary')?.value?.trim() || '';
     const phone = document.getElementById('cv-phone')?.value?.trim() || '';
     const linkedin = document.getElementById('cv-linkedin')?.value?.trim() || '';
@@ -784,7 +702,7 @@ async function saveProfile() {
 }
 
 async function uploadPhoto() {
-    const email = authUser.email;
+    const email = targetProfileEmail;
     const fileInput = document.getElementById('cv-photo');
     const file = fileInput.files[0];
 
@@ -831,7 +749,7 @@ let educationData = [];
 let educationLoaded = false;
 
 async function loadEducation() {
-    const email = authUser.email;
+    const email = targetProfileEmail;
     try {
         const res = await window.StaffTrackAuth.apiFetch(`/api/cv-profiles/${email}`);
         if (!res.ok) {
@@ -1043,7 +961,7 @@ async function saveEducation() {
         description
     };
 
-    const email = authUser.email;
+    const email = targetProfileEmail;
     try {
         let res;
         if (id) {
@@ -1078,7 +996,7 @@ async function saveEducation() {
 async function deleteEducation(id) {
     if (!confirm('Delete this education entry?')) return;
 
-    const email = authUser.email;
+    const email = targetProfileEmail;
     try {
         const res = await window.StaffTrackAuth.apiFetch(`/api/cv-profiles/${email}/education/${id}`, {
             method: 'DELETE'
@@ -1099,7 +1017,7 @@ async function deleteEducation(id) {
 }
 
 async function uploadEducationProof(id) {
-    const email = authUser.email;
+    const email = targetProfileEmail;
     const fileInput = document.getElementById('edu-proof');
     const file = fileInput?.files?.[0];
     if (!file) { showToast('Please select a file first', true); return; }
@@ -1126,7 +1044,7 @@ async function uploadEducationProof(id) {
 
 async function deleteEducationProof(id) {
     if (!confirm('Remove the proof document from this education entry?')) return;
-    const email = authUser.email;
+    const email = targetProfileEmail;
     try {
         const res = await window.StaffTrackAuth.apiFetch(`/api/cv-profiles/${email}/education/${id}/proof`, { method: 'DELETE' });
         if (res.ok) {
@@ -1145,7 +1063,7 @@ async function deleteEducationProof(id) {
 
 // ── Certifications Functions ───
 async function loadCertifications() {
-    const email = authUser.email;
+    const email = targetProfileEmail;
     try {
         const res = await window.StaffTrackAuth.apiFetch(`/api/cv-profiles/${email}`);
         if (!res.ok) {
@@ -1361,7 +1279,7 @@ async function saveCertification() {
         description
     };
 
-    const email = authUser.email;
+    const email = targetProfileEmail;
     try {
         let res;
         if (id) {
@@ -1396,7 +1314,7 @@ async function saveCertification() {
 async function deleteCertification(id) {
     if (!confirm('Delete this certification?')) return;
 
-    const email = authUser.email;
+    const email = targetProfileEmail;
     try {
         const res = await window.StaffTrackAuth.apiFetch(`/api/cv-profiles/${email}/certifications/${id}`, {
             method: 'DELETE'
@@ -1417,7 +1335,7 @@ async function deleteCertification(id) {
 }
 
 async function uploadCertificationProof(id) {
-    const email = authUser.email;
+    const email = targetProfileEmail;
     const fileInput = document.getElementById('cert-proof');
     const file = fileInput?.files?.[0];
     if (!file) { showToast('Please select a file first', true); return; }
@@ -1444,7 +1362,7 @@ async function uploadCertificationProof(id) {
 
 async function deleteCertificationProof(id) {
     if (!confirm('Remove the proof document from this certification?')) return;
-    const email = authUser.email;
+    const email = targetProfileEmail;
     try {
         const res = await window.StaffTrackAuth.apiFetch(`/api/cv-profiles/${email}/certifications/${id}/proof`, { method: 'DELETE' });
         if (res.ok) {
@@ -1463,7 +1381,7 @@ async function deleteCertificationProof(id) {
 
 // ── Work History Functions ───
 async function loadWorkHistory() {
-    const email = authUser.email;
+    const email = targetProfileEmail;
     try {
         const res = await window.StaffTrackAuth.apiFetch(`/api/cv-profiles/${email}`);
         if (!res.ok) {
@@ -1648,7 +1566,7 @@ async function saveWorkHistory() {
         description
     };
 
-    const email = authUser.email;
+    const email = targetProfileEmail;
     try {
         let res;
         if (id) {
@@ -1684,7 +1602,7 @@ async function saveWorkHistory() {
 async function deleteWorkHistory(id) {
     if (!confirm('Delete this work history entry?')) return;
 
-    const email = authUser.email;
+    const email = targetProfileEmail;
     try {
         const res = await window.StaffTrackAuth.apiFetch(`/api/cv-profiles/${email}/work-history/${id}`, {
             method: 'DELETE'
@@ -1720,7 +1638,7 @@ function refreshEmployerDropdown() {
 
 // ── Past Projects Functions ───
 async function loadPastProjects() {
-    const email = authUser.email;
+    const email = targetProfileEmail;
     try {
         const res = await window.StaffTrackAuth.apiFetch(`/api/cv-profiles/${email}`);
         if (!res.ok) {
@@ -1971,7 +1889,7 @@ async function savePastProject() {
         description
     };
 
-    const email = authUser.email;
+    const email = targetProfileEmail;
     try {
         let res;
         if (id) {
@@ -2006,7 +1924,7 @@ async function savePastProject() {
 async function deletePastProject(id) {
     if (!confirm('Delete this past project?')) return;
 
-    const email = authUser.email;
+    const email = targetProfileEmail;
     try {
         const res = await window.StaffTrackAuth.apiFetch(`/api/cv-profiles/${email}/past-projects/${id}`, {
             method: 'DELETE'
@@ -2060,7 +1978,15 @@ function initGenerateCvTab() {
     const clearBtn = document.getElementById('btn-clear-snapshots');
     if (clearBtn && authUser.role !== 'hr') clearBtn.style.display = '';
 
-    currentGenerateEmail = authUser.email;
+    // Check URL params
+    const urlParams = new URLSearchParams(window.location.search);
+    const emailFromUrl = urlParams.get('email');
+    if (emailFromUrl) {
+        currentGenerateEmail = emailFromUrl.toLowerCase();
+    } else {
+        currentGenerateEmail = authUser.email;
+    }
+
     loadCvTemplates();
     loadSnapshots(currentGenerateEmail);
 }
@@ -2345,15 +2271,49 @@ async function clearAllSnapshots() {
 
 // ── Init ───
 
-function init() {
+async function init() {
     renderNav('cv-profile');
-    wireUpTabSwitching();
-    loadProfile();
+    
+    // Set target email from URL
+    const urlParams = new URLSearchParams(window.location.search);
+    const emailFromUrl = urlParams.get('email');
+    if (emailFromUrl) {
+        targetProfileEmail = emailFromUrl.toLowerCase();
+    } else {
+        targetProfileEmail = authUser.email.toLowerCase();
+    }
 
-    document.getElementById('btn-save-profile')?.addEventListener('click', saveProfile);
+    // 1. Initial Data Load (Parallel)
+    try {
+        await Promise.all([
+            loadSubmissionData(), 
+            loadProfile()         
+        ]);
+    } catch (e) {
+        console.error('Initial data load failed:', e);
+    }
+
+    // 2. Tab Infrastructure
+    initSubmissionTab(); 
+    initGenerateCvTab();
+    wireUpTabSwitching();
+
+    // 3. Global Event Listeners
+    document.getElementById('btn-save-profile')?.addEventListener('click', async () => {
+        await saveToBackend();
+        await saveProfile();
+        showToast('Saved to server ✓');
+        loadProfile();
+    });
+    document.getElementById('btn-save')?.addEventListener('click', async () => {
+        await saveToBackend();
+        await saveProfile();
+        showToast('Saved to server ✓');
+        loadProfile();
+    });
     document.getElementById('btn-upload-photo')?.addEventListener('click', uploadPhoto);
 
-    // Proof upload buttons — ID is read at click time from the hidden education-id/certification-id
+    // Proof upload buttons
     document.getElementById('btn-upload-edu-proof')?.addEventListener('click', () => {
         const id = document.getElementById('education-id')?.value;
         if (id) uploadEducationProof(id);
@@ -2365,27 +2325,67 @@ function init() {
         else showToast('Please save the certification entry first', true);
     });
 
-    // Wire up Education tab buttons
+    // Education tab buttons
     document.getElementById('btn-add-education')?.addEventListener('click', () => showEducationForm(null));
     document.getElementById('btn-save-education')?.addEventListener('click', saveEducation);
     document.getElementById('btn-cancel-education')?.addEventListener('click', hideEducationForm);
 
-    // Wire up Certifications tab buttons
+    // Certifications tab buttons
     document.getElementById('btn-add-certification')?.addEventListener('click', () => showCertificationForm(null));
     document.getElementById('btn-save-certification')?.addEventListener('click', saveCertification);
     document.getElementById('btn-cancel-certification')?.addEventListener('click', hideCertificationForm);
 
-    // Wire up Work History tab buttons
+    // Work History tab buttons
     document.getElementById('btn-add-work-history')?.addEventListener('click', () => showWorkHistoryForm(null));
     document.getElementById('btn-save-work-history')?.addEventListener('click', saveWorkHistory);
     document.getElementById('btn-cancel-work-history')?.addEventListener('click', hideWorkHistoryForm);
 
-    // Wire up Past Projects tab buttons
+    // Past Projects tab buttons
     document.getElementById('btn-add-past-project')?.addEventListener('click', () => showPastProjectForm(null));
     document.getElementById('btn-save-past-project')?.addEventListener('click', savePastProject);
     document.getElementById('btn-cancel-past-project')?.addEventListener('click', hidePastProjectForm);
 
-    // Wire up Generate CV tab buttons
+    // Submission tab specific buttons
+    document.getElementById('btn-add-skill')?.addEventListener('click', () => {
+        addSkillRow({ id: uid(), skill: '', rating: 0 });
+        updateSkillsCount();
+        scheduleAutoSave();
+    });
+    document.getElementById('btn-add-project')?.addEventListener('click', () => {
+        addProjectRowSub({});
+        updateProjectsCountSub();
+        scheduleAutoSave();
+    });
+    document.getElementById('btn-load-previous')?.addEventListener('click', async () => {
+        const btn = document.getElementById('btn-load-previous');
+        if (!btn) return;
+        btn.textContent = '⏳ Loading…';
+        btn.disabled = true;
+        try {
+            const res = await window.StaffTrackAuth.apiFetch('/api/submissions');
+            const all = res.ok ? await res.json() : [];
+            if (!all.length) {
+                showToast('No saved submissions found');
+            } else {
+                showLoadModal(all);
+            }
+        } catch { showToast('Could not reach server'); }
+        btn.textContent = '📂 Load Previous';
+        btn.disabled = false;
+    });
+    document.getElementById('btn-clear')?.addEventListener('click', () => {
+        if (!confirm('Clear form and start over?')) return;
+        AppState.submissionId = null;
+        AppState.staff = { name: '', title: '', department: '', managerName: '', email: '' };
+        AppState.originalStaff = {};
+        AppState.editedFields.clear();
+        AppState.skills = [];
+        AppState.projects = [];
+        sessionStorage.removeItem('stafftrack_id');
+        location.reload();
+    });
+
+    // Generate CV buttons
     document.getElementById('btn-generate-cv')?.addEventListener('click', generateCv);
     document.getElementById('btn-print-cv')?.addEventListener('click', printCv);
     document.getElementById('btn-open-cv')?.addEventListener('click', openCvInTab);

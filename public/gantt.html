@@ -15,7 +15,7 @@
             border: 1px solid var(--border);
             border-radius: var(--radius-lg);
             margin-bottom: 2rem;
-            padding: 1rem;
+            padding: 0;
         }
 
         .gantt-svg {
@@ -113,6 +113,71 @@
         .gantt-controls button:hover {
             background: #3b82f6;
         }
+
+        .selection-list {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 0.75rem;
+            max-height: 300px;
+            overflow-y: auto;
+            margin-top: 1rem;
+            padding: 1rem;
+            background: var(--bg-base);
+            border-radius: 8px;
+            border: 1px solid var(--border);
+        }
+
+        .selection-item {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.5rem 0.75rem;
+            background: var(--bg-elevated);
+            border-radius: 6px;
+            border: 1px solid var(--border);
+            cursor: pointer;
+            transition: all 0.2s;
+            font-size: 0.85rem;
+        }
+
+        .selection-item:hover {
+            border-color: var(--accent-blue);
+        }
+
+        .selection-item.selected {
+            background: rgba(79, 142, 247, 0.1);
+            border-color: var(--accent-blue);
+        }
+
+        .selection-item input {
+            cursor: pointer;
+        }
+
+        .search-input {
+            width: 100%;
+            margin-bottom: 0.5rem;
+        }
+
+        .selection-controls {
+            display: flex;
+            gap: 1rem;
+            margin-bottom: 1rem;
+        }
+
+        .btn-text {
+            background: none;
+            border: none;
+            color: var(--accent-blue);
+            font-size: 0.85rem;
+            font-weight: 500;
+            cursor: pointer;
+            padding: 0;
+            text-decoration: underline;
+        }
+
+        .btn-text:hover {
+            color: #3b82f6;
+        }
     </style>
 </head>
 
@@ -134,40 +199,103 @@
     <main class="main-container full-width">
         <div id="tooltip" class="tooltip"></div>
 
-        <div class="section-card">
-            <div class="section-header">
-                <div class="section-num blue">📈</div>
-                <div>
-                    <h2 class="section-title">Active Projects Timeline</h2>
-                    <p class="section-desc">Overview of all currently active projects and their targeted completion dates.</p>
+        <div class="tabs-nav">
+            <button class="tab-btn active" data-tab="projects">Project Timelines</button>
+            <button class="tab-btn" data-tab="resources">Resource Utilization</button>
+        </div>
+
+        <!-- Projects Tab -->
+        <div id="projects-tab" class="tab-content active">
+            <div class="section-card" id="projects-selection-card">
+                <div class="section-header">
+                    <div class="section-num blue">🔍</div>
+                    <div>
+                        <h2 class="section-title">Select Projects</h2>
+                        <p class="section-desc">Choose which projects you want to visualize in the timeline.</p>
+                    </div>
+                </div>
+                <div class="section-body">
+                    <div class="selection-controls">
+                        <button class="btn-text" id="project-select-all">Select All</button>
+                        <button class="btn-text" id="project-clear-all">Clear All</button>
+                    </div>
+                    <div class="form-group">
+                        <input type="text" id="project-search" placeholder="Search projects..." class="search-input">
+                        <div id="project-list" class="selection-list">
+                            <!-- Populated by JS -->
+                        </div>
+                    </div>
+                    <div class="submit-area" style="margin-top: 1rem;">
+                        <button id="render-projects-btn" class="btn-primary">Generate Project Timeline</button>
+                    </div>
                 </div>
             </div>
-            <div class="section-body full-width">
-                <div class="gantt-container" id="gantt-projects-container">
-                    <div style="padding: 2rem; text-align: center; color: var(--text-secondary);">Loading projects data...</div>
+
+            <div class="section-card" style="display: none;" id="projects-chart-card">
+                <div class="section-header">
+                    <div class="section-num blue">📈</div>
+                    <div>
+                        <h2 class="section-title">Active Projects Timeline</h2>
+                        <p class="section-desc">Overview of selected active projects and their targeted completion dates.</p>
+                    </div>
+                </div>
+                <div class="section-body full-width">
+                    <div class="gantt-container" id="gantt-projects-container"></div>
+                    <div class="submit-area">
+                        <button class="btn-secondary" onclick="document.getElementById('projects-chart-card').style.display='none'; document.getElementById('projects-selection-card').style.display='block';">Back to Selection</button>
+                    </div>
                 </div>
             </div>
         </div>
 
-        <div class="section-card">
-            <div class="section-header">
-                <div class="section-num green">👥</div>
-                <div>
-                    <h2 class="section-title">Resource Utilization Gantt</h2>
-                    <p class="section-desc">Timeline of staff assignments across projects.</p>
+        <!-- Resources Tab -->
+        <div id="resources-tab" class="tab-content">
+            <div class="section-card" id="resources-selection-card">
+                <div class="section-header">
+                    <div class="section-num green">🔍</div>
+                    <div>
+                        <h2 class="section-title">Select Resources</h2>
+                        <p class="section-desc">Choose which staff members you want to visualize in the utilization chart.</p>
+                    </div>
+                </div>
+                <div class="section-body">
+                    <div class="selection-controls">
+                        <button class="btn-text" id="staff-select-all">Select All</button>
+                        <button class="btn-text" id="staff-clear-all">Clear All</button>
+                    </div>
+                    <div class="form-group">
+                        <input type="text" id="staff-search" placeholder="Search staff..." class="search-input">
+                        <div id="staff-list" class="selection-list">
+                            <!-- Populated by JS -->
+                        </div>
+                    </div>
+                    <div class="submit-area" style="margin-top: 1rem;">
+                        <button id="render-resources-btn" class="btn-primary">Generate Utilization Chart</button>
+                    </div>
                 </div>
             </div>
-            <div class="section-body full-width">
-                <div class="gantt-container" id="gantt-resources-container">
-                    <div style="padding: 2rem; text-align: center; color: var(--text-secondary);">Loading resource data...</div>
+
+            <div class="section-card" style="display: none;" id="resources-chart-card">
+                <div class="section-header">
+                    <div class="section-num green">👥</div>
+                    <div>
+                        <h2 class="section-title">Resource Utilization Gantt</h2>
+                        <p class="section-desc">Timeline of selected staff assignments across projects.</p>
+                    </div>
+                </div>
+                <div class="section-body full-width">
+                    <div class="gantt-container" id="gantt-resources-container"></div>
+                    <div class="submit-area">
+                        <button class="btn-secondary" onclick="document.getElementById('resources-chart-card').style.display='none'; document.getElementById('resources-selection-card').style.display='block';">Back to Selection</button>
+                    </div>
                 </div>
             </div>
         </div>
     </main>
 
-    <script src="auth.js"></script>
-    <script src="menu.js"></script>
-    <script src="gantt.js"></script>
+    <script src="auth.js?v=7"></script>
+    <script src="menu.js?v=7"></script>
+    <script src="gantt.js?v=7"></script>
 </body>
 
 </html>

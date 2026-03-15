@@ -39,20 +39,32 @@ router.post('/roles', verifyToken, requireRole('admin'), (req, res) => {
             return res.status(400).json({ error: 'Invalid role. Must be one of: ' + validRoles.join(', ') });
         }
 
+        let is_hr = 0;
+        let is_coordinator = 0;
+        
+        if (role === 'admin') {
+            is_hr = 1;
+            is_coordinator = 1;
+        } else if (role === 'hr') {
+            is_hr = 1;
+        } else if (role === 'coordinator') {
+            is_coordinator = 1;
+        }
+
         const key = email.trim().toLowerCase();
         const now = new Date().toISOString();
 
         const existing = db.prepare('SELECT * FROM user_roles WHERE email = ?').get(key);
 
         if (existing) {
-            db.prepare('UPDATE user_roles SET role = ?, is_active = ?, updated_at = ? WHERE email = ?')
-                .run(role, is_active ? 1 : 0, now, key);
+            db.prepare('UPDATE user_roles SET role = ?, is_hr = ?, is_coordinator = ?, is_active = ?, updated_at = ? WHERE email = ?')
+                .run(role, is_hr, is_coordinator, is_active ? 1 : 0, now, key);
         } else {
-            db.prepare('INSERT INTO user_roles (email, role, is_active, created_at, updated_at) VALUES (?, ?, ?, ?, ?)')
-                .run(key, role, is_active ? 1 : 0, now, now);
+            db.prepare('INSERT INTO user_roles (email, role, is_hr, is_coordinator, is_active, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)')
+                .run(key, role, is_hr, is_coordinator, is_active ? 1 : 0, now, now);
         }
 
-        res.json({ success: true, email: key, role, is_active });
+        res.json({ success: true, email: key, role, is_hr, is_coordinator, is_active });
     } catch (err) {
         console.error('POST /admin/roles error:', err);
         res.status(500).json({ error: 'Failed to update roles' });

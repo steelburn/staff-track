@@ -1452,6 +1452,14 @@ mark {
   width: fit-content;
 }
 
+.tabs-nav {
+  display: flex;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+  border-bottom: 2px solid var(--border);
+  padding-bottom: 0.5rem;
+}
+
 .tab-btn {
   border: none;
   background: transparent;
@@ -1476,6 +1484,28 @@ mark {
   background: linear-gradient(135deg, var(--accent-blue), #7c5cfc);
   color: #fff;
   box-shadow: 0 4px 12px rgba(79, 142, 247, 0.25);
+}
+
+/* Variant for tabs-nav (Gantt style) */
+.tabs-nav .tab-btn {
+  border-radius: 8px 8px 0 0;
+  padding: 0.75rem 1.5rem;
+}
+
+.tabs-nav .tab-btn.active {
+  background: none;
+  color: var(--accent-blue);
+  border-bottom: 2px solid var(--accent-blue);
+  margin-bottom: -0.7rem;
+  box-shadow: none;
+}
+
+.tab-content {
+  display: none;
+}
+
+.tab-content.active {
+  display: block;
 }
 
 .tab-btn i {

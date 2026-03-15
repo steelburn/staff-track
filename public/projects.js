@@ -1,15 +1,6 @@
 'use strict';
 
-// Use auth module functions
-const token = window.StaffTrackAuth.getToken();
-const userStr = sessionStorage.getItem('st_user');
-if (!token || !userStr) {
-  location.href = '/login.html';
-  throw new Error('Not logged in');
-}
-const authUser = JSON.parse(userStr);
-
-
+const authUser = requireAuth();
 // ── Data ──────────────────────────────────────────────────────────────────────
 let ALL_PROJECTS_CSV = []; // from extracted_projects.csv (full project list)
 let API_PROJECTS = [];     // from /api/reports/projects (projects with staff)
@@ -190,8 +181,7 @@ function render() {
 
       try {
         const res = await window.StaffTrackAuth.apiFetch(`/api/submissions/assign-project/${s.assignmentId}`, {
-          method: 'DELETE',
-          headers: { 'Authorization': `Bearer ${token}` }
+          method: 'DELETE'
         });
         if (!res.ok) throw new Error();
         showToast(`Unassigned ${s.name}`);
@@ -204,7 +194,11 @@ function render() {
 }
 
 function buildProjectCard(p, q, idx) {
-  let canEditAssign = authUser.role === 'admin';
+  const isAdmin = authUser.role === 'admin';
+  const isCoord = authUser.role === 'coordinator' || authUser.role === 'coordinator';
+
+  let canEditAssign = isAdmin || isCoord; // Allow coordinator/admin to assign
+
   const managedObj = MANAGED_PROJECTS.find(mp => {
     const s1 = (mp.soc || '').trim().toLowerCase();
     const s2 = (p.soc || '').trim().toLowerCase();
@@ -213,7 +207,6 @@ function buildProjectCard(p, q, idx) {
     const n2 = (p.projectName || '').trim().toLowerCase();
     return (!s1 && !s2 && n1 && n1 === n2);
   });
-  if (managedObj) canEditAssign = true;
 
   const staffBadges = p.staff.length
     ? p.staff.map(s => `
@@ -239,15 +232,17 @@ function buildProjectCard(p, q, idx) {
 
   const classHtml = classBadges ? `<div class="project-classifications">${classBadges}</div>` : '';
 
-  const editBtn = (managedObj && canEditAssign) ? `<button class="badge-btn btn-edit-project" style="display:inline-flex;margin-left:.5rem" title="Edit Project Details" data-id="${managedObj.id}" data-project='${JSON.stringify({
-    soc: managedObj.soc || '',
-    name: managedObj.name || '',
-    customer: managedObj.customer || '',
-    type_infra: !!managedObj.type_infra,
-    type_software: !!managedObj.type_software,
-    type_infra_support: !!managedObj.type_infra_support,
-    type_software_support: !!managedObj.type_software_support,
-    end_date: managedObj.end_date || ''
+  const canEditProject = isAdmin || isCoord;
+
+  const editBtn = canEditProject ? `<button class="badge-btn btn-edit-project" style="display:inline-flex;margin-left:.5rem" title="Edit Project Details" data-id="${managedObj ? managedObj.id : ''}" data-project='${JSON.stringify({
+    soc: (managedObj ? managedObj.soc : p.soc) || '',
+    name: (managedObj ? managedObj.name : p.projectName) || '',
+    customer: (managedObj ? managedObj.customer : p.customer) || '',
+    type_infra: managedObj ? !!managedObj.type_infra : false,
+    type_software: managedObj ? !!managedObj.type_software : false,
+    type_infra_support: managedObj ? !!managedObj.type_infra_support : false,
+    type_software_support: managedObj ? !!managedObj.type_software_support : false,
+    end_date: (managedObj ? managedObj.end_date : '') || ''
   }).replace(/'/g, "&apos;")}'>✎</button>` : '';
 
   return `
@@ -375,7 +370,7 @@ function showCreateProjectModal() {
     try {
       const res = await window.StaffTrackAuth.apiFetch('/api/managed-projects', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: name,
           soc: document.getElementById('cp-soc').value.trim(),
@@ -462,27 +457,39 @@ function showEditProjectModal(id, p) {
     btn.disabled = true;
     btn.textContent = 'Saving...';
     try {
-      const res = await window.StaffTrackAuth.apiFetch(`/api/managed-projects/${id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify({
-          name: name,
-          soc: document.getElementById('ep-soc').value.trim(),
-          customer: document.getElementById('ep-customer').value.trim(),
-          type_infra: document.getElementById('ep-t-infra').checked,
-          type_software: document.getElementById('ep-t-soft').checked,
-          type_infra_support: document.getElementById('ep-t-isupport').checked,
-          type_software_support: document.getElementById('ep-t-ssupport').checked,
-          end_date: document.getElementById('ep-end').value
-        })
-      });
+      const payload = {
+        name: name,
+        soc: document.getElementById('ep-soc').value.trim(),
+        customer: document.getElementById('ep-customer').value.trim(),
+        type_infra: document.getElementById('ep-t-infra').checked,
+        type_software: document.getElementById('ep-t-soft').checked,
+        type_infra_support: document.getElementById('ep-t-isupport').checked,
+        type_software_support: document.getElementById('ep-t-ssupport').checked,
+        end_date: document.getElementById('ep-end').value
+      };
+
+      let res;
+      if (id) {
+        res = await window.StaffTrackAuth.apiFetch(`/api/managed-projects/${id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+      } else {
+        res = await window.StaffTrackAuth.apiFetch('/api/managed-projects', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+      }
+
       if (!res.ok) throw new Error();
 
-      showToast('Project updated successfully');
+      showToast(id ? 'Project updated successfully' : 'Project promoted to managed');
       close();
       await loadData();
     } catch {
-      showToast('Failed to update project', true);
+      showToast('Failed to save changes', true);
       btn.disabled = false;
       btn.textContent = 'Save Changes';
     }
@@ -666,8 +673,7 @@ function showEditAssignModal(staff, project) {
       const res = await window.StaffTrackAuth.apiFetch(`/api/submissions/assign-project/${staff.assignmentId}`, {
         method: 'PUT',
         headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
+          'Content-Type': 'application/json'
         },
         body: JSON.stringify({ role, endDate })
       });

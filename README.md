@@ -41,6 +41,9 @@ docker compose up -d
 - **Mobile Responsive**: Optimized for various screen sizes with responsive grids and scrollable table containers.
  - **Self-Service Administration**: Dedicated pages for permission management, catalog maintenance, and bulk data imports.
 - **CV Profiles**: Individual staff CV management with sections for personal info, education, certifications, work history, and past projects.
+- **Gantt Chart Optimization**: High-performance rendering using canvas virtualization, supporting thousands of task bars with smooth 60fps scrolling and zooming.
+- **CV Editor Enhancements**: Distraction-free editing with toggleable Markdown and CSS columns for the CV Template Editor.
+- **Project coordination**: Enhanced project management for coordinators, including filtered Gantt views and project assignment tools.
 - **Skill Consolidation**: Admin tools for skill governance including merge, split, and rename operations.
 - **Staff Search**: Advanced search functionality for finding staff by multiple skill criteria.
 

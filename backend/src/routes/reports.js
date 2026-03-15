@@ -13,15 +13,26 @@ router.get('/projects', requireReporter, (req, res) => {
     try {
         const db = getDb();
 
-        const rows = db.prepare(`
+        const isAdminOrHR = ['admin', 'hr'].includes(req.user.role);
+        const email = req.user.email.toLowerCase();
+
+        let query = `
       SELECT 
         p.id as assignment_id, p.soc, p.project_name, p.customer, p.role, p.end_date as staff_end_date,
         s.staff_name, s.staff_email, s.id as submission_id,
-        mp.type_infra, mp.type_software, mp.type_infra_support, mp.type_software_support
+        mp.type_infra, mp.type_software, mp.type_infra_support, mp.type_software_support,
+        mp.coordinator_email
       FROM submission_projects p
       JOIN submissions s ON p.submission_id = s.id
       LEFT JOIN managed_projects mp ON (mp.soc = p.soc OR (p.soc IS NULL AND mp.name = p.project_name))
-    `).all();
+    `;
+
+        if (!isAdminOrHR) {
+            // Coordinator: Only show projects where they are in the coordinators list
+            query += ` WHERE mp.coordinator_email LIKE ? OR mp.coordinator_email = ?`;
+        }
+
+        const rows = db.prepare(query).all(!isAdminOrHR ? ['%"' + email + '"%', email] : []);
 
         const projectMap = new Map();
 
@@ -65,15 +76,34 @@ router.get('/staff', requireReporter, (req, res) => {
     try {
         const db = getDb();
 
-        const subs = db.prepare('SELECT id, staff_email, staff_name, title, department, manager_name, updated_at, updated_by_staff FROM submissions ORDER BY staff_name').all();
-        const skills = db.prepare('SELECT submission_id, skill, rating FROM submission_skills').all();
-        const projects = db.prepare(`
+        const isAdminOrHR = ['admin', 'hr'].includes(req.user.role);
+        const email = req.user.email.toLowerCase();
+
+        let subQuery = 'SELECT id, staff_email, staff_name, title, department, manager_name, updated_at, updated_by_staff FROM submissions';
+        let projQuery = `
           SELECT 
             p.submission_id, p.soc, p.project_name as projectName, p.customer, p.role, p.end_date as endDate,
-            mp.type_infra, mp.type_software, mp.type_infra_support, mp.type_software_support
+            mp.type_infra, mp.type_software, mp.type_infra_support, mp.type_software_support,
+            mp.coordinator_email
           FROM submission_projects p
           LEFT JOIN managed_projects mp ON (mp.soc = p.soc OR (p.soc IS NULL AND mp.name = p.project_name))
-        `).all();
+        `;
+
+        if (!isAdminOrHR) {
+            // Coordinator: only see staff assigned to their managed projects
+            subQuery = `
+                SELECT DISTINCT s.id, s.staff_email, s.staff_name, s.title, s.department, s.manager_name, s.updated_at, s.updated_by_staff
+                FROM submissions s
+                JOIN submission_projects sp ON sp.submission_id = s.id
+                LEFT JOIN managed_projects mp ON (mp.soc = sp.soc OR (sp.soc IS NULL AND mp.name = sp.project_name))
+                WHERE mp.coordinator_email LIKE ? OR mp.coordinator_email = ?
+            `;
+            projQuery += ` WHERE mp.coordinator_email LIKE ? OR mp.coordinator_email = ?`;
+        }
+
+        const subs = db.prepare(subQuery + ' ORDER BY staff_name').all(!isAdminOrHR ? ['%"' + email + '"%', email] : []);
+        const skills = db.prepare('SELECT submission_id, skill, rating FROM submission_skills').all();
+        const projects = db.prepare(projQuery).all(!isAdminOrHR ? ['%"' + email + '"%', email] : []);
 
         // Group relations
         const skillMap = new Map();
