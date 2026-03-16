@@ -1,6 +1,7 @@
 'use strict';
 
 // Use auth module functions
+const authUser = requireAuth();
 
 // ── AppState ──────────────────────────────────────────────────────────────────
 const AppState = {
