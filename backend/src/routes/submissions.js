@@ -33,7 +33,7 @@ router.get('/me', verifyToken, (req, res) => {
         if (!sub) return res.status(404).json({ error: 'No submission found' });
 
         const skills = db.prepare('SELECT skill, rating FROM submission_skills WHERE submission_id = ?').all(sub.id);
-        const projects = db.prepare('SELECT soc, project_name AS projectName, customer, role, end_date AS endDate FROM submission_projects WHERE submission_id = ?').all(sub.id);
+        const projects = db.prepare('SELECT soc, project_name AS projectName, customer, role, start_date AS startDate, end_date AS endDate, description, technologies_used AS technologies FROM submission_projects WHERE submission_id = ?').all(sub.id);
 
         res.json({
             id: sub.id,
@@ -71,7 +71,7 @@ router.get('/email/:email', verifyToken, (req, res) => {
         if (!sub) return res.status(404).json({ error: 'No submission found' });
 
         const skills = db.prepare('SELECT skill, rating FROM submission_skills WHERE submission_id = ?').all(sub.id);
-        const projects = db.prepare('SELECT soc, project_name AS projectName, customer, role, end_date AS endDate FROM submission_projects WHERE submission_id = ?').all(sub.id);
+        const projects = db.prepare('SELECT soc, project_name AS projectName, customer, role, start_date AS startDate, end_date AS endDate, description, technologies_used AS technologies FROM submission_projects WHERE submission_id = ?').all(sub.id);
 
         res.json({
             id: sub.id,
@@ -212,10 +212,10 @@ function upsertSubmission(db, id, body, updatedAt, createdAt) {
         });
 
         // Insert new projects
-        const insertProj = db.prepare('INSERT INTO submission_projects (id, submission_id, soc, project_name, customer, role, end_date) VALUES (?, ?, ?, ?, ?, ?, ?)');
+        const insertProj = db.prepare('INSERT INTO submission_projects (id, submission_id, soc, project_name, customer, role, start_date, end_date, description, technologies_used) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
         (body.projects || []).forEach(p => {
             if (!p.soc && !p.projectName) return;
-            insertProj.run(uuidv4(), id, p.soc || '', p.projectName || '', p.customer || '', p.role || '', p.endDate || null);
+            insertProj.run(uuidv4(), id, p.soc || '', p.projectName || '', p.customer || '', p.role || '', p.startDate || null, p.endDate || null, p.description || null, p.technologies || null);
         });
     });
 
@@ -253,8 +253,8 @@ router.post('/assign-project', verifyToken, requireRole('admin', 'hr', 'coordina
                 throw new Error('DUPLICATE');
             }
 
-            db.prepare('INSERT INTO submission_projects (id, submission_id, soc, project_name, customer, role, end_date) VALUES (?, ?, ?, ?, ?, ?, ?)')
-                .run(uuidv4(), subId, project.soc || '', project.projectName || '', project.customer || '', project.role || '', project.endDate || null);
+            db.prepare('INSERT INTO submission_projects (id, submission_id, soc, project_name, customer, role, start_date, end_date, description, technologies_used) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+                .run(uuidv4(), subId, project.soc || '', project.projectName || '', project.customer || '', project.role || '', project.startDate || null, project.endDate || null, project.description || null, project.technologies || null);
 
             db.prepare('UPDATE submissions SET updated_at = ?, updated_by_staff = 0 WHERE id = ?').run(now, subId);
             return subId;
@@ -279,10 +279,10 @@ router.post('/assign-project', verifyToken, requireRole('admin', 'hr', 'coordina
 router.put('/assign-project/:assignId', verifyToken, requireRole('admin', 'hr', 'coordinator'), (req, res) => {
     try {
         const db = getDb();
-        const { role, endDate } = req.body;
+        const { role, startDate, endDate, description, technologies } = req.body;
         const assignId = req.params.assignId;
 
-        const info = db.prepare('UPDATE submission_projects SET role = ?, end_date = ? WHERE id = ?').run(role || '', endDate || null, assignId);
+        const info = db.prepare('UPDATE submission_projects SET role = ?, start_date = ?, end_date = ?, description = ?, technologies_used = ? WHERE id = ?').run(role || '', startDate || null, endDate || null, description || null, technologies || null, assignId);
 
         if (info.changes === 0) return res.status(404).json({ error: 'Assignment not found' });
 

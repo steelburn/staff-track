@@ -186,7 +186,9 @@
                                         <th>SOC Ref</th>
                                         <th>Customer</th>
                                         <th>Your Role</th>
-                                        <th style="width: 130px;">End Date</th>
+                                        <th style="width: 100px;">Start Date</th>
+                                        <th style="width: 100px;">End Date</th>
+                                        <th>Description / Technologies</th>
                                         <th class="col-actions"></th>
                                     </tr>
                                 </thead>
@@ -195,18 +197,13 @@
                             <div id="projects-empty" class="grid-empty">No projects assigned yet. Click 'Add Project' to
                                 begin.</div>
                         </div>
-                        <div class="submit-area"
-                            style="margin-top:2rem; border-top:1px solid var(--border); padding-top:1.5rem;">
-                            <button class="btn-primary" id="btn-save" style="font-size:1rem; padding:0.6rem 1.25rem;">💾
-                                Save Progress</button>
-                            <span class="save-indicator" id="save-status"
-                                style="margin-left:1rem; font-size:0.85rem; font-weight:600;"></span>
-                            <div style="margin-left:auto; display:flex; gap:0.5rem;">
+                        <div class="submit-area main-save-area">
+                            <button class="btn-primary" id="btn-save">💾 Save Progress</button>
+                            <span class="save-indicator" id="save-status"></span>
+                            <div class="btn-group-secondary">
                                 <button class="btn-secondary" id="btn-load-previous">📂 Load Previous</button>
                                 <button class="btn-secondary" id="btn-summary">📄 Summary</button>
-                                <button class="btn-secondary" id="btn-clear"
-                                    style="color:var(--danger,#ef4444); border-color:var(--danger,#ef4444);">🗑
-                                    Reset</button>
+                                <button class="btn-secondary" id="btn-clear">🗑 Reset</button>
                             </div>
                         </div>
                     </div>

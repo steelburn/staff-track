@@ -8,7 +8,8 @@ const auth = require('./routes/auth'); // { router, sessions }
 const adminRouter = require('./routes/admin');
 const managedProjRouter = require('./routes/managed_projects');
 const catalogRouter = require('./routes/catalog');
-const cvProfilesRouter = require('./routes/cv_profiles');
+const cvProfiles = require('./routes/cv_profiles');
+const cvProfilesRouter = cvProfiles.router;
 
 const app = express();
 const PORT = process.env.PORT || 3000;

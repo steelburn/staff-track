@@ -56,7 +56,12 @@ function initSchema(db) {
         project_name TEXT,
         customer TEXT,
         role TEXT,
+        start_date TEXT,
         end_date TEXT,
+        description TEXT,
+        key_contributions TEXT,
+        technologies_used TEXT,
+        is_active INTEGER DEFAULT 0,
         FOREIGN KEY(submission_id) REFERENCES submissions(id) ON DELETE CASCADE
       );
 
@@ -77,7 +82,10 @@ function initSchema(db) {
         type_software INTEGER DEFAULT 0,
         type_infra_support INTEGER DEFAULT 0,
         type_software_support INTEGER DEFAULT 0,
+        start_date TEXT,
         end_date TEXT,
+        technologies TEXT,
+        project_brief TEXT,
         coordinator_email TEXT NOT NULL,
         created_at TEXT NOT NULL
       );
@@ -184,7 +192,13 @@ function seedDefaultTemplates(db) {
 
 {{#projects}}
 ### {{project_name}}
+*{{start_date}}{{#end_date}} – {{end_date}}{{/end_date}}*
 - **Customer:** {{customer}} | **SOC:** {{soc}} | **Role:** {{role}}
+{{#technologies}}
+- **Technologies:** {{technologies}}
+{{/technologies}}
+
+{{description}}
 {{/projects}}
 
 ---
@@ -285,6 +299,14 @@ a { color: #2563eb; text-decoration: none; }
 
 {{#projects}}
 **{{project_name}}** · {{customer}} · {{role}}
+*{{start_date}}{{#end_date}} → {{end_date}}{{/end_date}}*
+{{#technologies}}
+Stack: {{technologies}}
+{{/technologies}}
+{{#description}}
+{{description}}
+{{/description}}
+
 {{/projects}}
 
 ---
@@ -383,12 +405,13 @@ EXPERIENCE
 
 PROJECTS
 
-{{#pastProjects}}
-{{project_name}} | {{role}} | {{start_date}}–{{end_date}}
-{{description}}
+{{#projects}}
+{{project_name}} | {{customer}} | {{role}}
+{{start_date}}–{{end_date}}
 {{technologies}}
+{{description}}
 
-{{/pastProjects}}
+{{/projects}}
 
 ---
 
@@ -682,6 +705,44 @@ function runMigrations(db) {
   if (!certInfo.some(c => c.name === 'proof_path')) {
     db.exec('ALTER TABLE certifications ADD COLUMN proof_path TEXT');
     console.log('Added proof_path column to certifications');
+  }
+
+  // Add new columns to managed_projects
+  const mpInfo = db.pragma("table_info('managed_projects')");
+  if (!mpInfo.some(c => c.name === 'start_date')) {
+    db.exec('ALTER TABLE managed_projects ADD COLUMN start_date TEXT');
+    console.log('Added start_date column to managed_projects');
+  }
+  if (!mpInfo.some(c => c.name === 'technologies')) {
+    db.exec('ALTER TABLE managed_projects ADD COLUMN technologies TEXT');
+    console.log('Added technologies column to managed_projects');
+  }
+  if (!mpInfo.some(c => c.name === 'project_brief')) {
+    db.exec('ALTER TABLE managed_projects ADD COLUMN project_brief TEXT');
+    console.log('Added project_brief column to managed_projects');
+  }
+
+  // Migration for submission_projects
+  const spInfo = db.pragma("table_info('submission_projects')");
+  if (!spInfo.some(c => c.name === 'start_date')) {
+    db.exec('ALTER TABLE submission_projects ADD COLUMN start_date TEXT');
+    console.log('Added start_date column to submission_projects');
+  }
+  if (!spInfo.some(c => c.name === 'description')) {
+    db.exec('ALTER TABLE submission_projects ADD COLUMN description TEXT');
+    console.log('Added description column to submission_projects');
+  }
+  if (!spInfo.some(c => c.name === 'key_contributions')) {
+    db.exec('ALTER TABLE submission_projects ADD COLUMN key_contributions TEXT');
+    console.log('Added key_contributions column to submission_projects');
+  }
+  if (!spInfo.some(c => c.name === 'technologies_used')) {
+    db.exec('ALTER TABLE submission_projects ADD COLUMN technologies_used TEXT');
+    console.log('Added technologies_used column to submission_projects');
+  }
+  if (!spInfo.some(c => c.name === 'is_active')) {
+    db.exec('ALTER TABLE submission_projects ADD COLUMN is_active INTEGER DEFAULT 0');
+    console.log('Added is_active column to submission_projects');
   }
 }
 

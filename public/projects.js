@@ -131,10 +131,11 @@ function render() {
 
   if (q) {
     list = list.filter(p =>
-      p.projectName.toLowerCase().includes(q) ||
-      p.soc.toLowerCase().includes(q) ||
-      p.customer.toLowerCase().includes(q) ||
-      p.staff.some(s => s.name.toLowerCase().includes(q))
+      (p.projectName || '').toLowerCase().includes(q) ||
+      (p.soc || '').toLowerCase().includes(q) ||
+      (p.customer || '').toLowerCase().includes(q) ||
+      (p.technologies || '').toLowerCase().includes(q) ||
+      p.staff.some(s => (s.name || '').toLowerCase().includes(q))
     );
   }
 
@@ -232,6 +233,23 @@ function buildProjectCard(p, q, idx) {
 
   const classHtml = classBadges ? `<div class="project-classifications">${classBadges}</div>` : '';
 
+  const techTags = (managedObj?.technologies || p.technologies || '')
+    .split(',')
+    .map(t => t.trim())
+    .filter(t => t)
+    .map(t => `<span class="tech-tag">${hl(t, q)}</span>`)
+    .join('');
+
+  const techHtml = techTags ? `<div class="project-tech-tags">${techTags}</div>` : '';
+  const dateHtml = (managedObj?.start_date || p.start_date) ? `
+    <div class="project-card-dates">
+      <span class="date-label">Schedule:</span> 
+      ${managedObj?.start_date || p.start_date || '—'} 
+      ${(managedObj?.end_date || p.end_date) ? ` → ${managedObj?.end_date || p.end_date}` : ''}
+    </div>` : '';
+
+  const briefHtml = (managedObj?.project_brief || p.project_brief) ? `<div class="project-card-brief">${hl(managedObj?.project_brief || p.project_brief, q)}</div>` : '';
+
   const canEditProject = isAdmin || isCoord;
 
   const editBtn = canEditProject ? `<button class="badge-btn btn-edit-project" style="display:inline-flex;margin-left:.5rem" title="Edit Project Details" data-id="${managedObj ? managedObj.id : ''}" data-project='${JSON.stringify({
@@ -242,7 +260,10 @@ function buildProjectCard(p, q, idx) {
     type_software: managedObj ? !!managedObj.type_software : false,
     type_infra_support: managedObj ? !!managedObj.type_infra_support : false,
     type_software_support: managedObj ? !!managedObj.type_software_support : false,
-    end_date: (managedObj ? managedObj.end_date : '') || ''
+    start_date: (managedObj ? managedObj.start_date : '') || '',
+    end_date: (managedObj ? managedObj.end_date : '') || '',
+    technologies: (managedObj ? managedObj.technologies : '') || '',
+    project_brief: (managedObj ? managedObj.project_brief : '') || ''
   }).replace(/'/g, "&apos;")}'>✎</button>` : '';
 
   return `
@@ -261,6 +282,12 @@ function buildProjectCard(p, q, idx) {
             ＋ Assign Staff
           </button>` : ''}
         </div>
+      </div>
+      </div>
+      <div class="project-card-body">
+        ${dateHtml}
+        ${techHtml}
+        ${briefHtml}
       </div>
       <div class="project-card-staff">${staffBadges}</div>
     </div>`;
@@ -301,9 +328,21 @@ function showCreateProjectModal() {
               <label style="display:flex;align-items:center;gap:.4rem;text-transform:none;letter-spacing:0;color:var(--text-primary)"><input type="checkbox" id="cp-t-ssupport"> Software Support</label>
             </div>
           </div>
-          <div class="form-group full">
-            <label>Overall End Date</label>
+          <div class="form-group">
+            <label>Start Date</label>
+            <input type="date" id="cp-start">
+          </div>
+          <div class="form-group">
+            <label>End Date</label>
             <input type="date" id="cp-end">
+          </div>
+          <div class="form-group full">
+            <label>Technologies (comma separated)</label>
+            <input type="text" id="cp-tech" placeholder="e.g. Node.js, SQLite, CSS">
+          </div>
+          <div class="form-group full">
+            <label>Project Brief</label>
+            <textarea id="cp-brief" rows="3" placeholder="Brief description of the project..."></textarea>
           </div>
         </div>
       </div>
@@ -321,7 +360,10 @@ function showCreateProjectModal() {
   const nameInput = backdrop.querySelector('#cp-name');
   const socInput = backdrop.querySelector('#cp-soc');
   const custInput = backdrop.querySelector('#cp-customer');
+  const startInput = backdrop.querySelector('#cp-start');
   const endInput = backdrop.querySelector('#cp-end');
+  const techInput = backdrop.querySelector('#cp-tech');
+  const briefInput = backdrop.querySelector('#cp-brief');
 
   const acDrop = document.createElement('div');
   nameInput.parentElement.appendChild(acDrop);
@@ -349,7 +391,10 @@ function showCreateProjectModal() {
         nameInput.value = p.project_name;
         socInput.value = p.soc || '';
         custInput.value = p.customer || '';
+        startInput.value = p.start_date || '';
         endInput.value = p.end_date || '';
+        techInput.value = p.technologies || '';
+        briefInput.value = p.project_brief || '';
         acDrop.innerHTML = '';
       });
       acDrop.appendChild(item);
@@ -379,7 +424,10 @@ function showCreateProjectModal() {
           type_software: document.getElementById('cp-t-soft').checked,
           type_infra_support: document.getElementById('cp-t-isupport').checked,
           type_software_support: document.getElementById('cp-t-ssupport').checked,
-          end_date: document.getElementById('cp-end').value
+          start_date: document.getElementById('cp-start').value,
+          end_date: document.getElementById('cp-end').value,
+          technologies: document.getElementById('cp-tech').value.trim(),
+          project_brief: document.getElementById('cp-brief').value.trim()
         })
       });
       if (!res.ok) throw new Error();
@@ -432,9 +480,21 @@ function showEditProjectModal(id, p) {
               <label style="display:flex;align-items:center;gap:.4rem;text-transform:none;letter-spacing:0;color:var(--text-primary)"><input type="checkbox" id="ep-t-ssupport" ${p.type_software_support ? 'checked' : ''}> Software Support</label>
             </div>
           </div>
-          <div class="form-group full">
-            <label>Overall End Date</label>
+          <div class="form-group">
+            <label>Start Date</label>
+            <input type="date" id="ep-start" value="${p.start_date}">
+          </div>
+          <div class="form-group">
+            <label>End Date</label>
             <input type="date" id="ep-end" value="${p.end_date}">
+          </div>
+          <div class="form-group full">
+            <label>Technologies (comma separated)</label>
+            <input type="text" id="ep-tech" value="${p.technologies}" placeholder="e.g. Node.js, SQLite, CSS">
+          </div>
+          <div class="form-group full">
+            <label>Project Brief</label>
+            <textarea id="ep-brief" rows="3" placeholder="Brief description of the project...">${p.project_brief}</textarea>
           </div>
         </div>
       </div>
@@ -465,7 +525,10 @@ function showEditProjectModal(id, p) {
         type_software: document.getElementById('ep-t-soft').checked,
         type_infra_support: document.getElementById('ep-t-isupport').checked,
         type_software_support: document.getElementById('ep-t-ssupport').checked,
-        end_date: document.getElementById('ep-end').value
+        start_date: document.getElementById('ep-start').value,
+        end_date: document.getElementById('ep-end').value,
+        technologies: document.getElementById('ep-tech').value.trim(),
+        project_brief: document.getElementById('ep-brief').value.trim()
       };
 
       let res;

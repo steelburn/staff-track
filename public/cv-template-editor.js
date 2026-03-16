@@ -29,8 +29,8 @@ const SAMPLE_DATA = {
     generatedAt: new Date().toLocaleString('en-MY', { timeZone: 'Asia/Kuala_Lumpur' }),
     skills: [{ skill: 'JavaScript', rating: 5 }, { skill: 'Node.js', rating: 4 }, { skill: 'Python', rating: 4 }, { skill: 'Docker', rating: 3 }],
     projects: [
-        { soc: 'ZCS23-001', project_name: 'ERP Migration', customer: 'Acme Corp', role: 'Tech Lead', end_date: '2024-06-30' },
-        { soc: 'ZCS23-042', project_name: 'Mobile App Revamp', customer: 'Beta Ltd', role: 'Backend Dev', end_date: '2024-12-31' },
+        { soc: 'ZCS23-001', project_name: 'ERP Migration', customer: 'Acme Corp', role: 'Tech Lead', start_date: '2023-01-01', end_date: '2024-06-30', technologies: 'SAP, Oracle, Java', description: 'Migrated legacy ERP to modern cloud infrastructure.' },
+        { soc: 'ZCS23-042', project_name: 'Mobile App Revamp', customer: 'Beta Ltd', role: 'Backend Dev', start_date: '2023-05-15', end_date: '2024-12-31', technologies: 'Node.js, GraphQL, PostgreSQL', description: 'Rewrote the core API to support offline-first capabilities.' },
     ],
     education: [{ institution: 'Universiti Malaya', degree: 'BSc Computer Science', field: 'Software Engineering', start_year: 2012, end_year: 2016, description: "Dean's List." }],
     certifications: [{ name: 'AWS Certified Developer', issuer: 'Amazon Web Services', date_obtained: '2022-05-01', expiry_date: '2025-05-01', credential_id: 'AWS-DEV-12345', description: '' }],

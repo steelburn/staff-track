@@ -39,7 +39,7 @@ router.get('/', verifyToken, requireCoordinator, (req, res) => {
 router.post('/', verifyToken, requireCoordinator, (req, res) => {
     try {
         const db = getDb();
-        const { soc, name, customer, type_infra, type_software, type_infra_support, type_software_support, end_date } = req.body;
+        const { soc, name, customer, type_infra, type_software, type_infra_support, type_software_support, start_date, end_date, technologies, project_brief } = req.body;
 
         if (!name) return res.status(400).json({ error: 'Project name is required' });
 
@@ -77,13 +77,13 @@ router.post('/', verifyToken, requireCoordinator, (req, res) => {
       INSERT INTO managed_projects (
         id, soc, name, customer, 
         type_infra, type_software, type_infra_support, type_software_support, 
-        end_date, coordinator_email, created_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        start_date, end_date, technologies, project_brief, coordinator_email, created_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
                 id, soc || '', name, customer || '',
                 type_infra ? 1 : 0, type_software ? 1 : 0,
                 type_infra_support ? 1 : 0, type_software_support ? 1 : 0,
-                end_date || null, JSON.stringify([email]), now
+                start_date || null, end_date || null, technologies || null, project_brief || null, JSON.stringify([email]), now
             );
         }
 
@@ -98,7 +98,7 @@ router.post('/', verifyToken, requireCoordinator, (req, res) => {
 router.put('/:id', verifyToken, requireCoordinator, (req, res) => {
     try {
         const db = getDb();
-        const { soc, name, customer, type_infra, type_software, type_infra_support, type_software_support, end_date } = req.body;
+        const { soc, name, customer, type_infra, type_software, type_infra_support, type_software_support, start_date, end_date, technologies, project_brief } = req.body;
         const id = req.params.id;
 
         if (!name) return res.status(400).json({ error: 'Project name is required' });
@@ -112,13 +112,16 @@ router.put('/:id', verifyToken, requireCoordinator, (req, res) => {
                 type_software = ?, 
                 type_infra_support = ?, 
                 type_software_support = ?, 
-                end_date = ?
+                start_date = ?,
+                end_date = ?,
+                technologies = ?,
+                project_brief = ?
             WHERE id = ?
         `).run(
             soc || '', name, customer || '',
             type_infra ? 1 : 0, type_software ? 1 : 0,
             type_infra_support ? 1 : 0, type_software_support ? 1 : 0,
-            end_date || null, id
+            start_date || null, end_date || null, technologies || null, project_brief || null, id
         );
 
         if (info.changes === 0) return res.status(404).json({ error: 'Project not found' });

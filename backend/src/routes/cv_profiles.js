@@ -911,7 +911,27 @@ function collectCvData(db, email) {
     const profile = db.prepare('SELECT * FROM cv_profiles WHERE staff_email = ?').get(email);
     const submission = db.prepare('SELECT * FROM submissions WHERE staff_email = ? ORDER BY updated_at DESC LIMIT 1').get(email);
     const skills = db.prepare('SELECT skill, rating FROM submission_skills WHERE submission_id = (SELECT id FROM submissions WHERE staff_email = ? ORDER BY updated_at DESC LIMIT 1)').all(email);
-    const projects = db.prepare('SELECT soc, project_name, customer, role, end_date FROM submission_projects WHERE submission_id = (SELECT id FROM submissions WHERE staff_email = ? ORDER BY updated_at DESC LIMIT 1)').all(email);
+    const projects = db.prepare(`
+        SELECT 
+            sp.soc, 
+            sp.project_name, 
+            sp.customer, 
+            sp.role, 
+            sp.start_date, 
+            sp.end_date, 
+            sp.description, 
+            sp.technologies_used,
+            mp.start_date as mp_start_date,
+            mp.end_date as mp_end_date,
+            mp.project_brief as mp_project_brief,
+            mp.technologies as mp_technologies,
+            mp.name as mp_name,
+            mp.customer as mp_customer
+        FROM submission_projects sp
+        LEFT JOIN managed_projects mp ON trim(upper(sp.soc)) = trim(upper(mp.soc))
+        WHERE sp.submission_id = (SELECT id FROM submissions WHERE staff_email = ? ORDER BY updated_at DESC LIMIT 1)
+    `).all(email);
+
     const education = db.prepare('SELECT * FROM education WHERE staff_email = ? ORDER BY end_year DESC').all(email);
     const certifications = db.prepare('SELECT * FROM certifications WHERE staff_email = ? ORDER BY date_obtained DESC').all(email);
     const workHistory = db.prepare('SELECT * FROM work_history WHERE staff_email = ? ORDER BY start_date DESC').all(email);
@@ -932,7 +952,23 @@ function collectCvData(db, email) {
         photoPath: profile?.photo_path || '',
         generatedAt: new Date().toLocaleString('en-MY', { timeZone: 'Asia/Kuala_Lumpur' }),
         skills: skills.map(s => ({ skill: s.skill, rating: s.rating || '' })),
-        projects: projects.map(p => ({ soc: p.soc || '', project_name: p.project_name || '', customer: p.customer || '', role: p.role || '', end_date: p.end_date || '' })),
+        projects: projects.map(p => {
+            // Helper to check if a value is meaningful (not null, not empty string, not just whitespace)
+            const hasValue = (v) => v !== null && v !== undefined && String(v).trim().length > 0;
+
+            return {
+                soc: p.soc || '',
+                // Prefer catalog name/customer if available
+                project_name: p.mp_name || p.project_name || '',
+                customer: p.mp_customer || p.customer || '',
+                role: p.role || '',
+                // Fallback for dates, description, technologies
+                start_date: hasValue(p.start_date) ? p.start_date : (p.mp_start_date || ''),
+                end_date: hasValue(p.end_date) ? p.end_date : (p.mp_end_date || ''),
+                description: hasValue(p.description) ? p.description : (p.mp_project_brief || ''),
+                technologies: hasValue(p.technologies_used) ? p.technologies_used : (p.mp_technologies || '')
+            };
+        }),
         education: education.map(e => ({ institution: e.institution || '', degree: e.degree || '', field: e.field || '', start_year: e.start_year || '', end_year: e.end_year || '', description: e.description || '' })),
         certifications: certifications.map(c => ({ name: c.name || '', issuer: c.issuer || '', date_obtained: c.date_obtained || '', expiry_date: c.expiry_date || '', credential_id: c.credential_id || '', description: c.description || '' })),
         workHistory: workHistory.map(w => ({ employer: w.employer || '', job_title: w.job_title || '', start_date: w.start_date || '', end_date: w.is_current ? 'Present' : (w.end_date || ''), description: w.description || '' })),
@@ -1115,5 +1151,5 @@ router.delete('/:email/snapshots', verifyToken, (req, res) => {
     }
 });
 
-module.exports = router;
+module.exports = { router, collectCvData, renderTemplate };
 

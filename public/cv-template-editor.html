@@ -246,11 +246,11 @@
                                     <span class="var-chip"
                                         data-var="{{#skills}}&#10;- {{skill}} ({{rating}})&#10;{{/skills}}">{{#skills}}…{{/skills}}</span>
                                     <span class="var-chip"
-                                        data-var="{{#projects}}&#10;{{project_name}} · {{role}} · {{end_date}}&#10;{{/projects}}">{{#projects}}…{{/projects}}</span>
+                                        data-var="{{#projects}}&#10;### {{project_name}}&#10;*{{start_date}} – {{end_date}}*&#10;- **Customer:** {{customer}} | **Role:** {{role}}&#10;- **Tech:** {{technologies}}&#10;&#10;{{description}}&#10;{{/projects}}">{{#projects}}…{{/projects}}</span>
                                     <span class="var-chip"
                                         data-var="{{#workHistory}}&#10;**{{employer}}** — {{job_title}}&#10;({{start_date}} – {{end_date}})&#10;{{description}}&#10;&#10;{{/workHistory}}">{{#workHistory}}…{{/workHistory}}</span>
                                     <span class="var-chip"
-                                        data-var="{{#pastProjects}}&#10;**{{project_name}}** · {{role}}&#10;{{start_date}} – {{end_date}}&#10;{{description}}&#10;_Tech: {{technologies}}_&#10;&#10;{{/pastProjects}}">{{#pastProjects}}…{{/pastProjects}}</span>
+                                        data-var="{{#pastProjects}}&#10;### {{project_name}}&#10;*{{role}} | {{start_date}} – {{end_date}}*&#10;{{description}}&#10;_Stack: {{technologies}}_&#10;&#10;{{/pastProjects}}">{{#pastProjects}}…{{/pastProjects}}</span>
                                     <span class="var-chip"
                                         data-var="{{#education}}&#10;**{{institution}}** — {{degree}}&#10;{{start_year}}–{{end_year}}&#10;{{description}}&#10;&#10;{{/education}}">{{#education}}…{{/education}}</span>
                                     <span class="var-chip"

@@ -40,6 +40,8 @@ let STAFF_DATA = [];
 let ALL_PROJECTS_CSV = [];
 let submissionLoaded = false;
 let saveTimer = null;
+let projectCatalog = [];
+let projectCatalogLoaded = false;
 
 // ── Tab Switching ───
 function wireUpTabSwitching() {
@@ -87,8 +89,8 @@ async function saveToBackend() {
         staffData: { ...AppState.staff, email: authUser.email },
         editedFields: [...AppState.editedFields],
         skills: AppState.skills.map(({ skill, rating }) => ({ skill, rating })),
-        projects: AppState.projects.map(({ soc, projectName, customer, role, endDate }) =>
-            ({ soc, projectName, customer, role, endDate })),
+        projects: AppState.projects.map(({ soc, projectName, customer, role, startDate, endDate, description, technologies }) =>
+            ({ soc, projectName, customer, role, startDate, endDate, description, technologies })),
     };
 
     try {
@@ -480,7 +482,12 @@ function addProjectRowSub(data = {}) {
     <td><input type="text" class="p-soc" placeholder="Auto-filled" value="${data.soc || ''}" readonly style="background:var(--bg-elevated)" title="${data.soc || 'Auto-filled'}"></td>
     <td><input type="text" class="p-customer" placeholder="Auto-filled" value="${data.customer || ''}" readonly style="background:var(--bg-elevated)"></td>
     <td><input type="text" class="p-role" placeholder="e.g. Lead Dev, PM" value="${data.role || ''}"></td>
+    <td><input type="date" class="p-start" value="${data.startDate || ''}"></td>
     <td><input type="date" class="p-end" value="${data.endDate || ''}"></td>
+    <td>
+        <textarea class="p-desc" placeholder="Brief description..." rows="2" style="width:100%;font-size:0.8rem">${data.description || ''}</textarea>
+        <input type="text" class="p-tech" placeholder="Technologies (comma separated)" value="${data.technologies || ''}" style="margin-top:4px;font-size:0.8rem">
+    </td>
     <td class="col-actions">
       <button class="btn-icon btn-del-row" title="Remove row">✖</button>
     </td>
@@ -491,7 +498,10 @@ function addProjectRowSub(data = {}) {
     const socInput = tr.querySelector('.p-soc');
     const custInput = tr.querySelector('.p-customer');
     const roleInput = tr.querySelector('.p-role');
-    const dateInput = tr.querySelector('.p-end');
+    const startInput = tr.querySelector('.p-start');
+    const endInput = tr.querySelector('.p-end');
+    const descInput = tr.querySelector('.p-desc');
+    const techInput = tr.querySelector('.p-tech');
 
     const saveProjects = () => {
         const proj = AppState.projects.find(x => x.id === rowId);
@@ -500,7 +510,10 @@ function addProjectRowSub(data = {}) {
             proj.soc = socInput.value;
             proj.customer = custInput.value;
             proj.role = roleInput.value;
-            proj.endDate = dateInput.value;
+            proj.startDate = startInput.value;
+            proj.endDate = endInput.value;
+            proj.description = descInput.value;
+            proj.technologies = techInput.value;
         }
         scheduleAutoSave();
     };
@@ -533,6 +546,13 @@ function addProjectRowSub(data = {}) {
             socInput.value = p.soc || '';
             socInput.title = p.soc || 'Auto-filled';
             custInput.value = p.customer || '';
+            
+            // Auto-fill new fields if it's a managed project and they are empty
+            if (p.start_date && !startInput.value) startInput.value = p.start_date;
+            if (p.end_date && !endInput.value) endInput.value = p.end_date;
+            if (p.project_brief && !descInput.value) descInput.value = p.project_brief;
+            if (p.technologies && !techInput.value) techInput.value = p.technologies;
+
             saveProjects();
         }
     });
@@ -544,13 +564,19 @@ function addProjectRowSub(data = {}) {
             soc: data.soc || '',
             customer: data.customer || '',
             role: data.role || '',
-            endDate: data.endDate || ''
+            startDate: data.startDate || '',
+            endDate: data.endDate || '',
+            description: data.description || '',
+            technologies: data.technologies || ''
         });
     }
 
     nameInput.addEventListener('input', saveProjects);
     roleInput.addEventListener('input', saveProjects);
-    dateInput.addEventListener('change', saveProjects);
+    startInput.addEventListener('change', saveProjects);
+    endInput.addEventListener('change', saveProjects);
+    descInput.addEventListener('input', saveProjects);
+    techInput.addEventListener('input', saveProjects);
 
     tr.querySelector('.btn-del-row').addEventListener('click', () => {
         AppState.projects = AppState.projects.filter(p => p.id !== rowId);
