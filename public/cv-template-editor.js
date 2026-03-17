@@ -164,14 +164,27 @@ function renderTemplateClient(markdownTpl, cssStyles, data) {
     });
 
     // 2. Loop blocks  {{#key}}...{{/key}}
+    // Supports nested blocks (one level deep)
     tpl = tpl.replace(/\{\{#(\w+)\}\}([\s\S]*?)\{\{\/\1\}\}/g, (_, key, block) => {
         const val = data[key];
         if (!val) return '';
         if (Array.isArray(val)) {
-            return val.length === 0 ? '' : val.map(item =>
-                block.replace(/\{\{(\w+)\}\}/g, (__, f) => item[f] != null ? String(item[f]) : '')
-            ).join('');
+            if (val.length === 0) return '';
+            return val.map(item => {
+                let renderedBlock = block.replace(/\{\{(\w+)\}\}/g, (__, f) => item[f] != null ? String(item[f]) : '');
+                // Handle nested loops/conditionals (one level deep)
+                renderedBlock = renderedBlock.replace(/\{\{#(\w+)\}\}([\s\S]*?)\{\{\/\1\}\}/g, (___, key2, block2) => {
+                    const val2 = item[key2];
+                    if (!val2) return '';
+                    if (Array.isArray(val2)) {
+                        return val2.map(item2 => block2.replace(/\{\{(\w+)\}\}/g, (____, f2) => item2[f2] != null ? String(item2[f2]) : '')).join('');
+                    }
+                    return block2.replace(/\{\{(\w+)\}\}/g, (____, f2) => item[f2] != null ? String(item[f2]) : '');
+                });
+                return renderedBlock;
+            }).join('');
         }
+        // Conditional block
         return val ? block.replace(/\{\{(\w+)\}\}/g, (__, f) => data[f] != null ? String(data[f]) : '') : '';
     });
 

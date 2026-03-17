@@ -37,7 +37,7 @@ function exportProjectsCSV() {
     const staffNames = p.staff.map(s => s.name).join(' | ');
     const roles = p.staff.map(s => s.role || '—').join(' | ');
     const ends = p.staff.map(s => s.endDate || '—').join(' | ');
-    rows.push([p.soc, p.projectName, p.customer, p.staff.length, staffNames, roles, ends]);
+    rows.push([p.soc, p.project_name, p.customer, p.staff.length, staffNames, roles, ends]);
   });
   downloadCSV(rows, 'stafftrack-projects.csv');
 }
@@ -60,7 +60,7 @@ function buildCombinedList(hideEmpty = true) {
   const apiMap = new Map();
   // submissions map
   API_PROJECTS.forEach(p => {
-    const key = p.soc || p.projectName;
+    const key = p.soc || p.project_name;
     apiMap.set(key, p);
   });
 
@@ -68,12 +68,12 @@ function buildCombinedList(hideEmpty = true) {
   const combined = [];
 
   const addProj = (src, staffList) => {
-    const key = src.soc || src.projectName;
+    const key = src.soc || src.project_name || src.projectName;
     if (!key || combinedKeys.has(key)) return;
     combinedKeys.add(key);
     combined.push({
       soc: src.soc || '',
-      projectName: src.projectName || src.name || '',
+      project_name: src.project_name || src.projectName || src.name || '',
       customer: src.customer || '',
       staff: staffList || [],
     });
@@ -89,7 +89,7 @@ function buildCombinedList(hideEmpty = true) {
   // 2. Add projects from submissions
   API_PROJECTS.forEach(p => addProj(p, p.staff));
 
-  combined.sort((a, b) => (a.projectName || a.soc).localeCompare(b.projectName || b.soc));
+  combined.sort((a, b) => (a.project_name || a.soc).localeCompare(b.project_name || b.soc));
   return hideEmpty ? combined.filter(p => p.staff.length > 0) : combined;
 }
 
@@ -118,8 +118,8 @@ function render() {
           const s1 = (mp.soc || '').trim().toLowerCase();
           const s2 = (p.soc || '').trim().toLowerCase();
           if (s1 && s1 === s2) return true;
-          const n1 = (mp.name || '').trim().toLowerCase();
-          const n2 = (p.projectName || '').trim().toLowerCase();
+          const n1 = (mp.project_name || mp.name || '').trim().toLowerCase();
+          const n2 = (p.project_name || '').trim().toLowerCase();
           return (!s1 && !s2 && n1 && n1 === n2);
         });
         if (managedObj) return true;
@@ -131,7 +131,7 @@ function render() {
 
   if (q) {
     list = list.filter(p =>
-      (p.projectName || '').toLowerCase().includes(q) ||
+      (p.project_name || '').toLowerCase().includes(q) ||
       (p.soc || '').toLowerCase().includes(q) ||
       (p.customer || '').toLowerCase().includes(q) ||
       (p.technologies || '').toLowerCase().includes(q) ||
@@ -178,7 +178,7 @@ function render() {
       const s = JSON.parse(btn.dataset.staff);
       const p = JSON.parse(btn.dataset.project);
 
-      if (!confirm(`Are you sure you want to unassign ${s.name} from ${p.projectName || p.soc}?`)) return;
+      if (!confirm(`Are you sure you want to unassign ${s.name} from ${p.project_name || p.soc}?`)) return;
 
       try {
         const res = await window.StaffTrackAuth.apiFetch(`/api/submissions/assign-project/${s.assignmentId}`, {
@@ -204,8 +204,8 @@ function buildProjectCard(p, q, idx) {
     const s1 = (mp.soc || '').trim().toLowerCase();
     const s2 = (p.soc || '').trim().toLowerCase();
     if (s1 && s1 === s2) return true;
-    const n1 = (mp.name || '').trim().toLowerCase();
-    const n2 = (p.projectName || '').trim().toLowerCase();
+    const n1 = (mp.project_name || mp.name || '').trim().toLowerCase();
+    const n2 = (p.project_name || '').trim().toLowerCase();
     return (!s1 && !s2 && n1 && n1 === n2);
   });
 
@@ -219,8 +219,8 @@ function buildProjectCard(p, q, idx) {
           </div>
           ${canEditAssign ? `
           <div class="badge-actions">
-            <button class="badge-btn btn-edit-assign" title="Edit Assignment" data-staff='${JSON.stringify(s).replace(/'/g, "&apos;")}' data-project='{"soc":"${p.soc}","projectName":"${(p.projectName || '').replace(/'/g, "&apos;")}","customer":"${(p.customer || '').replace(/'/g, "&apos;")}"}'>✎</button>
-            <button class="badge-btn btn-del btn-del-assign" title="Unassign" data-staff='${JSON.stringify(s).replace(/'/g, "&apos;")}' data-project='{"soc":"${p.soc}","projectName":"${(p.projectName || '').replace(/'/g, "&apos;")}"}'>✕</button>
+            <button class="badge-btn btn-edit-assign" title="Edit Assignment" data-staff='${JSON.stringify(s).replace(/'/g, "&apos;")}' data-project='{"soc":"${p.soc}","project_name":"${(p.project_name || '').replace(/'/g, "&apos;")}","customer":"${(p.customer || '').replace(/'/g, "&apos;")}"}'>✎</button>
+            <button class="badge-btn btn-del btn-del-assign" title="Unassign" data-staff='${JSON.stringify(s).replace(/'/g, "&apos;")}' data-project='{"soc":"${p.soc}","project_name":"${(p.project_name || '').replace(/'/g, "&apos;")}"}'>✕</button>
           </div>` : ''}
         </div>`).join('')
     : `<span class="no-staff-label">No staff assigned</span>`;
@@ -254,7 +254,7 @@ function buildProjectCard(p, q, idx) {
 
   const editBtn = canEditProject ? `<button class="badge-btn btn-edit-project" style="display:inline-flex;margin-left:.5rem" title="Edit Project Details" data-id="${managedObj ? managedObj.id : ''}" data-project='${JSON.stringify({
     soc: (managedObj ? managedObj.soc : p.soc) || '',
-    name: (managedObj ? managedObj.name : p.projectName) || '',
+    project_name: (managedObj ? (managedObj.project_name || managedObj.name) : p.project_name) || '',
     customer: (managedObj ? managedObj.customer : p.customer) || '',
     type_infra: managedObj ? !!managedObj.type_infra : false,
     type_software: managedObj ? !!managedObj.type_software : false,
@@ -263,7 +263,7 @@ function buildProjectCard(p, q, idx) {
     start_date: (managedObj ? managedObj.start_date : '') || '',
     end_date: (managedObj ? managedObj.end_date : '') || '',
     technologies: (managedObj ? managedObj.technologies : '') || '',
-    project_brief: (managedObj ? managedObj.project_brief : '') || ''
+    description: (managedObj ? (managedObj.description || managedObj.project_brief) : (p.description || p.project_brief)) || ''
   }).replace(/'/g, "&apos;")}'>✎</button>` : '';
 
   return `
@@ -271,14 +271,14 @@ function buildProjectCard(p, q, idx) {
       <div class="project-card-header">
         <div class="project-card-meta" style="display:flex;align-items:center;flex-wrap:wrap">
           ${p.soc ? `<span class="soc-badge">${hl(p.soc, q)}</span>` : ''}
-          <h3 class="project-card-name" style="display:flex;align-items:center">${hl(p.projectName || '(unnamed)', q)} ${editBtn}</h3>
+          <h3 class="project-card-name" style="display:flex;align-items:center">${hl(p.project_name || '(unnamed)', q)} ${editBtn}</h3>
           ${p.customer ? `<span class="project-customer">${hl(p.customer, q)}</span>` : ''}
           ${classHtml}
         </div>
         <div class="project-card-actions">
           <span class="staff-count-pill ${p.staff.length ? '' : 'empty'}">${p.staff.length} staff</span>
           ${canEditAssign ? `
-          <button class="btn-assign btn-add" data-soc="${p.soc}" data-name="${p.projectName}" data-customer="${p.customer}" data-idx="${idx}">
+          <button class="btn-assign btn-add" data-soc="${p.soc}" data-name="${p.project_name}" data-customer="${p.customer}" data-idx="${idx}">
             ＋ Assign Staff
           </button>` : ''}
         </div>
@@ -308,7 +308,7 @@ function showCreateProjectModal() {
           <div class="form-group full">
             <label>Project Name *</label>
             <div class="autocomplete-wrap">
-              <input type="text" id="cp-name" placeholder="Search catalog or type a new name..." autocomplete="off">
+              <input type="text" id="cp-project_name" placeholder="Search catalog or type a new name..." autocomplete="off">
             </div>
           </div>
           <div class="form-group">
@@ -341,8 +341,8 @@ function showCreateProjectModal() {
             <input type="text" id="cp-tech" placeholder="e.g. Node.js, SQLite, CSS">
           </div>
           <div class="form-group full">
-            <label>Project Brief</label>
-            <textarea id="cp-brief" rows="3" placeholder="Brief description of the project..."></textarea>
+            <label>Description</label>
+            <textarea id="cp-description" rows="3" placeholder="Brief description of the project..."></textarea>
           </div>
         </div>
       </div>
@@ -357,13 +357,13 @@ function showCreateProjectModal() {
   backdrop.querySelector('.modal-close').addEventListener('click', close);
   backdrop.querySelector('.modal-close-btn').addEventListener('click', close);
 
-  const nameInput = backdrop.querySelector('#cp-name');
+  const nameInput = backdrop.querySelector('#cp-project_name');
   const socInput = backdrop.querySelector('#cp-soc');
   const custInput = backdrop.querySelector('#cp-customer');
   const startInput = backdrop.querySelector('#cp-start');
   const endInput = backdrop.querySelector('#cp-end');
   const techInput = backdrop.querySelector('#cp-tech');
-  const briefInput = backdrop.querySelector('#cp-brief');
+  const descInput = backdrop.querySelector('#cp-description');
 
   const acDrop = document.createElement('div');
   nameInput.parentElement.appendChild(acDrop);
@@ -394,7 +394,7 @@ function showCreateProjectModal() {
         startInput.value = p.start_date || '';
         endInput.value = p.end_date || '';
         techInput.value = p.technologies || '';
-        briefInput.value = p.project_brief || '';
+        descInput.value = p.description || p.project_brief || '';
         acDrop.innerHTML = '';
       });
       acDrop.appendChild(item);
@@ -407,8 +407,8 @@ function showCreateProjectModal() {
 
   backdrop.querySelector('#cp-submit').addEventListener('click', async () => {
     const btn = backdrop.querySelector('#cp-submit');
-    const name = nameInput.value.trim();
-    if (!name) return showToast('Project Name is required', true);
+    const project_name = nameInput.value.trim();
+    if (!project_name) return showToast('Project Name is required', true);
 
     btn.disabled = true;
     btn.textContent = 'Creating...';
@@ -417,7 +417,7 @@ function showCreateProjectModal() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          name: name,
+          project_name: project_name,
           soc: document.getElementById('cp-soc').value.trim(),
           customer: document.getElementById('cp-customer').value.trim(),
           type_infra: document.getElementById('cp-t-infra').checked,
@@ -427,7 +427,7 @@ function showCreateProjectModal() {
           start_date: document.getElementById('cp-start').value,
           end_date: document.getElementById('cp-end').value,
           technologies: document.getElementById('cp-tech').value.trim(),
-          project_brief: document.getElementById('cp-brief').value.trim()
+          description: document.getElementById('cp-description').value.trim()
         })
       });
       if (!res.ok) throw new Error();
@@ -461,7 +461,7 @@ function showEditProjectModal(id, p) {
         <div class="form-grid single">
           <div class="form-group full">
             <label>Project Name *</label>
-            <input type="text" id="ep-name" value="${p.name}" autocomplete="off">
+            <input type="text" id="ep-project_name" value="${p.project_name || p.name}" autocomplete="off">
           </div>
           <div class="form-group">
             <label>SOC Code</label>
@@ -493,8 +493,8 @@ function showEditProjectModal(id, p) {
             <input type="text" id="ep-tech" value="${p.technologies}" placeholder="e.g. Node.js, SQLite, CSS">
           </div>
           <div class="form-group full">
-            <label>Project Brief</label>
-            <textarea id="ep-brief" rows="3" placeholder="Brief description of the project...">${p.project_brief}</textarea>
+            <label>Description</label>
+            <textarea id="ep-description" rows="3" placeholder="Brief description of the project...">${p.description || p.project_brief || ''}</textarea>
           </div>
         </div>
       </div>
@@ -511,14 +511,14 @@ function showEditProjectModal(id, p) {
 
   backdrop.querySelector('#ep-submit').addEventListener('click', async () => {
     const btn = backdrop.querySelector('#ep-submit');
-    const name = document.getElementById('ep-name').value.trim();
-    if (!name) return showToast('Project Name is required', true);
+    const project_name = document.getElementById('ep-project_name').value.trim();
+    if (!project_name) return showToast('Project Name is required', true);
 
     btn.disabled = true;
     btn.textContent = 'Saving...';
     try {
       const payload = {
-        name: name,
+        project_name: project_name,
         soc: document.getElementById('ep-soc').value.trim(),
         customer: document.getElementById('ep-customer').value.trim(),
         type_infra: document.getElementById('ep-t-infra').checked,
@@ -528,7 +528,7 @@ function showEditProjectModal(id, p) {
         start_date: document.getElementById('ep-start').value,
         end_date: document.getElementById('ep-end').value,
         technologies: document.getElementById('ep-tech').value.trim(),
-        project_brief: document.getElementById('ep-brief').value.trim()
+        description: document.getElementById('ep-description').value.trim()
       };
 
       let res;
@@ -571,7 +571,7 @@ function showAssignModal(project) {
       </div>
       <div class="modal-body">
         <p style="font-size:.82rem;color:var(--text-secondary);margin-bottom:1rem">
-          Assigning to: <strong>${project.projectName || project.soc}</strong>
+          Assigning to: <strong>${project.project_name || project.projectName || project.soc}</strong>
           ${project.customer ? ` · ${project.customer}` : ''}
         </p>
         <div class="form-grid single">
@@ -658,7 +658,7 @@ function showAssignModal(project) {
           staffData,
           project: {
             soc: project.soc,
-            projectName: project.projectName,
+            project_name: project.project_name || project.projectName,
             customer: project.customer,
             role,
             endDate,
@@ -673,7 +673,7 @@ function showAssignModal(project) {
         return;
       }
       if (!res.ok) throw new Error('Server error');
-      showToast(`✓ ${staffName} assigned to ${project.projectName || project.soc}`);
+      showToast(`✓ ${staffName} assigned to ${project.project_name || project.projectName || project.soc}`);
       close();
       await loadData(); // refresh
     } catch {
@@ -698,7 +698,7 @@ function showEditAssignModal(staff, project) {
       <div class="modal-body">
         <p style="font-size:.9rem;margin-bottom:.5rem"><strong>${staff.name}</strong></p>
         <p style="font-size:.82rem;color:var(--text-secondary);margin-bottom:1rem">
-          Assigning to: <strong>${project.projectName || project.soc}</strong>
+          Assigning to: <strong>${project.project_name || project.projectName || project.soc}</strong>
           ${project.customer ? ` · ${project.customer}` : ''}
         </p>
         <div class="form-grid single">

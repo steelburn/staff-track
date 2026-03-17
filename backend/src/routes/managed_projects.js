@@ -27,7 +27,6 @@ router.get('/', verifyToken, requireCoordinator, (req, res) => {
         } else {
             rows = db.prepare('SELECT * FROM managed_projects WHERE coordinator_email LIKE ? OR coordinator_email = ? ORDER BY created_at DESC').all('%"' + req.user.email + '"%', req.user.email);
         }
-        // parse boolean ints implicitly to true/false for frontend if needed, but direct map is fine
         res.json(rows);
     } catch (err) {
         console.error('GET /managed-projects error:', err);
@@ -39,16 +38,16 @@ router.get('/', verifyToken, requireCoordinator, (req, res) => {
 router.post('/', verifyToken, requireCoordinator, (req, res) => {
     try {
         const db = getDb();
-        const { soc, name, customer, type_infra, type_software, type_infra_support, type_software_support, start_date, end_date, technologies, project_brief } = req.body;
+        const { soc, project_name, customer, type_infra, type_software, type_infra_support, type_software_support, start_date, end_date, technologies, description } = req.body;
 
-        if (!name) return res.status(400).json({ error: 'Project name is required' });
+        if (!project_name) return res.status(400).json({ error: 'Project name is required' });
 
         let existing;
         if (soc) {
             existing = db.prepare('SELECT * FROM managed_projects WHERE soc = ?').get(soc);
         }
         if (!existing) {
-            existing = db.prepare("SELECT * FROM managed_projects WHERE name = ? AND (soc IS NULL OR soc = '')").get(name);
+            existing = db.prepare("SELECT * FROM managed_projects WHERE project_name = ? AND (soc IS NULL OR soc = '')").get(project_name);
         }
 
         const email = req.user.email;
@@ -75,19 +74,19 @@ router.post('/', verifyToken, requireCoordinator, (req, res) => {
             id = uuidv4();
             db.prepare(`
       INSERT INTO managed_projects (
-        id, soc, name, customer, 
+        id, soc, project_name, customer, 
         type_infra, type_software, type_infra_support, type_software_support, 
-        start_date, end_date, technologies, project_brief, coordinator_email, created_at
+        start_date, end_date, technologies, description, coordinator_email, created_at
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
-                id, soc || '', name, customer || '',
+                id, soc || '', project_name, customer || '',
                 type_infra ? 1 : 0, type_software ? 1 : 0,
                 type_infra_support ? 1 : 0, type_software_support ? 1 : 0,
-                start_date || null, end_date || null, technologies || null, project_brief || null, JSON.stringify([email]), now
+                start_date || null, end_date || null, technologies || null, description || null, JSON.stringify([email]), now
             );
         }
 
-        res.status(201).json({ id, soc, name, customer });
+        res.status(201).json({ id, soc, project_name, customer });
     } catch (err) {
         console.error('POST /managed-projects error:', err);
         res.status(500).json({ error: 'Failed to create managed project' });
@@ -98,15 +97,15 @@ router.post('/', verifyToken, requireCoordinator, (req, res) => {
 router.put('/:id', verifyToken, requireCoordinator, (req, res) => {
     try {
         const db = getDb();
-        const { soc, name, customer, type_infra, type_software, type_infra_support, type_software_support, start_date, end_date, technologies, project_brief } = req.body;
+        const { soc, project_name, customer, type_infra, type_software, type_infra_support, type_software_support, start_date, end_date, technologies, description } = req.body;
         const id = req.params.id;
 
-        if (!name) return res.status(400).json({ error: 'Project name is required' });
+        if (!project_name) return res.status(400).json({ error: 'Project name is required' });
 
         const info = db.prepare(`
             UPDATE managed_projects SET 
                 soc = ?, 
-                name = ?, 
+                project_name = ?, 
                 customer = ?, 
                 type_infra = ?, 
                 type_software = ?, 
@@ -115,13 +114,13 @@ router.put('/:id', verifyToken, requireCoordinator, (req, res) => {
                 start_date = ?,
                 end_date = ?,
                 technologies = ?,
-                project_brief = ?
+                description = ?
             WHERE id = ?
         `).run(
-            soc || '', name, customer || '',
+            soc || '', project_name, customer || '',
             type_infra ? 1 : 0, type_software ? 1 : 0,
             type_infra_support ? 1 : 0, type_software_support ? 1 : 0,
-            start_date || null, end_date || null, technologies || null, project_brief || null, id
+            start_date || null, end_date || null, technologies || null, description || null, id
         );
 
         if (info.changes === 0) return res.status(404).json({ error: 'Project not found' });

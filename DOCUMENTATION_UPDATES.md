@@ -15,11 +15,18 @@
 ### 3. docs/IMPLEMENTATION_PLANS.md
 - Marked Skill Search & Consolidation (Features 6 & 8) as ✅ COMPLETED
 
-### 4. Latest Updates (March 2026)
-- **Gantt Chart Performance**: Implemented canvas virtualization for smooth rendering of large datasets.
-- **CV Template Editor**: Added "Show/Hide" toggles for Markdown and CSS columns to maximize preview area.
-- **Staff Management**: Enabled staff removal and fixed CV generation to use correct user profile.
-- **Project Coordination**: Coordinators can now edit projects and view filtered Gantt charts.
+### 4. Recent Updates (March 17, 2026)
+- **Database Schema Migration**:
+  - Renamed `name` to `project_name` in `managed_projects` table.
+  - Renamed `project_brief` to `description` in `managed_projects` table.
+- **Frontend & API Synchronization**:
+  - Updated `managed_projects.js` and `projects.js` to support renamed fields.
+  - Ensured consistent fallback logic for `project_name` and `description` in the UI.
+- **CV Template Enhancements**:
+  - Improved template inheritance logic in `cv_profiles.js` to correctly prioritize `description` from project assignments, falling back to the project catalog description.
+- **Session & Auth Fixes**:
+  - Resolved `authUser` ReferenceError in `app.js`.
+  - Implemented consistent session redirection for unauthenticated users.
 
 ## Current Project Status
 

@@ -76,7 +76,7 @@ function initSchema(db) {
       CREATE TABLE IF NOT EXISTS managed_projects (
         id TEXT PRIMARY KEY,
         soc TEXT,
-        name TEXT NOT NULL,
+        project_name TEXT NOT NULL,
         customer TEXT,
         type_infra INTEGER DEFAULT 0,
         type_software INTEGER DEFAULT 0,
@@ -85,7 +85,7 @@ function initSchema(db) {
         start_date TEXT,
         end_date TEXT,
         technologies TEXT,
-        project_brief TEXT,
+        description TEXT,
         coordinator_email TEXT NOT NULL,
         created_at TEXT NOT NULL
       );
@@ -707,19 +707,19 @@ function runMigrations(db) {
     console.log('Added proof_path column to certifications');
   }
 
-  // Add new columns to managed_projects
+  // Migration for managed_projects
   const mpInfo = db.pragma("table_info('managed_projects')");
-  if (!mpInfo.some(c => c.name === 'start_date')) {
-    db.exec('ALTER TABLE managed_projects ADD COLUMN start_date TEXT');
-    console.log('Added start_date column to managed_projects');
-  }
-  if (!mpInfo.some(c => c.name === 'technologies')) {
-    db.exec('ALTER TABLE managed_projects ADD COLUMN technologies TEXT');
-    console.log('Added technologies column to managed_projects');
-  }
-  if (!mpInfo.some(c => c.name === 'project_brief')) {
-    db.exec('ALTER TABLE managed_projects ADD COLUMN project_brief TEXT');
-    console.log('Added project_brief column to managed_projects');
+  if (mpInfo.length > 0) {
+    // Rename 'name' to 'project_name' if it exists
+    if (mpInfo.some(c => c.name === 'name') && !mpInfo.some(c => c.name === 'project_name')) {
+      db.exec('ALTER TABLE managed_projects RENAME COLUMN name TO project_name');
+      console.log('Renamed name to project_name in managed_projects');
+    }
+    // Rename 'project_brief' to 'description' if it exists
+    if (mpInfo.some(c => c.name === 'project_brief') && !mpInfo.some(c => c.name === 'description')) {
+      db.exec('ALTER TABLE managed_projects RENAME COLUMN project_brief TO description');
+      console.log('Renamed project_brief to description in managed_projects');
+    }
   }
 
   // Migration for submission_projects

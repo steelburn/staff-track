@@ -34,7 +34,7 @@ const AppState = {
     staff: { name: '', title: '', department: '', managerName: '', email: '' },
     editedFields: new Set(),
     skills: [],                // [{ id, skill, rating }]
-    projects: [],              // [{ id, soc, projectName, customer, role, endDate }]
+    projects: [],              // [{ id, soc, project_name, customer, role, endDate }]
 };
 let STAFF_DATA = [];
 let ALL_PROJECTS_CSV = [];
@@ -89,8 +89,8 @@ async function saveToBackend() {
         staffData: { ...AppState.staff, email: authUser.email },
         editedFields: [...AppState.editedFields],
         skills: AppState.skills.map(({ skill, rating }) => ({ skill, rating })),
-        projects: AppState.projects.map(({ soc, projectName, customer, role, startDate, endDate, description, technologies }) =>
-            ({ soc, projectName, customer, role, startDate, endDate, description, technologies })),
+        projects: AppState.projects.map(({ soc, project_name, customer, role, startDate, endDate, description, technologies }) =>
+            ({ soc, project_name, customer, role, startDate, endDate, description, technologies })),
     };
 
     try {
@@ -476,7 +476,7 @@ function addProjectRowSub(data = {}) {
     tr.innerHTML = `
     <td>
       <div class="project-ac-wrap">
-        <input type="text" class="p-name" placeholder="Search project name…" value="${data.projectName || ''}">
+        <input type="text" class="p-name" placeholder="Search project name…" value="${data.project_name || data.projectName || ''}">
       </div>
     </td>
     <td><input type="text" class="p-soc" placeholder="Auto-filled" value="${data.soc || ''}" readonly style="background:var(--bg-elevated)" title="${data.soc || 'Auto-filled'}"></td>
@@ -506,7 +506,7 @@ function addProjectRowSub(data = {}) {
     const saveProjects = () => {
         const proj = AppState.projects.find(x => x.id === rowId);
         if (proj) {
-            proj.projectName = nameInput.value;
+            proj.project_name = nameInput.value;
             proj.soc = socInput.value;
             proj.customer = custInput.value;
             proj.role = roleInput.value;
@@ -531,7 +531,7 @@ function addProjectRowSub(data = {}) {
         onSelect: p => {
             const isDup = AppState.projects.some(x =>
                 x.id !== rowId &&
-                ((x.soc && p.soc && x.soc === p.soc) || (!x.soc && x.projectName && p.project_name && x.projectName === p.project_name))
+                ((x.soc && p.soc && x.soc === p.soc) || (!x.soc && (x.project_name || x.projectName) && p.project_name && (x.project_name || x.projectName) === p.project_name))
             );
 
             if (isDup) {
@@ -550,7 +550,7 @@ function addProjectRowSub(data = {}) {
             // Auto-fill new fields if it's a managed project and they are empty
             if (p.start_date && !startInput.value) startInput.value = p.start_date;
             if (p.end_date && !endInput.value) endInput.value = p.end_date;
-            if (p.project_brief && !descInput.value) descInput.value = p.project_brief;
+            if ((p.description || p.project_brief) && !descInput.value) descInput.value = p.description || p.project_brief;
             if (p.technologies && !techInput.value) techInput.value = p.technologies;
 
             saveProjects();
@@ -560,7 +560,7 @@ function addProjectRowSub(data = {}) {
     if (!AppState.projects.find(p => p.id === rowId)) {
         AppState.projects.push({
             id: rowId,
-            projectName: data.projectName || '',
+            project_name: data.project_name || data.projectName || '',
             soc: data.soc || '',
             customer: data.customer || '',
             role: data.role || '',

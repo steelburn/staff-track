@@ -923,12 +923,16 @@ function collectCvData(db, email) {
             sp.technologies_used,
             mp.start_date as mp_start_date,
             mp.end_date as mp_end_date,
-            mp.project_brief as mp_project_brief,
+            mp.description as mp_description,
             mp.technologies as mp_technologies,
-            mp.name as mp_name,
+            mp.project_name as mp_project_name,
             mp.customer as mp_customer
         FROM submission_projects sp
-        LEFT JOIN managed_projects mp ON trim(upper(sp.soc)) = trim(upper(mp.soc))
+        LEFT JOIN managed_projects mp ON (
+            (sp.soc IS NOT NULL AND sp.soc != '' AND trim(upper(sp.soc)) = trim(upper(mp.soc)))
+            OR 
+            ((sp.soc IS NULL OR sp.soc = '') AND trim(upper(sp.project_name)) = trim(upper(mp.project_name)))
+        )
         WHERE sp.submission_id = (SELECT id FROM submissions WHERE staff_email = ? ORDER BY updated_at DESC LIMIT 1)
     `).all(email);
 
@@ -959,13 +963,13 @@ function collectCvData(db, email) {
             return {
                 soc: p.soc || '',
                 // Prefer catalog name/customer if available
-                project_name: p.mp_name || p.project_name || '',
+                project_name: p.mp_project_name || p.project_name || '',
                 customer: p.mp_customer || p.customer || '',
                 role: p.role || '',
                 // Fallback for dates, description, technologies
                 start_date: hasValue(p.start_date) ? p.start_date : (p.mp_start_date || ''),
                 end_date: hasValue(p.end_date) ? p.end_date : (p.mp_end_date || ''),
-                description: hasValue(p.description) ? p.description : (p.mp_project_brief || ''),
+                description: hasValue(p.description) ? p.description : (p.mp_description || ''),
                 technologies: hasValue(p.technologies_used) ? p.technologies_used : (p.mp_technologies || '')
             };
         }),
