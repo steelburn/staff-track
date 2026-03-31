@@ -24,7 +24,7 @@ router.get('/projects', requireReporter, (req, res) => {
         mp.coordinator_email
       FROM submission_projects p
       JOIN submissions s ON p.submission_id = s.id
-      LEFT JOIN managed_projects mp ON (mp.soc = p.soc OR (p.soc IS NULL AND mp.name = p.project_name))
+      LEFT JOIN managed_projects mp ON (mp.soc = p.soc OR (p.soc IS NULL AND mp.project_name = p.project_name))
     `;
 
         if (!isAdminOrHR) {
@@ -86,7 +86,7 @@ router.get('/staff', requireReporter, (req, res) => {
             mp.type_infra, mp.type_software, mp.type_infra_support, mp.type_software_support,
             mp.coordinator_email
           FROM submission_projects p
-          LEFT JOIN managed_projects mp ON (mp.soc = p.soc OR (p.soc IS NULL AND mp.name = p.project_name))
+          LEFT JOIN managed_projects mp ON (mp.soc = p.soc OR (p.soc IS NULL AND mp.project_name = p.project_name))
         `;
 
         if (!isAdminOrHR) {
@@ -95,7 +95,7 @@ router.get('/staff', requireReporter, (req, res) => {
                 SELECT DISTINCT s.id, s.staff_email, s.staff_name, s.title, s.department, s.manager_name, s.updated_at, s.updated_by_staff
                 FROM submissions s
                 JOIN submission_projects sp ON sp.submission_id = s.id
-                LEFT JOIN managed_projects mp ON (mp.soc = sp.soc OR (sp.soc IS NULL AND mp.name = sp.project_name))
+                LEFT JOIN managed_projects mp ON (mp.soc = sp.soc OR (sp.soc IS NULL AND mp.project_name = sp.project_name))
                 WHERE mp.coordinator_email LIKE ? OR mp.coordinator_email = ?
             `;
             projQuery += ` WHERE mp.coordinator_email LIKE ? OR mp.coordinator_email = ?`;
