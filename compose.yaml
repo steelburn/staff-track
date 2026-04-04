@@ -15,26 +15,37 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    expose:
-      - "3000"
     volumes:
+      - ./backend:/app
+      - /app/node_modules
+      - ./public:/app/public:ro
       - db_data:/data
-      - ./backend/src:/app/src:ro
-      - ./public/files:/app/files:ro
+    command: [ "node", "src/index.js" ]
     environment:
-      - NODE_ENV=production
-      - DB_PATH=/data/submissions.db
-      - PORT=3000
-      - AUTH_SERVICE_URL=https://appcore.beesuite.app
-      - AUTH_SERVICE_ENDPOINT=/api/auth/login
-      - JWT_SECRET=dev_secret_change_me_in_prod
+      NODE_ENV: "development"
+      DB_PATH: "/data/submissions.db"
+      PORT: "3000"
+      AUTH_SERVICE_URL: "https://appcore.beesuite.app"
+      AUTH_SERVICE_ENDPOINT: "/api/auth/login"
+      JWT_SECRET: "dev_secret_change_me_in_prod"
+    ports:
+      - "3000:3000"
+    depends_on:
+      - db
     networks:
       - stafftrack
     restart: unless-stopped
+    user: root
+
+  db:
+    image: alpine/sqlite:latest
+    volumes:
+      - db_data:/data
+
+volumes:
+  db_data:
+
 
 networks:
   stafftrack:
     driver: bridge
-
-volumes:
-  db_data:

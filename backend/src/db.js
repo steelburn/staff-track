@@ -5,13 +5,20 @@ const path = require('path');
 const DB_PATH = process.env.DB_PATH || path.join(__dirname, '../../data/submissions.db');
 
 let db;
+let schemaInitialized = false;
 
 function getDb() {
   if (!db) {
+    console.log("Initializing database at path:", DB_PATH); // Log the database path
     db = new Database(DB_PATH);
     db.pragma('journal_mode = WAL');
     db.pragma('foreign_keys = ON');
-    initSchema(db);
+
+    if (!schemaInitialized) {
+      initSchema(db);
+      schemaInitialized = true;
+    }
+
     runMigrations(db);
 
     // Run CSV seeders if tables are empty
@@ -22,6 +29,8 @@ function getDb() {
 }
 
 function initSchema(db) {
+  if (schemaInitialized) return; // Prevent redundant execution
+
   db.exec(`
       PRAGMA journal_mode = WAL;
 
@@ -159,6 +168,8 @@ function initSchema(db) {
         created_at TEXT NOT NULL
       );
     `);
+
+  schemaInitialized = true;
 }
 
 function seedDefaultTemplates(db) {
@@ -465,6 +476,28 @@ blockquote { display: none; }
 }
 
 function runMigrations(db) {
+  // Debugging: Log the schema of 'auth_tokens'
+  const authTokensInfo = db.pragma("table_info('auth_tokens')");
+  console.log("auth_tokens schema:", authTokensInfo);
+
+  // Ensure 'token_hash' column exists in 'auth_tokens'
+  const hasTokenHash = authTokensInfo.some(c => c.name === 'token_hash');
+  if (!hasTokenHash) {
+    db.exec('ALTER TABLE auth_tokens ADD COLUMN token_hash TEXT');
+    console.log("Added 'token_hash' column to 'auth_tokens'");
+  } else {
+    console.log("'token_hash' column already exists in 'auth_tokens'");
+  }
+
+  // Ensure 'refresh_token_hash' column exists in 'auth_tokens'
+  const hasRefreshTokenHash = authTokensInfo.some(c => c.name === 'refresh_token_hash');
+  if (!hasRefreshTokenHash) {
+    db.exec('ALTER TABLE auth_tokens ADD COLUMN refresh_token_hash TEXT');
+    console.log("Added 'refresh_token_hash' column to 'auth_tokens'");
+  } else {
+    console.log("'refresh_token_hash' column already exists in 'auth_tokens'");
+  }
+
   // Add updated_by_staff if missing
   const info = db.pragma("table_info('submissions')");
   const hasCol = info.some(c => c.name === 'updated_by_staff');
@@ -488,15 +521,8 @@ function runMigrations(db) {
   const oldRoleInfo = db.pragma("table_info('user_roles')");
   const hasRoleCol = oldRoleInfo.some(c => c.name === 'role');
   if (!hasRoleCol) {
-    const hasIsHr = oldRoleInfo.some(c => c.name === 'is_hr');
-    const hasIsCoord = oldRoleInfo.some(c => c.name === 'is_coordinator');
-    if (hasIsHr && hasIsCoord) {
-      db.exec('ALTER TABLE user_roles ADD COLUMN role TEXT DEFAULT "staff"');
-      db.exec(`UPDATE user_roles SET role = 'hr' WHERE is_hr = 1`);
-      db.exec(`UPDATE user_roles SET role = 'coordinator' WHERE is_coordinator = 1`);
-      db.exec(`UPDATE user_roles SET role = 'staff' WHERE role = 'staff' OR role IS NULL`);
-      console.log('Migrated user_roles table to new role-based format');
-    }
+    db.exec('ALTER TABLE user_roles ADD COLUMN role TEXT DEFAULT "staff"');
+    console.log("Added 'role' column to 'user_roles'");
   }
 
   // Add is_active column to user_roles if missing
@@ -743,6 +769,14 @@ function runMigrations(db) {
   if (!spInfo.some(c => c.name === 'is_active')) {
     db.exec('ALTER TABLE submission_projects ADD COLUMN is_active INTEGER DEFAULT 0');
     console.log('Added is_active column to submission_projects');
+  }
+
+  // Ensure 'role' column exists in 'user_roles'
+  const userRolesInfo = db.pragma("table_info('user_roles')");
+  const hasRoleColumn = userRolesInfo.some(c => c.name === 'role');
+  if (!hasRoleColumn) {
+    db.exec('ALTER TABLE user_roles ADD COLUMN role TEXT DEFAULT "staff"');
+    console.log("Added 'role' column to 'user_roles'");
   }
 }
 

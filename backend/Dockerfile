@@ -8,6 +8,9 @@ RUN npm install --omit=dev
 FROM node:20-alpine AS production
 ENV NODE_ENV=production
 
+# Install sqlite3 for database inspection
+RUN apk add --no-cache sqlite
+
 # Create non-root user
 RUN addgroup -S appgroup && adduser -S appuser -G appgroup
 

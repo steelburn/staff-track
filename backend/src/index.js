@@ -10,6 +10,7 @@ const managedProjRouter = require('./routes/managed_projects');
 const catalogRouter = require('./routes/catalog');
 const cvProfiles = require('./routes/cv_profiles');
 const cvProfilesRouter = cvProfiles.router;
+const dataToolsRouter = require('./routes/data-tools');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -37,6 +38,7 @@ app.use('/catalog', catalogRouter);
 app.use('/submissions', submissionsRouter);
 app.use('/reports', reportsRouter);
 app.use('/cv-profiles', cvProfilesRouter);
+app.use('/data-tools', dataToolsRouter);
 
 // 404 handler
 app.use((_req, res) => res.status(404).json({ error: 'Not found' }));
@@ -48,6 +50,11 @@ app.use((err, _req, res, _next) => {
 });
 
 // ── Start ─────────────────────────────────────────────────────────────────────
+const { getDb } = require('./db');
+
+// Initialize database on startup
+getDb();
+
 app.listen(PORT, '0.0.0.0', () => {
     console.log(`StaffTrack API listening on port ${PORT}`);
 });
