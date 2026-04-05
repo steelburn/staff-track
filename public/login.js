@@ -39,20 +39,43 @@ document.getElementById('btn-login').addEventListener('click', async () => {
             return;
         }
 
-        // Store tokens (new format: accessToken + refreshToken)
-        sessionStorage.setItem('st_token', data.accessToken);
-        sessionStorage.setItem('st_refresh_token', data.refreshToken);
-        sessionStorage.setItem('st_user', JSON.stringify(data.user));
-        
+        console.log('Backend response:', data); // Debugging backend response
+        console.log('st_user before update:', sessionStorage.getItem('st_user')); // Debugging session storage before update
+
+        // Store token
+        sessionStorage.setItem('st_token', data.access_token);
+
         // Store token expiry time (7 hours from now - gives 1 hour buffer before actual 8h expiry)
         const expiresAt = Date.now() + (7 * 60 * 60 * 1000);
         sessionStorage.setItem('st_token_expires_at', expiresAt.toString());
 
-        // Redirect to default view based on role
-        if (data.user.role === 'admin') location.href = '/admin.html';
-        else if (data.user.role === 'hr') location.href = '/staff-view.html';
-        else if (data.user.role === 'coordinator') location.href = '/projects.html';
-        else location.href = '/'; // staff
+        // Update st_user with new flags from backend response
+        sessionStorage.setItem('st_user', JSON.stringify({
+            email: email,
+            isAdmin: data.isAdmin,
+            is_hr: data.is_hr,
+            is_coordinator: data.is_coordinator
+        }));
+
+        // Debugging session storage
+        console.log('st_user after login:', sessionStorage.getItem('st_user'));
+        console.log('st_token after login:', sessionStorage.getItem('st_token'));
+        console.log('Redirecting user based on flags:', {
+            isAdmin: data.isAdmin,
+            is_hr: data.is_hr,
+            is_coordinator: data.is_coordinator
+        });
+
+        // Redirect based on flags
+        if (data.isAdmin) {
+            location.href = '/admin.html';
+        } else if (data.is_hr) {
+            location.href = '/staff-view.html';
+        } else if (data.is_coordinator) {
+            location.href = '/projects.html';
+        } else {
+            location.href = '/';
+        }
 
     } catch (err) {
         errEl.textContent = 'Failed to log in. Please try again.';
@@ -66,9 +89,9 @@ document.getElementById('btn-login').addEventListener('click', async () => {
 if (sessionStorage.getItem('st_token')) {
     try {
         const user = JSON.parse(sessionStorage.getItem('st_user'));
-        if (user.role === 'admin') location.href = '/admin.html';
-        else if (user.role === 'hr') location.href = '/staff-view.html';
-        else if (user.role === 'coordinator') location.href = '/projects.html';
+        if (user.isAdmin) location.href = '/admin.html';
+        else if (user.is_hr) location.href = '/staff-view.html';
+        else if (user.is_coordinator) location.href = '/projects.html';
         else location.href = '/';
     } catch { }
 }

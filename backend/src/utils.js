@@ -1,9 +1,7 @@
-'use strict';
-
 /**
  * Basic CSV parser that handles quoted strings and headers.
  */
-function parseCSV(text) {
+export function parseCSV(text) {
     const lines = text.trim().split('\n');
     if (lines.length < 2) return [];
     const headers = splitLine(lines[0]);
@@ -36,5 +34,3 @@ function splitLine(line) {
     res.push(cur);
     return res;
 }
-
-module.exports = { parseCSV };

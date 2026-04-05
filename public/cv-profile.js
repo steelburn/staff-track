@@ -748,13 +748,20 @@ async function uploadPhoto() {
 
         if (res.ok) {
             const data = await res.json();
+            
+            // Show the uploaded photo immediately
             const photoContainer = document.getElementById('photo-preview-container');
             const photoPreview = document.getElementById('photo-preview');
 
             if (photoContainer) photoContainer.style.display = 'block';
-            if (photoPreview) photoPreview.src = data.photo_path;
+            if (photoPreview) {
+                photoPreview.src = data.photo_path + '?t=' + Date.now(); // Cache-bust with timestamp
+            }
 
             showToast('Photo uploaded successfully');
+            
+            // Reload profile to ensure database was updated
+            await loadProfile();
         } else {
             const errData = await res.json().catch(() => ({}));
             showToast(errData.error || 'Failed to upload photo', true);
@@ -1989,10 +1996,11 @@ let cvTemplates = [];
 let selectedTemplateId = null;
 let currentGenerateEmail = null; // email of the user being generated for
 let lastGeneratedHtml = null;   // last generated HTML blob URL
+let lastGeneratedTemplate = { id: null, name: 'Unknown' }; // template info for snapshots
 
 function initGenerateCvTab() {
-    const isAdmin = authUser.role === 'admin';
-    const isHR = authUser.role === 'hr';
+    const isAdmin = authUser.isAdmin === true;
+    const isHR = authUser.is_hr === true || authUser.is_hr === 1;
 
     // Show user-select section for HR and Admin
     if (isAdmin || isHR) {
@@ -2002,7 +2010,7 @@ function initGenerateCvTab() {
 
     // Show "Clear All" button for all non-HR users
     const clearBtn = document.getElementById('btn-clear-snapshots');
-    if (clearBtn && authUser.role !== 'hr') clearBtn.style.display = '';
+    if (clearBtn && !(isHR)) clearBtn.style.display = '';
 
     // Check URL params
     const urlParams = new URLSearchParams(window.location.search);
@@ -2113,6 +2121,7 @@ async function generateCv() {
 
         const data = await res.json();
         lastGeneratedHtml = data.html;
+        lastGeneratedTemplate = { id: selectedTemplateId, name: data.template_name || 'Unknown' };
 
         // Render into iframe
         const frame = document.getElementById('cv-preview-frame');
@@ -2165,6 +2174,45 @@ function openCvInTab() {
     window.open(url, '_blank');
 }
 
+async function saveSnapshot() {
+    const email = currentGenerateEmail || authUser.email;
+    if (!lastGeneratedHtml) {
+        showToast('Please generate a CV first', true);
+        return;
+    }
+
+    const btn = document.getElementById('btn-save-snapshot');
+    if (btn) btn.disabled = true;
+
+    try {
+        const res = await window.StaffTrackAuth.apiFetch(`/api/cv-profiles/${email}/snapshots`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                snapshot_html: lastGeneratedHtml,
+                template_id: lastGeneratedTemplate.id,
+                template_name: lastGeneratedTemplate.name
+            })
+        });
+
+        if (!res.ok) {
+            const err = await res.json().catch(() => ({}));
+            showToast(err.error || 'Failed to save snapshot', true);
+            return;
+        }
+
+        showToast('✅ Snapshot saved successfully');
+        
+        // Reload snapshots list
+        await loadSnapshots(email);
+    } catch (err) {
+        console.error('Error saving snapshot:', err);
+        showToast('Failed to save snapshot', true);
+    } finally {
+        if (btn) btn.disabled = false;
+    }
+}
+
 async function loadSnapshots(email) {
     try {
         const res = await window.StaffTrackAuth.apiFetch(`/api/cv-profiles/${email}/snapshots`);
@@ -2182,9 +2230,9 @@ function renderSnapshotsTable(snapshots, email) {
     const tbody = document.getElementById('snapshots-tbody');
     const clearBtn = document.getElementById('btn-clear-snapshots');
 
-    const role = authUser.role;
-    const isAdmin = role === 'admin';
-    const isHR = role === 'hr';
+    const role = authUser.isAdmin ? 'admin' : (authUser.is_hr ? 'hr' : 'staff');
+    const isAdmin = authUser.isAdmin === true;
+    const isHR = authUser.is_hr === true || authUser.is_hr === 1;
     const isOwnProfile = authUser.email.toLowerCase() === email.toLowerCase();
     // Can delete: admin always, HR/staff only own profile
     const canDelete = isAdmin || isOwnProfile;
@@ -2413,6 +2461,7 @@ async function init() {
 
     // Generate CV buttons
     document.getElementById('btn-generate-cv')?.addEventListener('click', generateCv);
+    document.getElementById('btn-save-snapshot')?.addEventListener('click', saveSnapshot);
     document.getElementById('btn-print-cv')?.addEventListener('click', printCv);
     document.getElementById('btn-open-cv')?.addEventListener('click', openCvInTab);
     document.getElementById('btn-clear-snapshots')?.addEventListener('click', clearAllSnapshots);

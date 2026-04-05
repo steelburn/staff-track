@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 'use strict';
-const path = require('path');
-const { dumpDatabase } = require('../src/dump');
+import path from 'path';
+import { dumpDatabase } from '../src/dump.js';
 
 const args = process.argv.slice(2);
 const saveToFile = args.includes('--file');

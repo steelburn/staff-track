@@ -72,6 +72,7 @@ function buildCombinedList(hideEmpty = true) {
     if (!key || combinedKeys.has(key)) return;
     combinedKeys.add(key);
     combined.push({
+      ...src, // Preserve all original fields
       soc: src.soc || '',
       project_name: src.project_name || src.projectName || src.name || '',
       customer: src.customer || '',
@@ -104,7 +105,7 @@ function render() {
 
   let list = buildCombinedList(hideEmpty);
 
-  const isAdminOrHR = authUser.role === 'admin' || authUser.role === 'hr' || authUser.is_hr;
+  const isAdminOrHR = authUser.isAdmin === true || authUser.is_hr === true || authUser.is_hr === 1;
   if (!isAdminOrHR) {
     list = list.filter(p => {
       // 1. Am I assigned to this project?
@@ -113,7 +114,7 @@ function render() {
       }
 
       // 2. Am I a Coordinator who owns this project?
-      if (authUser.is_coordinator || authUser.role === 'coordinator') {
+      if (authUser.is_coordinator === true || authUser.is_coordinator === 1) {
         const managedObj = MANAGED_PROJECTS.find(mp => {
           const s1 = (mp.soc || '').trim().toLowerCase();
           const s2 = (p.soc || '').trim().toLowerCase();
@@ -195,8 +196,8 @@ function render() {
 }
 
 function buildProjectCard(p, q, idx) {
-  const isAdmin = authUser.role === 'admin';
-  const isCoord = authUser.role === 'coordinator' || authUser.role === 'coordinator';
+  const isAdmin = authUser.isAdmin === true;
+  const isCoord = authUser.is_coordinator === true || authUser.is_coordinator === 1;
 
   let canEditAssign = isAdmin || isCoord; // Allow coordinator/admin to assign
 
@@ -760,7 +761,7 @@ async function loadData() {
   try {
     // Only admin and coordinator roles can access /api/managed-projects
     // (backend returns 403 for all others — HR, staff etc)
-    const canAccessManagedProjects = authUser.role === 'admin' || authUser.role === 'coordinator';
+    const canAccessManagedProjects = authUser.isAdmin === true || authUser.is_coordinator === true || authUser.is_coordinator === 1;
 
     const [projRes, csvProjRes, csvStaffRes] = await Promise.all([
       window.StaffTrackAuth.apiFetch('/api/reports/projects'),
@@ -773,7 +774,23 @@ async function loadData() {
       if (managedRes.ok) MANAGED_PROJECTS = await managedRes.json();
     }
 
-    if (projRes.ok) API_PROJECTS = await projRes.json();
+    if (projRes.ok) {
+      const rawProjects = await projRes.json();
+      // Transform API response: convert 'submissions' to 'staff' with properly mapped field names
+      API_PROJECTS = rawProjects.map(p => ({
+        ...p,
+        staff: (p.submissions || []).map(s => ({
+          name: s.staff_name,
+          email: s.staff_email,
+          role: s.role,
+          endDate: s.staff_end_date,
+          assignmentId: s.assignment_id,
+          submissionId: s.submission_id,
+          // Keep original fields for reference
+          ...s
+        }))
+      }));
+    }
     if (csvProjRes.ok) ALL_PROJECTS_CSV = await csvProjRes.json();
     if (csvStaffRes.ok) STAFF_DATA = await csvStaffRes.json();
 
@@ -789,7 +806,7 @@ async function init() {
   renderNav('projects');
 
   // If coordinator or admin, inject "Add New Project" button
-  if (authUser.is_coordinator || authUser.role === 'admin' || authUser.role === 'coordinator') {
+  if (authUser.is_coordinator === true || authUser.is_coordinator === 1 || authUser.isAdmin === true) {
     const tbRight = document.querySelector('.view-toolbar-right');
     const addBtn = document.createElement('button');
     addBtn.className = 'btn-add';

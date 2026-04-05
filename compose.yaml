@@ -4,7 +4,7 @@ services:
     ports:
       - "6082:80"
     volumes:
-      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf
       - ./public:/usr/share/nginx/html:ro
     depends_on:
       - backend
@@ -19,28 +19,54 @@ services:
       - ./backend:/app
       - /app/node_modules
       - ./public:/app/public:ro
-      - db_data:/data
+      - ./backend/files:/data/uploads
+    #      - type: bind
+    #        source: ./submissions.db
+    #        target: /data/submissions.db
     command: [ "node", "src/index.js" ]
     environment:
       NODE_ENV: "development"
-      DB_PATH: "/data/submissions.db"
+      DATABASE_DRIVER: "mysql"
+      MYSQL_HOST: "db"
+      MYSQL_PORT: "3306"
+      MYSQL_USER: "stafftrack"
+      MYSQL_PASSWORD: "stafftrack_dev_password"
+      MYSQL_DATABASE: "stafftrack"
       PORT: "3000"
       AUTH_SERVICE_URL: "https://appcore.beesuite.app"
       AUTH_SERVICE_ENDPOINT: "/api/auth/login"
       JWT_SECRET: "dev_secret_change_me_in_prod"
+      ADMIN_PASSWORD: "secure_admin_password"
     ports:
       - "3000:3000"
     depends_on:
-      - db
+      db:
+        condition: service_healthy
     networks:
       - stafftrack
     restart: unless-stopped
     user: root
 
   db:
-    image: alpine/sqlite:latest
+    image: mysql:8.0
+    environment:
+      MYSQL_ROOT_PASSWORD: "root_password"
+      MYSQL_USER: "stafftrack"
+      MYSQL_PASSWORD: "stafftrack_dev_password"
+      MYSQL_DATABASE: "stafftrack"
     volumes:
-      - db_data:/data
+      - db_data:/var/lib/mysql
+      - ./backend/migrations:/docker-entrypoint-initdb.d
+    ports:
+      - "3306:3306"
+    networks:
+      - stafftrack
+    healthcheck:
+      test: [ "CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "stafftrack", "-p$$MYSQL_PASSWORD" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
 
 volumes:
   db_data:

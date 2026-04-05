@@ -1,22 +1,34 @@
-'use strict';
-const express = require('express');
-const helmet = require('helmet');
+import express from 'express';
+import helmet from 'helmet';
 
-const submissionsRouter = require('./routes/submissions');
-const reportsRouter = require('./routes/reports');
-const auth = require('./routes/auth'); // { router, sessions }
-const adminRouter = require('./routes/admin');
-const managedProjRouter = require('./routes/managed_projects');
-const catalogRouter = require('./routes/catalog');
-const cvProfiles = require('./routes/cv_profiles');
-const cvProfilesRouter = cvProfiles.router;
-const dataToolsRouter = require('./routes/data-tools');
+import { router as submissionsRouter } from './routes/submissions.js';
+import { router as reportsRouter } from './routes/reports.js';
+import { router as authRouter } from './routes/auth.js';
+import { router as adminRouter } from './routes/admin.js';
+import { router as managedProjRouter } from './routes/managed_projects.js';
+import { router as catalogRouter } from './routes/catalog.js';
+import { router as cvProfilesRouter } from './routes/cv_profiles.js';
+import { router as dataToolsRouter } from './routes/data-tools.js';
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
 // ── Middleware ────────────────────────────────────────────────────────────────
-app.use(helmet());
+app.use(helmet({
+    contentSecurityPolicy: {
+        directives: {
+            defaultSrc: ["'self'"],
+            imgSrc: ["'self'", "data:"],
+            styleSrc: ["'self'", "'unsafe-inline'", "https:"],
+            scriptSrc: ["'self'"],
+            fontSrc: ["'self'", "https:", "data:"],
+            formAction: ["'self'"],
+            baseUri: ["'self'"],
+            objectSrc: ["'none'"],
+        },
+    },
+    crossOriginResourcePolicy: false,
+}));
 app.use(express.json({ limit: '1mb' }));
 
 // Request logger for debugging
@@ -25,13 +37,12 @@ app.use((req, res, next) => {
     next();
 });
 
-
 // Serve uploaded files (photos, proofs) from the persistent data volume
 app.use('/uploads', express.static('/data/uploads'));
 
 // ── Routes ────────────────────────────────────────────────────────────────────
 app.get('/health', (_req, res) => res.json({ status: 'ok', ts: new Date().toISOString() }));
-app.use('/auth', auth.router);
+app.use('/auth', authRouter);
 app.use('/admin', adminRouter);
 app.use('/managed-projects', managedProjRouter);
 app.use('/catalog', catalogRouter);
@@ -50,7 +61,7 @@ app.use((err, _req, res, _next) => {
 });
 
 // ── Start ─────────────────────────────────────────────────────────────────────
-const { getDb } = require('./db');
+import { getDb } from './db.js';
 
 // Initialize database on startup
 getDb();

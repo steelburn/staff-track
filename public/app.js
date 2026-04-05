@@ -602,10 +602,23 @@ function restoreForm() {
 // ── Bootstrap ─────────────────────────────────────────────────────────────────
 async function init() {
     renderNav('my');
-    if (authUser.role === 'admin') {
+    if (authUser.isAdmin) {
         // Admins shouldn't be making submissions
         document.querySelector('.submit-area').style.display = 'none';
     }
+
+    // Ensure STAFF_DATA and authUser.email are defined
+    if (!STAFF_DATA || !Array.isArray(STAFF_DATA)) {
+        console.error('STAFF_DATA is undefined or not an array');
+        return;
+    }
+    if (!authUser || !authUser.email) {
+        console.error('authUser or authUser.email is undefined');
+        return;
+    }
+
+    const dbUser = STAFF_DATA.find(s => (s.email || '').toLowerCase() === authUser.email.toLowerCase());
+    const identityName = dbUser ? dbUser.name : authUser.email;
 
     try {
         const [staffRes, projectsRes] = await Promise.all([
@@ -635,7 +648,7 @@ async function init() {
         btn.textContent = '⏳ Loading…';
         btn.disabled = true;
         try {
-            const res = await window.StaffTrackAuth.apiFetch(authUser.role === 'staff' ? '/api/submissions/me' : '/api/submissions');
+            const res = await window.StaffTrackAuth.apiFetch(!authUser.isAdmin && !authUser.is_hr ? '/api/submissions/me' : '/api/submissions');
             let all = [];
             if (res.ok) {
                 const data = await res.json();
@@ -665,12 +678,12 @@ async function init() {
     });
 
     // Auto-load or initialize user identity
-    if (authUser.role !== 'admin') {
+    if (!authUser.isAdmin) {
         const dbUser = STAFF_DATA.find(s => (s.email || '').toLowerCase() === authUser.email.toLowerCase());
         const identityName = dbUser ? dbUser.name : authUser.email;
 
         try {
-            const res = await window.StaffTrackAuth.apiFetch(authUser.role === 'staff' ? '/api/submissions/me' : '/api/submissions');
+            const res = await window.StaffTrackAuth.apiFetch(!authUser.isAdmin && !authUser.is_hr ? '/api/submissions/me' : '/api/submissions');
             let all = [];
             if (res.ok) {
                 const data = await res.json();

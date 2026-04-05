@@ -22,9 +22,9 @@ function renderNav(activeTab) {
         return;
     }
 
-    const isAdmin = authUser.role === 'admin';
-    const isHR = authUser.is_hr || authUser.role === 'hr';
-    const isCoordinator = authUser.is_coordinator || authUser.role === 'coordinator';
+    const isAdmin = authUser.isAdmin === true;
+    const isHR = authUser.is_hr === true || authUser.is_hr === 1;
+    const isCoordinator = authUser.is_coordinator === true || authUser.is_coordinator === 1;
     const showSkills = isAdmin || isHR || isCoordinator;
     const showStaff = isAdmin || isHR;
 
@@ -104,7 +104,7 @@ function requireAuth() {
  * @returns {boolean} True if user is admin, false otherwise
  */
 function requireAdmin(authUser) {
-    if (!authUser || authUser.role !== 'admin') {
+    if (!authUser || !authUser.isAdmin) {
         location.href = '/';
         return false;
     }
@@ -128,11 +128,11 @@ function requirePermission(authUser, requiredRoles = []) {
     const hasRole = requiredRoles.some(role => {
         switch (role) {
             case 'admin':
-                return authUser.role === 'admin';
+                return authUser.isAdmin === true;
             case 'hr':
-                return authUser.is_hr || authUser.role === 'hr';
+                return authUser.is_hr === true || authUser.is_hr === 1;
             case 'coordinator':
-                return authUser.is_coordinator || authUser.role === 'coordinator';
+                return authUser.is_coordinator === true || authUser.is_coordinator === 1;
             default:
                 return false;
         }

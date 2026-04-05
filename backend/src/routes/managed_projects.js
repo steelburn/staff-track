@@ -1,8 +1,7 @@
-'use strict';
-const express = require('express');
-const { v4: uuidv4 } = require('uuid');
-const { getDb } = require('../db');
-const { verifyToken, requireRole } = require('./auth');
+import express from 'express';
+import { v4 as uuidv4 } from 'uuid';
+import { getDb } from '../db.js';
+import { verifyToken, requireRole } from './auth.js';
 
 const router = express.Router();
 
@@ -11,22 +10,30 @@ const requireCoordinator = (req, res, next) => {
     if (!req.user) {
         return res.status(401).json({ error: 'Unauthorized' });
     }
-    if (!['admin', 'coordinator'].includes(req.user.role)) {
+    const isAdminOrCoordinator = req.user.isAdmin === true || req.user.is_coordinator === 1 || req.user.is_coordinator === true;
+    if (!isAdminOrCoordinator) {
         return res.status(403).json({ error: 'Forbidden: Requires Coordinator role' });
     }
     next();
 };
 
 // ── GET /managed-projects ─────────────────────────────────────────────────────
-router.get('/', verifyToken, requireCoordinator, (req, res) => {
+router.get('/', verifyToken, requireCoordinator, async (req, res) => {
     try {
-        const db = getDb();
+        const db = await getDb();
         let rows;
-        if (req.user.role === 'admin') {
-            rows = db.prepare('SELECT * FROM managed_projects ORDER BY created_at DESC').all();
+        let params = [];
+        let query = 'SELECT * FROM managed_projects';
+        
+        if (req.user.isAdmin === true) {
+            query += ' ORDER BY created_at DESC';
         } else {
-            rows = db.prepare('SELECT * FROM managed_projects WHERE coordinator_email LIKE ? OR coordinator_email = ? ORDER BY created_at DESC').all('%"' + req.user.email + '"%', req.user.email);
+            query += ' WHERE coordinator_email LIKE ? OR coordinator_email = ? ORDER BY created_at DESC';
+            params = ['%"' + req.user.email + '"%', req.user.email];
         }
+        
+        const [rows_result] = await db.query(query, params);
+        rows = rows_result;
         res.json(rows);
     } catch (err) {
         console.error('GET /managed-projects error:', err);
@@ -35,101 +42,20 @@ router.get('/', verifyToken, requireCoordinator, (req, res) => {
 });
 
 // ── POST /managed-projects ────────────────────────────────────────────────────
-router.post('/', verifyToken, requireCoordinator, (req, res) => {
+router.post('/', verifyToken, requireCoordinator, async (req, res) => {
     try {
-        const db = getDb();
-        const { soc, project_name, customer, type_infra, type_software, type_infra_support, type_software_support, start_date, end_date, technologies, description } = req.body;
+        const db = await getDb();
+        const { name, description, coordinator_email } = req.body;
+        const id = uuidv4();
+        const createdAt = new Date().toISOString();
 
-        if (!project_name) return res.status(400).json({ error: 'Project name is required' });
+        await db.query('INSERT INTO managed_projects (id, name, description, coordinator_email, created_at) VALUES (?, ?, ?, ?, ?)', [id, name, description, coordinator_email, createdAt]);
 
-        let existing;
-        if (soc) {
-            existing = db.prepare('SELECT * FROM managed_projects WHERE soc = ?').get(soc);
-        }
-        if (!existing) {
-            existing = db.prepare("SELECT * FROM managed_projects WHERE project_name = ? AND (soc IS NULL OR soc = '')").get(project_name);
-        }
-
-        const email = req.user.email;
-        const now = new Date().toISOString();
-        let id;
-
-        if (existing) {
-            // Project exists. Parse coordinators.
-            let coordinators = [];
-            try {
-                coordinators = JSON.parse(existing.coordinator_email);
-                if (!Array.isArray(coordinators)) coordinators = [existing.coordinator_email];
-            } catch {
-                coordinators = [existing.coordinator_email];
-            }
-
-            if (!coordinators.includes(email)) {
-                coordinators.push(email);
-                db.prepare('UPDATE managed_projects SET coordinator_email = ? WHERE id = ?').run(JSON.stringify(coordinators), existing.id);
-            }
-            // we return existing fields to avoid overwriting front-end representation
-            id = existing.id;
-        } else {
-            id = uuidv4();
-            db.prepare(`
-      INSERT INTO managed_projects (
-        id, soc, project_name, customer, 
-        type_infra, type_software, type_infra_support, type_software_support, 
-        start_date, end_date, technologies, description, coordinator_email, created_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(
-                id, soc || '', project_name, customer || '',
-                type_infra ? 1 : 0, type_software ? 1 : 0,
-                type_infra_support ? 1 : 0, type_software_support ? 1 : 0,
-                start_date || null, end_date || null, technologies || null, description || null, JSON.stringify([email]), now
-            );
-        }
-
-        res.status(201).json({ id, soc, project_name, customer });
+        res.status(201).json({ id, name, description, coordinator_email, created_at: createdAt });
     } catch (err) {
         console.error('POST /managed-projects error:', err);
-        res.status(500).json({ error: 'Failed to create managed project' });
+        res.status(500).json({ error: 'Failed to create project' });
     }
 });
 
-// ── PUT /managed-projects/:id ─────────────────────────────────────────────────
-router.put('/:id', verifyToken, requireCoordinator, (req, res) => {
-    try {
-        const db = getDb();
-        const { soc, project_name, customer, type_infra, type_software, type_infra_support, type_software_support, start_date, end_date, technologies, description } = req.body;
-        const id = req.params.id;
-
-        if (!project_name) return res.status(400).json({ error: 'Project name is required' });
-
-        const info = db.prepare(`
-            UPDATE managed_projects SET 
-                soc = ?, 
-                project_name = ?, 
-                customer = ?, 
-                type_infra = ?, 
-                type_software = ?, 
-                type_infra_support = ?, 
-                type_software_support = ?, 
-                start_date = ?,
-                end_date = ?,
-                technologies = ?,
-                description = ?
-            WHERE id = ?
-        `).run(
-            soc || '', project_name, customer || '',
-            type_infra ? 1 : 0, type_software ? 1 : 0,
-            type_infra_support ? 1 : 0, type_software_support ? 1 : 0,
-            start_date || null, end_date || null, technologies || null, description || null, id
-        );
-
-        if (info.changes === 0) return res.status(404).json({ error: 'Project not found' });
-
-        res.json({ success: true });
-    } catch (err) {
-        console.error('PUT /managed-projects/:id error:', err);
-        res.status(500).json({ error: 'Failed to update managed project' });
-    }
-});
-
-module.exports = router;
+export { router };

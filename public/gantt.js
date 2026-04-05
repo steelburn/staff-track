@@ -20,8 +20,27 @@ async function init() {
 
         if (!projectsRes.ok || !staffRes.ok) throw new Error('Failed to fetch data');
 
-        allProjects = await projectsRes.json();
-        allStaff = await staffRes.json();
+        const rawProjects = await projectsRes.json();
+        const rawStaff = await staffRes.json();
+        
+        // Transform projects data: convert snake_case field names to camelCase and 'submissions' to 'assignments'
+        allProjects = rawProjects.map(p => ({
+          ...p,
+          id: p.soc || p.id,
+          name: p.project_name,
+          projectName: p.project_name,
+          staffName: p.staff_name,
+          // Rename submissions to assignments for gantt rendering
+          assignments: (p.submissions || []).map(s => ({
+            endDate: s.staff_end_date,
+            name: s.staff_name,
+            role: s.role,
+            email: s.staff_email
+          }))
+        }));
+        
+        // Staff data is already in correct format
+        allStaff = rawStaff;
 
         setupSelection('project', allProjects, (item) => item.projectName || item.name);
         setupSelection('staff', allStaff, (item) => item.staffName);

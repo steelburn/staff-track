@@ -1,9 +1,9 @@
-'use strict';
-const express = require('express');
-const fs = require('fs');
-const path = require('path');
-const { dumpDatabaseAsJson } = require('../dump');
-const { restoreDatabaseFromJson } = require('../restore');
+import express from 'express';
+import fs from 'fs';
+import path from 'path';
+import { dumpDatabaseAsJson } from '../dump.js';
+import { restoreDatabaseFromJson } from '../restore.js';
+import { getDb } from '../db.js';
 
 const router = express.Router();
 
@@ -73,26 +73,26 @@ router.post('/restore-file', (req, res) => {
  * GET /data-tools/status
  * Get database status and statistics
  */
-router.get('/status', (_req, res) => {
+router.get('/status', async (_req, res) => {
   try {
-    const { getDb } = require('../db');
-    const db = getDb();
+    const db = await getDb();
 
     const stats = {};
-    const tables = db.prepare(`
-      SELECT name FROM sqlite_master 
-      WHERE type='table' AND name NOT LIKE 'sqlite_%'
-      ORDER BY name
-    `).all();
+    const [tables] = await db.query(`
+      SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES 
+      WHERE TABLE_SCHEMA = DATABASE()
+      ORDER BY TABLE_NAME
+    `);
 
-    for (const { name } of tables) {
-      const count = db.prepare(`SELECT COUNT(*) as count FROM ${name}`).get();
-      stats[name] = count.count;
+    for (const { TABLE_NAME } of tables) {
+      const [countResult] = await db.query(`SELECT COUNT(*) as count FROM ${TABLE_NAME}`);
+      stats[TABLE_NAME] = countResult[0].count;
     }
 
     res.json({
       status: 'ok',
-      database: process.env.DB_PATH || '/data/submissions.db',
+      database: process.env.MYSQL_DATABASE || 'stafftrack',
+      host: process.env.MYSQL_HOST || 'localhost',
       tables: Object.keys(stats).length,
       statistics: stats
     });
@@ -101,4 +101,4 @@ router.get('/status', (_req, res) => {
   }
 });
 
-module.exports = router;
+export { router };

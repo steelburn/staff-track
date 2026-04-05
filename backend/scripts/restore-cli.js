@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 'use strict';
-const fs = require('fs');
-const path = require('path');
-const { restoreDatabase } = require('../src/restore');
+import fs from 'fs';
+import path from 'path';
+import { restoreDatabase } from '../src/restore.js';
 
 const args = process.argv.slice(2);
 const dumpFile = args[0];

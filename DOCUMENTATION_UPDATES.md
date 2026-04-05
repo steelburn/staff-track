@@ -7,10 +7,15 @@
 - Added Skill Consolidation and Staff Search to key features
 - Updated repository structure with cv-profile.html
 - Added details about system.html including skill consolidation
+- Updated Quick Start section to include database seed details
+- Added architecture details for better clarity
+- Enhanced Key Features section with relational backend and modern UI details
 
 ### 2. docs/ROADMAP.md
 - Updated CV Generation (MVP) status to ✅ Completed
 - Updated Access Control status to ✅ Completed (JWT, refresh tokens, audit log, 6 roles)
+- Expanded Role Model to include SA/Pre-Sales and Sales roles
+- Updated Permission Matrix to reflect new roles
 
 ### 3. docs/IMPLEMENTATION_PLANS.md
 - Marked Skill Search & Consolidation (Features 6 & 8) as ✅ COMPLETED
@@ -46,3 +51,4 @@ curl http://localhost:6082/api/health
 
 # Stop the application
 docker compose down
+```

@@ -149,13 +149,13 @@ function showDetailPanel(s, q = '') {
       ${s.email ? `<span class="separator">·</span><a href="mailto:${s.email}" style="color:var(--accent-blue)">${s.email}</a>` : ''}
     </div>
     ${s.managerName ? `<div style="font-size:.82rem;color:var(--text-secondary);margin:.25rem 0 .75rem">📎 Reports to: <strong>${s.managerName}</strong></div>` : ''}
-    ${(authUser.role === 'admin' || authUser.role === 'hr')
+    ${(authUser.isAdmin === true || authUser.is_hr === true || authUser.is_hr === 1)
             ? `<div style="margin-bottom:1rem; display:flex; gap:0.5rem; align-items:center;">
                  <a href="/cv-profile.html?email=${encodeURIComponent(s.email)}&tab=generate-cv"
                     class="btn-secondary" style="display:inline-block;font-size:.82rem;padding:.35rem .8rem;text-decoration:none">
                    🖨️ Generate CV
                  </a>
-                 ${authUser.role === 'admin' ? `
+                 ${authUser.isAdmin === true ? `
                     <button id="btn-remove-staff" class="btn-danger" style="font-size:.82rem;padding:.35rem .8rem;border:none;border-radius:4px;cursor:pointer">
                         🗑️ Remove Staff
                     </button>
@@ -171,7 +171,7 @@ function showDetailPanel(s, q = '') {
     panel.style.display = 'block';
 
     // Event listener for Remove Staff button (Admin only)
-    if (authUser.role === 'admin') {
+    if (authUser.isAdmin === true) {
         const removeBtn = document.getElementById('btn-remove-staff');
         if (removeBtn) {
             removeBtn.addEventListener('click', async (e) => {

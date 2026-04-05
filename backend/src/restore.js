@@ -1,12 +1,10 @@
-'use strict';
-const fs = require('fs');
-const path = require('path');
-const { getDb } = require('./db');
+import fs from 'fs';
+import { getDb } from './db.js';
 
 /**
  * Restore database from a JSON dump file
  */
-function restoreDatabase(dumpPath, options = {}) {
+export function restoreDatabase(dumpPath, options = {}) {
   try {
     if (!fs.existsSync(dumpPath)) {
       throw new Error(`Dump file not found: ${dumpPath}`);
@@ -76,7 +74,7 @@ function restoreDatabase(dumpPath, options = {}) {
 /**
  * Restore database from a JSON object (in memory)
  */
-function restoreDatabaseFromJson(dumpData, options = {}) {
+export function restoreDatabaseFromJson(dumpData, options = {}) {
   try {
     const db = getDb();
 
@@ -126,8 +124,3 @@ function restoreDatabaseFromJson(dumpData, options = {}) {
     throw err;
   }
 }
-
-module.exports = {
-  restoreDatabase,
-  restoreDatabaseFromJson
-};

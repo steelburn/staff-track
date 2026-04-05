@@ -1,0 +1,2 @@
+-- Data dump - table already created in 0001_initial_schema
+-- This file is placeholder for historical data import if needed

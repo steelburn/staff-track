@@ -33,3 +33,4 @@ Thumbs.db
 .gemini/
 .agents/
 brain/
+.copilot-specs-cache/

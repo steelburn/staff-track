@@ -1,7 +1,34 @@
-'use strict';
-const fs = require('fs');
-const path = require('path');
-const { getDb } = require('./db');
+import fs from 'fs';
+import { getDb } from './db.js';
+
+/**
+ * Dump database and return as JSON
+ */
+export function dumpDatabaseAsJson() {
+  try {
+    const db = getDb();
+    const dump = {
+      exported_at: new Date().toISOString(),
+      tables: {}
+    };
+
+    const tables = getTableNames(db);
+
+    for (const tableName of tables) {
+      try {
+        const rows = db.prepare(`SELECT * FROM ${tableName}`).all();
+        dump.tables[tableName] = rows;
+      } catch (err) {
+        console.error(`Failed to dump ${tableName}:`, err.message);
+      }
+    }
+
+    return dump;
+  } catch (err) {
+    console.error('Database dump failed:', err.message);
+    throw err;
+  }
+}
 
 /**
  * Get all table names from the database
@@ -49,37 +76,4 @@ function dumpDatabase(outputPath) {
   }
 }
 
-/**
- * Dump database and return as JSON
- */
-function dumpDatabaseAsJson() {
-  try {
-    const db = getDb();
-    const dump = {
-      exported_at: new Date().toISOString(),
-      tables: {}
-    };
-
-    const tables = getTableNames(db);
-
-    for (const tableName of tables) {
-      try {
-        const rows = db.prepare(`SELECT * FROM ${tableName}`).all();
-        dump.tables[tableName] = rows;
-      } catch (err) {
-        console.error(`Failed to dump ${tableName}:`, err.message);
-      }
-    }
-
-    return dump;
-  } catch (err) {
-    console.error('Database dump failed:', err.message);
-    throw err;
-  }
-}
-
-module.exports = {
-  dumpDatabase,
-  dumpDatabaseAsJson,
-  getTableNames
-};
+export { dumpDatabase, getTableNames };

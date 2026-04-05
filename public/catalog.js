@@ -27,8 +27,8 @@ let catalogSearchQ = '';
 async function loadData() {
     try {
         const [catStaffRes, catProjRes] = await Promise.all([
-            window.StaffTrackAuth.apiFetch('/api/admin/catalog/staff'),
-            window.StaffTrackAuth.apiFetch('/api/admin/catalog/projects')
+            window.StaffTrackAuth.apiFetch('/api/catalog/staff'),
+            window.StaffTrackAuth.apiFetch('/api/catalog/projects')
         ]);
 
         if (catStaffRes.ok) catalogStaff = await catStaffRes.json();
