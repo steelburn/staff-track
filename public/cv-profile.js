@@ -15,6 +15,10 @@ function showToast(msg, isErr = false) {
     setTimeout(() => { t.classList.add('hide'); setTimeout(() => t.remove(), 400); }, 2500);
 }
 
+// Guard: if auth failed, requireAuth already redirected to login.
+// Stop script execution to prevent null reference errors below.
+if (!authUser) throw new Error('Not authenticated');
+
 // Use auth module functions
 
 // ── State ────
