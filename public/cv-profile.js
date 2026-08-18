@@ -20,6 +20,7 @@ function showToast(msg, isErr = false) {
 // ── State ────
 let profileExists = false;
 let targetProfileEmail = authUser.email;
+let isViewOnly = false; // true when viewing another staff member's profile
 let certificationsData = [];
 let certificationsLoaded = false;
 let workHistoryData = [];
@@ -30,7 +31,7 @@ let pastProjectsLoaded = false;
 // Submission State
 const AppState = {
     submissionId: null,        // UUID from backend, stored in sessionStorage
-    originalStaff: {},         // snapshot from CSV (for edit tracking)
+    originalStaff: {},         // snapshot from API (for edit tracking)
     staff: { name: '', title: '', department: '', managerName: '', email: '' },
     editedFields: new Set(),
     skills: [],                // [{ id, skill, rating }]
@@ -42,6 +43,84 @@ let submissionLoaded = false;
 let saveTimer = null;
 let projectCatalog = [];
 let projectCatalogLoaded = false;
+
+// ── View Only Mode ───────────────────────────────────────────────────────────
+function applyViewOnlyMode() {
+    isViewOnly = targetProfileEmail.toLowerCase() !== authUser.email.toLowerCase();
+    if (!isViewOnly) return;
+
+    // Show banner indicating view-only mode
+    const sectionBody = document.querySelector('.section-body');
+    if (sectionBody && !document.getElementById('view-only-banner')) {
+        const banner = document.createElement('div');
+        banner.id = 'view-only-banner';
+        banner.style.cssText = 'background:var(--accent-amber); color:#000; padding:0.75rem 1rem; border-radius:8px; margin-bottom:1.5rem; font-size:0.9rem; display:flex; align-items:center; gap:0.5rem;';
+        banner.innerHTML = '<span style="font-size:1.2rem;">⚠️</span> <strong>View-Only Mode</strong> — You are viewing another staff member\'s profile. Editing is restricted.';
+        sectionBody.prepend(banner);
+    }
+
+    // Disable all editing buttons and forms
+    const editSelectors = [
+        '#btn-add-skill', '#btn-add-project', '#btn-save', '#btn-load-previous', '#btn-clear',
+        '#btn-upload-photo', '#btn-save-profile',
+        '#btn-add-education', '#btn-add-certification',
+        '#btn-add-work-history', '#btn-add-past-project'
+    ];
+    editSelectors.forEach(sel => {
+        const el = document.querySelector(sel);
+        if (el) {
+            el.disabled = true;
+            el.style.opacity = '0.5';
+            el.style.cursor = 'not-allowed';
+            el.title = 'Cannot edit another staff member\'s profile';
+        }
+    });
+
+    // Disable all input fields in the main form sections
+    const readOnlySections = [
+        '#my-submission-tab', '#education-tab', '#certifications-tab',
+        '#work-history-tab', '#past-projects-tab'
+    ];
+    readOnlySections.forEach(sel => {
+        const section = document.querySelector(sel);
+        if (section) {
+            section.querySelectorAll('input, textarea, select').forEach(el => {
+                el.disabled = true;
+                el.readOnly = true;
+                el.style.opacity = '0.7';
+                el.style.cursor = 'not-allowed';
+            });
+        }
+    });
+
+    // Hide edit/delete buttons on existing cards
+    document.querySelectorAll(`.btn-edit-education, .btn-delete-education,
+        .btn-edit-certification, .btn-delete-certification,
+        .btn-edit-work-history, .btn-delete-work-history,
+        .btn-edit-past-project, .btn-delete-past-project,
+        .btn-remove`).forEach(btn => {
+        btn.disabled = true;
+        btn.style.opacity = '0.5';
+        btn.style.cursor = 'not-allowed';
+        btn.title = 'Cannot edit another staff member\'s profile';
+    });
+
+    // Also mark the staff name/email fields as read-only
+    const nameInput = document.getElementById('staff-name');
+    if (nameInput) {
+        nameInput.readOnly = true;
+        nameInput.style.background = 'var(--bg-elevated)';
+        nameInput.style.color = 'var(--text-secondary)';
+        nameInput.style.cursor = 'not-allowed';
+    }
+    const emailInput = document.getElementById('staff-email');
+    if (emailInput) {
+        emailInput.readOnly = true;
+        emailInput.style.background = 'var(--bg-elevated)';
+        emailInput.style.color = 'var(--text-secondary)';
+        emailInput.style.cursor = 'not-allowed';
+    }
+}
 
 // ── Tab Switching ───
 function wireUpTabSwitching() {
@@ -849,10 +928,10 @@ function renderEducationList() {
                     <div style="color:var(--text-secondary); font-size:0.82rem; margin-bottom:0.5rem;">${startYear} – ${endYear}</div>
                     ${description ? '<div style="font-size:0.85rem; color:var(--text-secondary);">' + description + '</div>' : ''}
                     ${proofPath ? `<div style="margin-top:0.5rem;"><a href="${proofPath}" target="_blank" style="font-size:0.78rem; color:var(--accent-amber); text-decoration:none;">📎 View Proof</a></div>` : ''}
-                    <div style="display:flex; gap:0.5rem; margin-top:1rem;">
+                    ${isViewOnly ? '' : `<div style="display:flex; gap:0.5rem; margin-top:1rem;">
                         <button class="btn-secondary btn-edit-education" data-id="${entry.id}" style="padding:0.35rem 0.75rem; font-size:0.8rem;">✏️ Edit</button>
                         <button class="btn-remove btn-delete-education" data-id="${entry.id}" style="width:auto; padding:0.35rem 0.75rem; font-size:0.8rem;">🗑 Delete</button>
-                    </div>
+                    </div>`}
                 </div>
             `;
         });
@@ -1167,10 +1246,10 @@ function renderCertificationsList() {
                     ${credentialId ? '<div style="font-size:0.78rem; color:var(--text-muted);">ID: ' + credentialId + '</div>' : ''}
                     ${description ? '<div style="font-size:0.85rem; color:var(--text-secondary); margin-top:0.5rem;">' + description + '</div>' : ''}
                     ${proofPath ? `<div style="margin-top:0.5rem;"><a href="${proofPath}" target="_blank" style="font-size:0.78rem; color:var(--accent-amber); text-decoration:none;">📎 View Proof</a></div>` : ''}
-                    <div style="display:flex; gap:0.5rem; margin-top:1rem;">
+                    ${isViewOnly ? '' : `<div style="display:flex; gap:0.5rem; margin-top:1rem;">
                         <button class="btn-secondary btn-edit-certification" data-id="${entry.id}" style="padding:0.35rem 0.75rem; font-size:0.8rem;">✏️ Edit</button>
                         <button class="btn-remove btn-delete-certification" data-id="${entry.id}" style="width:auto; padding:0.35rem 0.75rem; font-size:0.8rem;">🗑 Delete</button>
-                    </div>
+                    </div>`}
                 </div>
             `;
         });
@@ -1487,10 +1566,10 @@ function renderWorkHistoryList() {
                     <div style="color:var(--accent-blue); font-size:0.9rem; margin-bottom:0.25rem;">${jobTitle}</div>
                     <div style="color:var(--text-secondary); font-size:0.82rem; margin-bottom:0.5rem;">${startDate} – ${endDate}</div>
                     ${description ? '<div style="font-size:0.85rem; color:var(--text-secondary);">' + description + '</div>' : ''}
-                    <div style="display:flex; gap:0.5rem; margin-top:1rem;">
+                    ${isViewOnly ? '' : `<div style="display:flex; gap:0.5rem; margin-top:1rem;">
                         <button class="btn-secondary btn-edit-work-history" data-id="${entry.id}" style="padding:0.35rem 0.75rem; font-size:0.8rem;">✏️ Edit</button>
                         <button class="btn-remove btn-delete-work-history" data-id="${entry.id}" style="width:auto; padding:0.35rem 0.75rem; font-size:0.8rem;">🗑 Delete</button>
-                    </div>
+                    </div>`}
                 </div>
             `;
         });
@@ -1747,10 +1826,10 @@ function renderPastProjectsList() {
                     <div style="color:var(--text-secondary); font-size:0.82rem; margin-bottom:0.5rem;">${startDate} – ${endDate}</div>
                     ${technologies ? '<div style="font-size:0.78rem; color:var(--accent-amber); margin-bottom:0.5rem;">' + technologies + '</div>' : ''}
                     ${description ? '<div style="font-size:0.85rem; color:var(--text-secondary);">' + description + '</div>' : ''}
-                    <div style="display:flex; gap:0.5rem; margin-top:1rem;">
+                    ${isViewOnly ? '' : `<div style="display:flex; gap:0.5rem; margin-top:1rem;">
                         <button class="btn-secondary btn-edit-past-project" data-id="${entry.id}" style="padding:0.35rem 0.75rem; font-size:0.8rem;">✏️ Edit</button>
                         <button class="btn-remove btn-delete-past-project" data-id="${entry.id}" style="width:auto; padding:0.35rem 0.75rem; font-size:0.8rem;">🗑 Delete</button>
-                    </div>
+                    </div>`}
                 </div>
             `;
         });
@@ -2356,6 +2435,9 @@ async function init() {
     } else {
         targetProfileEmail = authUser.email.toLowerCase();
     }
+
+    // Apply view-only mode if viewing another user's profile
+    applyViewOnlyMode();
 
     // 1. Initial Data Load (Parallel)
     try {
