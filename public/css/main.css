@@ -1,0 +1,26 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   MAIN CSS — Master Stylesheet
+   
+   Import this file in all pages. It includes:
+   - Design tokens
+   - Base styles
+   - Components
+   - Layout
+   
+   Usage:
+   <link rel="stylesheet" href="/css/main.css">
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
+/* Design Tokens */
+@import 'tokens.css';
+
+/* Base Styles */
+@import 'base.css';
+
+/* Components */
+@import 'components.css';
+
+/* Layout */
+@import 'layout.css';

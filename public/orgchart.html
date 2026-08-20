@@ -4,47 +4,136 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Organization Chart | StaffTrack</title>
-    <!-- No specific ApexTree CSS required for basic usage, it uses inline SVG styles -->
-    <link rel="stylesheet" href="style.css">
+    <title>StaffTrack — Org Chart</title>
+    <link rel="stylesheet" href="/css/main.css">
+    <script src="/theme.js"></script>
+    <style>
+        .orgchart-wrapper {
+            position: relative;
+            height: calc(100vh - 280px);
+            min-height: 500px;
+            overflow: auto;
+            background: var(--color-bg-muted);
+            border: 1px solid var(--color-border);
+            border-radius: var(--radius-lg);
+            padding: var(--space-4);
+        }
+
+        .zoom-controls {
+            position: absolute;
+            top: var(--space-4);
+            right: var(--space-4);
+            display: flex;
+            flex-direction: column;
+            gap: var(--space-2);
+            z-index: 10;
+        }
+
+        .zoom-btn {
+            width: 36px;
+            height: 36px;
+            border-radius: var(--radius-md);
+            border: 1px solid var(--color-border);
+            background: var(--color-bg-surface);
+            color: var(--color-text-primary);
+            font-size: var(--font-size-xl);
+            font-weight: var(--font-weight-semibold);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all var(--transition-fast);
+            box-shadow: var(--shadow-sm);
+        }
+
+        .zoom-btn:hover {
+            background: var(--color-primary);
+            border-color: var(--color-primary);
+            color: var(--color-text-inverse);
+        }
+
+        .zoom-btn:active {
+            transform: scale(0.95);
+        }
+
+        /* BALKAN OrgChart overrides */
+        .bjs-orgchart {
+            background: transparent !important;
+        }
+    </style>
 </head>
 
-<body class="full-width">
-    <header class="app-header">
-        <div class="header-inner">
-            <div class="app-logo">
-                <div class="logo-icon">📊</div>
-                <h1>StaffTrack</h1>
+<body>
+    <div class="app-layout">
+        <!-- ═══ Sidebar ═══════════════════════════════════════════════════════ -->
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-header">
+                <div class="sidebar-logo">📋</div>
+                <span class="sidebar-title">StaffTrack</span>
             </div>
-            <p class="app-subtitle">Organizational Structure</p>
-        </div>
-    </header>
 
-    <nav class="app-nav" id="main-nav"></nav>
+            <nav class="sidebar-nav" id="sidebar-nav">
+                <!-- Navigation rendered by JS -->
+            </nav>
 
-    <main class="main-container full-width">
-        <div class="section-card">
-            <div class="section-header">
-                <div class="section-num blue">🌳</div>
-                <div>
-                    <h2 class="section-title">Org Chart</h2>
-                    <p class="section-desc">Visual representation of the reporting structure</p>
+            <div class="sidebar-footer">
+                <div class="user-card" id="sidebar-user-card">
+                    <!-- User info rendered by JS -->
                 </div>
             </div>
-            <div class="section-body full-width">
-                <div id="chart-container" class="orgchart-container full-width"></div>
+
+            <button class="sidebar-toggle" id="sidebarToggle">◀</button>
+        </aside>
+
+        <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+        <!-- ═══ Main Content ═════════════════════════════════════════════════ -->
+        <div class="main-content">
+            <!-- Page Header -->
+            <header class="page-header">
+                <div class="page-header-top">
+                    <div style="display:flex; align-items:center; gap:12px;">
+                        <button class="mobile-menu-btn" id="mobileMenuBtn">☰</button>
+                        <div>
+                            <h1 class="page-title">Org Chart</h1>
+                            <p class="page-subtitle">Visual representation of the reporting structure</p>
+                        </div>
+                    </div>
+                    <div class="page-actions">
+                        <button class="btn btn-secondary" id="theme-toggle" data-theme-toggle>
+                            <span class="theme-icon">🌙</span>
+                            <span class="theme-label">Dark</span>
+                        </button>
+                    </div>
+                </div>
+            </header>
+
+            <!-- Content Area -->
+            <main class="content-area">
+                <div class="orgchart-wrapper" id="chart-container">
+                    <!-- Org chart rendered by JS -->
+                    <div class="loading-state">
+                        <div class="spinner"></div>
+                        <p>Loading org chart...</p>
+                    </div>
+                </div>
+
                 <div class="zoom-controls">
                     <button id="btn-zoom-in" class="zoom-btn" title="Zoom In">+</button>
                     <button id="btn-zoom-out" class="zoom-btn" title="Zoom Out">−</button>
                 </div>
-            </div>
+            </main>
         </div>
-    </main>
+    </div>
 
-    <script src="https://balkan.app/js/orgchart.js?v=7"></script>
-    <script src="auth.js?v=7"></script>
-    <script src="menu.js?v=7"></script>
-    <script src="orgchart.js?v=7"></script>
+    <!-- Toast Container -->
+    <div id="toast-container" class="toast-container"></div>
+
+    <script src="https://balkan.app/js/orgchart.js?v=10"></script>
+    <script src="/auth.js"></script>
+    <script src="/sidebar.js"></script>
+    <script src="/toast.js"></script>
+    <script src="/orgchart.js"></script>
 </body>
 
 </html>

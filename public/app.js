@@ -6,14 +6,14 @@ const authUser = requireAuth();
 // ── AppState ──────────────────────────────────────────────────────────────────
 const AppState = {
     submissionId: null,        // UUID from backend, stored in sessionStorage
-    originalStaff: {},         // snapshot from CSV (for edit tracking)
+    originalStaff: {},         // snapshot from API (for edit tracking)
     staff: { name: '', title: '', department: '', managerName: '', email: '' },
     editedFields: new Set(),
     skills: [],                // [{ id, skill, rating }]
     projects: [],              // [{ id, soc, projectName, customer, role, endDate }]
 };
 
-// ── CSV data (loaded at runtime) ──────────────────────────────────────────────
+// ── Catalog data (loaded at runtime) ─────────────────────────────────────────
 let STAFF_DATA = [];
 let ALL_PROJECTS_CSV = [];
 
@@ -409,7 +409,7 @@ function addProjectRow(data = {}) {
     <td><input type="text" class="p-soc" placeholder="Auto-filled" value="${data.soc || ''}" readonly style="background:var(--bg-elevated)" title="${data.soc || 'Auto-filled'}"></td>
     <td><input type="text" class="p-customer" placeholder="Auto-filled" value="${data.customer || ''}" readonly style="background:var(--bg-elevated)"></td>
     <td><input type="text" class="p-role" placeholder="e.g. Lead Dev, PM" value="${data.role || ''}"></td>
-    <td><input type="date" class="p-end" value="${data.endDate || ''}"></td>
+    <td><input type="date" class="p-end" value="${data.endDate || ''}" min=""></td>
     <td class="col-actions">
       <button class="btn-icon btn-del-row" title="Remove row">✖</button>
     </td>
@@ -601,7 +601,20 @@ function restoreForm() {
 
 // ── Bootstrap ─────────────────────────────────────────────────────────────────
 async function init() {
-    renderNav('my');
+    // Initialize sidebar navigation
+    if (typeof renderSidebarNav === 'function') {
+        renderSidebarNav('index');
+    } else if (typeof renderNav === 'function') {
+        renderNav('my');
+    }
+    // Initialize theme toggle
+    if (typeof ThemeManager !== 'undefined') {
+        ThemeManager.updateToggleButtons();
+    }
+    // Initialize toast
+    if (typeof Toast !== 'undefined') {
+        Toast.init();
+    }
     if (authUser.isAdmin) {
         // Admins shouldn't be making submissions
         document.querySelector('.submit-area').style.display = 'none';

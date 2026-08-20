@@ -125,7 +125,20 @@ async function deleteProject(id) {
 
 // ── Initialization ────────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
-    renderNav();
+    // Initialize sidebar navigation
+    if (typeof renderSidebarNav === 'function') {
+        renderSidebarNav('catalog');
+    } else if (typeof renderNav === 'function') {
+        renderNav();
+    }
+    // Initialize theme toggle
+    if (typeof ThemeManager !== 'undefined') {
+        ThemeManager.updateToggleButtons();
+    }
+    // Initialize toast
+    if (typeof Toast !== 'undefined') {
+        Toast.init();
+    }
     loadData();
 
     // Catalog Search

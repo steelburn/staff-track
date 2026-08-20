@@ -5,76 +5,127 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>StaffTrack — All Staff</title>
-    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="/css/main.css">
+    <script src="/theme.js"></script>
 </head>
 
 <body>
-
-    <header class="app-header">
-        <div class="header-inner">
-            <div class="app-logo">
-                <div class="logo-icon">📋</div>
-                <h1>StaffTrack</h1>
+    <div class="app-layout">
+        <!-- ═══ Sidebar ═══════════════════════════════════════════════════════ -->
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-header">
+                <div class="sidebar-logo">📋</div>
+                <span class="sidebar-title">StaffTrack</span>
             </div>
-            <p class="app-subtitle">All staff and their project assignments</p>
-        </div>
-    </header>
 
-    <nav class="app-nav" id="main-nav"></nav>
+            <nav class="sidebar-nav" id="sidebar-nav">
+                <!-- Navigation rendered by JS -->
+            </nav>
 
-    <main class="main-container">
-
-        <!-- Toolbar -->
-        <div class="view-toolbar">
-            <div class="view-toolbar-left">
-                <h2 class="view-title">All Staff</h2>
-                <span class="view-subtitle" id="staff-count">Loading…</span>
-            </div>
-            <div class="view-toolbar-right">
-                <input type="text" id="staff-search" placeholder="🔍 Search staff / project…" class="search-input">
-                <button class="btn-secondary" id="btn-export-staff">⬇ Export CSV</button>
-            </div>
-        </div>
-
-        <!-- Staff table -->
-        <div class="section-card">
-            <div class="section-body" style="padding:0">
-                <div class="table-container">
-                    <table class="report-table" id="staff-table">
-                        <thead>
-                            <tr>
-                                <th>Name</th>
-                                <th>Title</th>
-                                <th>Department</th>
-                                <th>Projects</th>
-                                <th>Skills</th>
-                                <th>Last Updated</th>
-                            </tr>
-                        </thead>
-                        <tbody id="staff-tbody">
-                            <tr>
-                                <td colspan="6" class="table-empty">Loading…</td>
-                            </tr>
-                        </tbody>
-                    </table>
+            <div class="sidebar-footer">
+                <div class="user-card" id="sidebar-user-card">
+                    <!-- User info rendered by JS -->
                 </div>
             </div>
+
+            <button class="sidebar-toggle" id="sidebarToggle">◀</button>
+        </aside>
+
+        <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+        <!-- ═══ Main Content ═════════════════════════════════════════════════ -->
+        <div class="main-content">
+            <!-- Page Header -->
+            <header class="page-header">
+                <div class="page-header-top">
+                    <div style="display:flex; align-items:center; gap:12px;">
+                        <button class="mobile-menu-btn" id="mobileMenuBtn">☰</button>
+                        <div>
+                            <h1 class="page-title">All Staff</h1>
+                            <p class="page-subtitle">All staff and their project assignments</p>
+                        </div>
+                    </div>
+                    <div class="page-actions">
+                        <button class="btn btn-secondary" id="btn-export-staff">⬇ Export CSV</button>
+                        <button class="btn btn-secondary" id="theme-toggle" data-theme-toggle>
+                            <span class="theme-icon">🌙</span>
+                            <span class="theme-label">Dark</span>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="toolbar">
+                    <div class="search-box">
+                        <span class="search-icon">🔍</span>
+                        <input type="text" id="staff-search" class="input" placeholder="Search staff / project...">
+                    </div>
+                    <div class="filter-group">
+                        <label class="toggle">
+                            <input type="checkbox" id="toggle-inactive">
+                            <span class="toggle-track">
+                                <span class="toggle-thumb"></span>
+                            </span>
+                            <span class="toggle-label">Include inactive</span>
+                        </label>
+                    </div>
+                </div>
+            </header>
+
+            <!-- Content Area -->
+            <main class="content-area">
+                <!-- Staff Count -->
+                <div class="section-header">
+                    <h2 class="section-title">Staff Directory</h2>
+                    <span class="section-count" id="staff-count">Loading...</span>
+                </div>
+
+                <!-- Staff Table -->
+                <div class="table-container">
+                    <div class="table-scroll">
+                        <table class="table table-clickable" id="staff-table">
+                            <thead>
+                                <tr>
+                                    <th>Name</th>
+                                    <th>Title</th>
+                                    <th>Department</th>
+                                    <th>Projects</th>
+                                    <th>Skills</th>
+                                    <th>Last Updated</th>
+                                </tr>
+                            </thead>
+                            <tbody id="staff-tbody">
+                                <tr>
+                                    <td colspan="6">
+                                        <div class="loading-state">
+                                            <div class="spinner"></div>
+                                            <p>Loading staff...</p>
+                                        </div>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Staff Detail Panel -->
+                <div id="staff-detail-panel" class="card" style="margin-top: var(--space-6); display: none;">
+                    <div class="card-header">
+                        <div class="card-title" id="detail-name"></div>
+                        <button class="btn btn-ghost btn-icon btn-sm" id="detail-close" title="Close">✕</button>
+                    </div>
+                    <div class="card-body" id="detail-body"></div>
+                </div>
+            </main>
         </div>
+    </div>
 
-        <!-- Staff detail panel (shown on row click) -->
-        <div id="staff-detail-panel" class="detail-panel" style="display:none">
-            <div class="detail-header">
-                <h3 id="detail-name"></h3>
-                <button class="modal-close" id="detail-close" title="Close">✕</button>
-            </div>
-            <div id="detail-body" class="detail-body"></div>
-        </div>
+    <!-- Toast Container -->
+    <div id="toast-container" class="toast-container"></div>
 
-    </main>
-
-    <script src="auth.js?v=7"></script>
-    <script src="menu.js?v=7"></script>
-    <script src="staff-view.js?v=7"></script>
+    <script src="/auth.js"></script>
+    <script src="/sidebar.js"></script>
+    <script src="/toast.js"></script>
+    <script src="/staff-view.js"></script>
 </body>
 
 </html>

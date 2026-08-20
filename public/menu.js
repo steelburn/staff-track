@@ -1,9 +1,11 @@
 'use strict';
 
 /**
- * Shared Menu Component
+ * Shared Menu Component (Legacy Support)
+ * 
  * Renders the navigation menu based on user role and permissions.
- * Use this instead of defining renderNav in each page's JS file.
+ * This file provides backward compatibility with existing pages.
+ * New pages should use the Sidebar component directly.
  * 
  * @param {string} activeTab - The currently active tab/page identifier
  */
@@ -25,8 +27,12 @@ function renderNav(activeTab) {
     const isAdmin = authUser.isAdmin === true;
     const isHR = authUser.is_hr === true || authUser.is_hr === 1;
     const isCoordinator = authUser.is_coordinator === true || authUser.is_coordinator === 1;
-    const showSkills = isAdmin || isHR || isCoordinator;
+    const hasFullAccess = isAdmin || isHR || isCoordinator;
     const showStaff = isAdmin || isHR;
+    
+    // Check if user has subordinates (stored in session)
+    const subordinateCount = parseInt(sessionStorage.getItem('st_subordinate_count') || '0', 10);
+    const showSkills = hasFullAccess || subordinateCount > 0;
 
     let html = '';
 
@@ -40,9 +46,10 @@ function renderNav(activeTab) {
         html += `<a href="/gantt.html" class="nav-link ${activeTab === 'gantt' ? 'active' : ''}">📊 Gantt Charts</a>`;
     }
 
-    // Skills link - visible to admin, HR, coordinator
+    // Skills link - visible to admin, HR, coordinator, or users with subordinates
     if (showSkills) {
-        html += `<a href="/skills.html" class="nav-link ${activeTab === 'skills' ? 'active' : ''}">📊 Skills</a>`;
+        const skillsLabel = hasFullAccess ? '📊 Skills' : '📊 My Team Skills';
+        html += `<a href="/skills.html" class="nav-link ${activeTab === 'skills' ? 'active' : ''}">${skillsLabel}</a>`;
     }
 
     // All Staff link - visible to admin and HR
@@ -59,8 +66,13 @@ function renderNav(activeTab) {
         html += `<a href="/admin.html" class="nav-link ${activeTab === 'admin' ? 'active' : ''}">🛡️ Admin</a>`;
     }
 
-    // Right-aligned user info and logout
+    // Right-aligned theme toggle, user info and logout
+    const isDark = ThemeManager.isDark();
+    const themeIcon = isDark ? '☀️' : '🌙';
+    const themeTitle = isDark ? 'Switch to light mode' : 'Switch to dark mode';
+
     html += `<div style="margin-left:auto;display:flex;align-items:center;gap:1rem">
+      <button class="btn-secondary" id="theme-toggle" title="${themeTitle}" style="padding:.3rem .6rem;font-size:0.85rem;line-height:1;border-radius:6px;min-width:34px;display:flex;align-items:center;justify-content:center">${themeIcon}</button>
       <span style="font-size:0.8rem;color:var(--text-secondary)">${authUser.email}</span>
       <button class="btn-secondary" id="btn-logout" style="padding:.3rem .6rem;font-size:0.75rem">Logout</button>
     </div>`;
@@ -71,6 +83,11 @@ function renderNav(activeTab) {
     document.getElementById('btn-logout')?.addEventListener('click', () => {
         sessionStorage.clear();
         location.href = '/login.html';
+    });
+
+    // Attach theme toggle handler
+    document.getElementById('theme-toggle')?.addEventListener('click', () => {
+        ThemeManager.toggle();
     });
 }
 
@@ -95,6 +112,27 @@ function requireAuth() {
         location.href = '/login.html';
         return null;
     }
+}
+
+/**
+ * Fetch and cache the user's subordinate count in session storage.
+ * Call this on login or page load to enable the Skills page for managers.
+ * 
+ * @returns {Promise<number>} The number of subordinates
+ */
+async function fetchSubordinateCount() {
+    try {
+        const res = await window.StaffTrackAuth.apiFetch('/api/reports/my-subordinates');
+        if (res.ok) {
+            const data = await res.json();
+            const count = data.count || 0;
+            sessionStorage.setItem('st_subordinate_count', count.toString());
+            return count;
+        }
+    } catch (err) {
+        console.error('Failed to fetch subordinate count:', err);
+    }
+    return 0;
 }
 
 /**
@@ -144,4 +182,28 @@ function requirePermission(authUser, requiredRoles = []) {
     }
 
     return true;
+}
+
+/**
+ * Render sidebar navigation for new layout
+ * This function bridges the old auth system with the new sidebar
+ * 
+ * @param {string} activeTab - The currently active tab/page
+ */
+function renderSidebarNav(activeTab) {
+    const userStr = sessionStorage.getItem('st_user');
+    if (!userStr) return;
+
+    let authUser;
+    try {
+        authUser = JSON.parse(userStr);
+    } catch {
+        return;
+    }
+
+    // Use the new Sidebar component
+    if (typeof Sidebar !== 'undefined') {
+        Sidebar.render(authUser, activeTab);
+        Sidebar.renderUserCard(authUser);
+    }
 }

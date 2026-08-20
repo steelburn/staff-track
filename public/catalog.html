@@ -5,94 +5,143 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>StaffTrack — Catalog Management</title>
-    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="/css/main.css">
+    <script src="/theme.js"></script>
 </head>
 
 <body>
-
-    <header class="app-header">
-        <div class="header-inner" style="display:flex;justify-content:space-between;align-items:center">
-            <div>
-                <div class="app-logo">
-                    <div class="logo-icon">⚙️</div>
-                    <h1>StaffTrack</h1>
-                </div>
-                <p class="app-subtitle">Catalog Management</p>
+    <div class="app-layout">
+        <!-- ═══ Sidebar ═══════════════════════════════════════════════════════ -->
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-header">
+                <div class="sidebar-logo">📋</div>
+                <span class="sidebar-title">StaffTrack</span>
             </div>
-            <button class="btn-secondary" id="btn-logout" style="font-size:.8rem;padding:.4rem .8rem">Log Out</button>
-        </div>
-    </header>
 
-    <nav class="app-nav" id="main-nav">
-        <!-- Nav links injected by JS based on role -->
-    </nav>
+            <nav class="sidebar-nav" id="sidebar-nav">
+                <!-- Navigation rendered by JS -->
+            </nav>
 
-    <main class="main-container">
-
-        <div class="view-toolbar">
-            <div class="view-toolbar-left">
-                <h2 class="view-title">Catalog Management</h2>
-                <span class="view-subtitle">Manage and delete individual entries</span>
-            </div>
-            <div class="view-toolbar-right">
-                <div class="tab-group">
-                    <button class="tab-btn active" data-tab="staff">👤 Staff</button>
-                    <button class="tab-btn" data-tab="projects">📁 Projects</button>
-                </div>
-                <input type="text" id="catalog-search" placeholder="🔍 Search catalog…" class="search-input">
-            </div>
-        </div>
-
-        <div class="section-card" id="catalog-staff-view">
-            <div class="section-body" style="padding:0">
-                <div class="table-container">
-                    <table class="report-table">
-                        <thead>
-                            <tr>
-                                <th>Name</th>
-                                <th>Title</th>
-                                <th>Department</th>
-                                <th>Email</th>
-                                <th style="width:80px">Action</th>
-                            </tr>
-                        </thead>
-                        <tbody id="catalog-staff-tbody">
-                            <tr>
-                                <td colspan="5" class="table-empty">Loading...</td>
-                            </tr>
-                        </tbody>
-                    </table>
+            <div class="sidebar-footer">
+                <div class="user-card" id="sidebar-user-card">
+                    <!-- User info rendered by JS -->
                 </div>
             </div>
-        </div>
 
-        <div class="section-card" id="catalog-projects-view" style="display:none">
-            <div class="section-body" style="padding:0">
-                <div class="table-container">
-                    <table class="report-table">
-                        <thead>
-                            <tr>
-                                <th>SOC</th>
-                                <th>Project Name</th>
-                                <th>Customer</th>
-                                <th style="width:80px">Action</th>
-                            </tr>
-                        </thead>
-                        <tbody id="catalog-projects-tbody">
-                            <tr>
-                                <td colspan="4" class="table-empty">Loading...</td>
-                            </tr>
-                        </tbody>
-                    </table>
+            <button class="sidebar-toggle" id="sidebarToggle">◀</button>
+        </aside>
+
+        <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+        <!-- ═══ Main Content ═════════════════════════════════════════════════ -->
+        <div class="main-content">
+            <!-- Page Header -->
+            <header class="page-header">
+                <div class="page-header-top">
+                    <div style="display:flex; align-items:center; gap:12px;">
+                        <button class="mobile-menu-btn" id="mobileMenuBtn">☰</button>
+                        <div>
+                            <h1 class="page-title">Catalog Management</h1>
+                            <p class="page-subtitle">Manage and delete individual entries</p>
+                        </div>
+                    </div>
+                    <div class="page-actions">
+                        <button class="btn btn-secondary" id="theme-toggle" data-theme-toggle>
+                            <span class="theme-icon">🌙</span>
+                            <span class="theme-label">Dark</span>
+                        </button>
+                    </div>
                 </div>
-            </div>
+
+                <div class="toolbar">
+                    <div class="view-toggle">
+                        <button class="active" data-tab="staff">👤 Staff</button>
+                        <button data-tab="projects">📁 Projects</button>
+                    </div>
+                    <div class="search-box" style="margin-left: auto;">
+                        <span class="search-icon">🔍</span>
+                        <input type="text" id="catalog-search" class="input" placeholder="Search catalog...">
+                    </div>
+                </div>
+            </header>
+
+            <!-- Content Area -->
+            <main class="content-area">
+                <!-- Staff View -->
+                <div id="catalog-staff-view">
+                    <div class="section-header">
+                        <h2 class="section-title">Staff Directory</h2>
+                    </div>
+
+                    <div class="table-container">
+                        <div class="table-scroll">
+                            <table class="table">
+                                <thead>
+                                    <tr>
+                                        <th>Name</th>
+                                        <th>Title</th>
+                                        <th>Department</th>
+                                        <th>Email</th>
+                                        <th style="width: 80px;">Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="catalog-staff-tbody">
+                                    <tr>
+                                        <td colspan="5">
+                                            <div class="loading-state">
+                                                <div class="spinner"></div>
+                                                <p>Loading staff...</p>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Projects View -->
+                <div id="catalog-projects-view" style="display: none;">
+                    <div class="section-header">
+                        <h2 class="section-title">Project Catalog</h2>
+                    </div>
+
+                    <div class="table-container">
+                        <div class="table-scroll">
+                            <table class="table">
+                                <thead>
+                                    <tr>
+                                        <th>SOC</th>
+                                        <th>Project Name</th>
+                                        <th>Customer</th>
+                                        <th style="width: 80px;">Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="catalog-projects-tbody">
+                                    <tr>
+                                        <td colspan="4">
+                                            <div class="loading-state">
+                                                <div class="spinner"></div>
+                                                <p>Loading projects...</p>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </main>
         </div>
+    </div>
 
-    </main>
+    <!-- Toast Container -->
+    <div id="toast-container" class="toast-container"></div>
 
-    <script src="auth.js?v=7"></script>
-    <script src="menu.js?v=7"></script>
-    <script src="catalog.js?v=7"></script>
+    <script src="/auth.js"></script>
+    <script src="/sidebar.js"></script>
+    <script src="/toast.js"></script>
+    <script src="/catalog.js"></script>
 </body>
 
 </html>

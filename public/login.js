@@ -1,27 +1,58 @@
 'use strict';
 
-document.getElementById('btn-login').addEventListener('click', async () => {
+// Theme toggle for login page
+document.addEventListener('DOMContentLoaded', () => {
+    const themeToggle = document.getElementById('theme-toggle');
+    if (themeToggle) {
+        themeToggle.addEventListener('click', () => {
+            ThemeManager.toggle();
+        });
+    }
+});
+
+// Login form handler
+const loginForm = document.getElementById('login-form');
+if (loginForm) {
+    loginForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        await handleLogin();
+    });
+}
+
+// Also handle button click for backward compatibility
+const loginBtn = document.getElementById('btn-login');
+if (loginBtn) {
+    loginBtn.addEventListener('click', async (e) => {
+        e.preventDefault();
+        await handleLogin();
+    });
+}
+
+async function handleLogin() {
     const email = document.getElementById('login-email').value.trim();
     const password = document.getElementById('login-password').value;
     const errEl = document.getElementById('login-error');
     const btn = document.getElementById('btn-login');
 
     if (!email) {
-        errEl.textContent = 'Please enter your email.';
-        errEl.style.display = 'block';
+        showLoginError('Please enter your email.');
         return;
     }
 
-    btn.textContent = 'Logging in…';
+    if (!password) {
+        showLoginError('Please enter your password.');
+        return;
+    }
+
+    // Update button state
+    btn.textContent = 'Signing in...';
     btn.disabled = true;
-    errEl.style.display = 'none';
+    btn.style.opacity = '0.7';
 
     try {
         // Encode password as Base64 for external auth service
-        console.log('Login effort - password length:', password.length);
         const passwordBase64 = btoa(password);
         const body = JSON.stringify({ email, password: passwordBase64 });
-        console.log('JSON payload to be sent:', body);
         
         const res = await fetch('/api/auth/login', {
             method: 'POST',
@@ -32,15 +63,10 @@ document.getElementById('btn-login').addEventListener('click', async () => {
         const data = await res.json();
         
         if (!res.ok) {
-            errEl.textContent = data.error || 'Login failed';
-            errEl.style.display = 'block';
-            btn.textContent = 'Log In';
-            btn.disabled = false;
+            showLoginError(data.error || 'Login failed. Please check your credentials.');
+            resetLoginButton();
             return;
         }
-
-        console.log('Backend response:', data); // Debugging backend response
-        console.log('st_user before update:', sessionStorage.getItem('st_user')); // Debugging session storage before update
 
         // Store token
         sessionStorage.setItem('st_token', data.access_token);
@@ -52,38 +78,62 @@ document.getElementById('btn-login').addEventListener('click', async () => {
         // Update st_user with new flags from backend response
         sessionStorage.setItem('st_user', JSON.stringify({
             email: email,
+            name: data.name || null,
             isAdmin: data.isAdmin,
             is_hr: data.is_hr,
             is_coordinator: data.is_coordinator
         }));
 
-        // Debugging session storage
-        console.log('st_user after login:', sessionStorage.getItem('st_user'));
-        console.log('st_token after login:', sessionStorage.getItem('st_token'));
-        console.log('Redirecting user based on flags:', {
-            isAdmin: data.isAdmin,
-            is_hr: data.is_hr,
-            is_coordinator: data.is_coordinator
-        });
+        // Show success state
+        btn.textContent = 'Success!';
+        btn.style.background = 'var(--color-success)';
+
+        // Fetch subordinate count in background for managers
+        fetch('/api/reports/my-subordinates', {
+            headers: { 'Authorization': `Bearer ${data.access_token}` }
+        })
+        .then(res => res.json())
+        .then(subData => {
+            const count = subData.count || 0;
+            sessionStorage.setItem('st_subordinate_count', count.toString());
+        })
+        .catch(err => console.error('Failed to fetch subordinate count:', err));
 
         // Redirect based on flags
-        if (data.isAdmin) {
-            location.href = '/admin.html';
-        } else if (data.is_hr) {
-            location.href = '/staff-view.html';
-        } else if (data.is_coordinator) {
-            location.href = '/projects.html';
-        } else {
-            location.href = '/';
-        }
+        setTimeout(() => {
+            if (data.isAdmin) {
+                location.href = '/admin.html';
+            } else if (data.is_hr) {
+                location.href = '/staff-view.html';
+            } else if (data.is_coordinator) {
+                location.href = '/projects.html';
+            } else {
+                location.href = '/';
+            }
+        }, 300);
 
     } catch (err) {
-        errEl.textContent = 'Failed to log in. Please try again.';
-        errEl.style.display = 'block';
-        btn.textContent = 'Log In';
-        btn.disabled = false;
+        showLoginError('Failed to connect to server. Please try again.');
+        resetLoginButton();
     }
-});
+}
+
+function showLoginError(message) {
+    const errEl = document.getElementById('login-error');
+    if (errEl) {
+        errEl.textContent = message;
+        errEl.classList.add('visible');
+    }
+}
+
+function resetLoginButton() {
+    const btn = document.getElementById('btn-login');
+    if (btn) {
+        btn.textContent = 'Sign In';
+        btn.disabled = false;
+        btn.style.opacity = '1';
+    }
+}
 
 // Auto-redirect if already logged in
 if (sessionStorage.getItem('st_token')) {

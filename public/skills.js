@@ -1,7 +1,22 @@
 'use strict';
 
 const authUser = requireAuth();
-requirePermission(authUser, ['admin', 'hr', 'coordinator']);
+
+// Check if user has access: admin/hr/coordinator OR has subordinates
+const isAdmin = authUser.isAdmin === true;
+const isHR = authUser.is_hr === true || authUser.is_hr === 1;
+const isCoordinator = authUser.is_coordinator === true || authUser.is_coordinator === 1;
+const hasFullAccess = isAdmin || isHR || isCoordinator;
+const subordinateCount = parseInt(sessionStorage.getItem('st_subordinate_count') || '0', 10);
+
+if (!hasFullAccess && subordinateCount === 0) {
+    // User has no access - redirect
+    location.href = '/';
+}
+
+// Determine if we should filter by subordinates
+const isManagerView = !hasFullAccess && subordinateCount > 0;
+const subordinatesOnlyParam = isManagerView ? 'subordinates_only=true' : '';
 
 
 // ── State ─────────────────────────────────────────────────────────────────────
@@ -12,7 +27,28 @@ let currentData = [];
 
 // ── Initialization ────────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', async () => {
-    renderNav('skills');
+    // Update page title/description based on access level
+    const titleEl = document.getElementById('skills-title');
+    const descEl = document.getElementById('skills-desc');
+    if (isManagerView && titleEl && descEl) {
+        titleEl.textContent = 'My Team Skills';
+        descEl.textContent = `Skills and proficiency of your ${subordinateCount} subordinate${subordinateCount !== 1 ? 's' : ''} (direct and indirect reports)`;
+    }
+    
+    // Initialize sidebar navigation
+    if (typeof renderSidebarNav === 'function') {
+        renderSidebarNav('skills');
+    } else if (typeof renderNav === 'function') {
+        renderNav('skills');
+    }
+    // Initialize theme toggle
+    if (typeof ThemeManager !== 'undefined') {
+        ThemeManager.updateToggleButtons();
+    }
+    // Initialize toast
+    if (typeof Toast !== 'undefined') {
+        Toast.init();
+    }
 
     document.getElementById('btn-add-filter').addEventListener('click', addFilter);
     document.getElementById('skill-search').addEventListener('input', (e) => {
@@ -118,12 +154,17 @@ async function fetchDataAndRender() {
 
     try {
         if (currentView === 'skills') {
-            const res = await window.StaffTrackAuth.apiFetch('/api/reports/skills');
+            const qs = subordinatesOnlyParam ? `?${subordinatesOnlyParam}` : '';
+            const res = await window.StaffTrackAuth.apiFetch(`/api/reports/skills${qs}`);
             if (!res.ok) throw new Error('Failed to load skills');
             currentData = await res.json();
         } else {
-            const qs = activeFilters.length ? `?skills=${encodeURIComponent(JSON.stringify(activeFilters))}` : '';
-            const res = await window.StaffTrackAuth.apiFetch(`/api/reports/staff-search${qs}`);
+            let qs = activeFilters.length ? `skills=${encodeURIComponent(JSON.stringify(activeFilters))}` : '';
+            if (subordinatesOnlyParam) {
+                qs = qs ? `${qs}&${subordinatesOnlyParam}` : subordinatesOnlyParam;
+            }
+            const url = qs ? `/api/reports/staff-search?${qs}` : '/api/reports/staff-search';
+            const res = await window.StaffTrackAuth.apiFetch(url);
             if (!res.ok) throw new Error('Failed to load staff');
             currentData = await res.json();
 

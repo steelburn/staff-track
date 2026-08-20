@@ -4,78 +4,243 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Skills Catalog | StaffTrack</title>
-    <link rel="stylesheet" href="style.css">
+    <title>StaffTrack — Skills Catalog</title>
+    <link rel="stylesheet" href="/css/main.css">
+    <script src="/theme.js"></script>
+    <style>
+        .skills-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+            gap: var(--space-4);
+        }
+
+        .skill-group-card {
+            background: var(--color-bg-surface);
+            border: 1px solid var(--color-border);
+            border-radius: var(--radius-lg);
+            overflow: hidden;
+        }
+
+        .skill-group-header {
+            padding: var(--space-4) var(--space-5);
+            background: var(--color-bg-muted);
+            border-bottom: 1px solid var(--color-border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .skill-group-header h3 {
+            font-size: var(--font-size-md);
+            font-weight: var(--font-weight-semibold);
+            color: var(--color-primary);
+        }
+
+        .skill-group-count {
+            font-size: var(--font-size-sm);
+            color: var(--color-text-muted);
+        }
+
+        .skill-staff-list {
+            max-height: 300px;
+            overflow-y: auto;
+        }
+
+        .skill-staff-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: var(--space-3) var(--space-5);
+            border-bottom: 1px solid var(--color-border);
+            transition: background var(--transition-fast);
+        }
+
+        .skill-staff-row:last-child {
+            border-bottom: none;
+        }
+
+        .skill-staff-row:hover {
+            background: var(--color-bg-hover);
+        }
+
+        .skill-staff-info {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+
+        .skill-staff-name {
+            font-size: var(--font-size-base);
+            font-weight: var(--font-weight-medium);
+            color: var(--color-text-primary);
+        }
+
+        .skill-staff-meta {
+            font-size: var(--font-size-xs);
+            color: var(--color-text-secondary);
+        }
+
+        .star-rating-static {
+            display: flex;
+            gap: 2px;
+            color: var(--color-text-muted);
+            font-size: var(--font-size-sm);
+        }
+
+        .star-rating-static .star.on {
+            color: var(--color-warning);
+        }
+
+        .filter-bar {
+            display: flex;
+            gap: var(--space-3);
+            flex-wrap: wrap;
+            margin-bottom: var(--space-6);
+        }
+
+        .filter-bar .input {
+            flex: 1;
+            min-width: 200px;
+        }
+
+        .filter-chips {
+            display: flex;
+            flex-wrap: wrap;
+            gap: var(--space-2);
+            margin-bottom: var(--space-4);
+        }
+
+        .filter-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 12px;
+            background: var(--color-primary-light);
+            border: 1px solid var(--color-primary);
+            border-radius: var(--radius-full);
+            font-size: var(--font-size-sm);
+            font-weight: var(--font-weight-medium);
+            color: var(--color-primary);
+        }
+
+        .filter-chip-remove {
+            cursor: pointer;
+            opacity: 0.7;
+        }
+
+        .filter-chip-remove:hover {
+            opacity: 1;
+        }
+
+        @media (max-width: 768px) {
+            .skills-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .filter-bar {
+                flex-direction: column;
+            }
+
+            .filter-bar .input {
+                min-width: 100%;
+            }
+        }
+    </style>
 </head>
 
 <body>
-    <header class="app-header">
-        <div class="header-inner">
-            <div class="app-logo">
-                <div class="logo-icon">📊</div>
-                <h1>StaffTrack</h1>
+    <div class="app-layout">
+        <!-- ═══ Sidebar ═══════════════════════════════════════════════════════ -->
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-header">
+                <div class="sidebar-logo">📋</div>
+                <span class="sidebar-title">StaffTrack</span>
             </div>
-            <p class="app-subtitle">Skills Dashboard & Analysis</p>
-        </div>
-    </header>
 
-    <nav class="app-nav" id="main-nav"></nav>
+            <nav class="sidebar-nav" id="sidebar-nav">
+                <!-- Navigation rendered by JS -->
+            </nav>
 
-    <main class="main-container">
-        <div class="section-card">
-            <div class="section-header">
-                <div class="section-num blue">🔍</div>
-                <div>
-                    <h2 class="section-title">Skills Exploration</h2>
-                    <p class="section-desc">Search and analyze skill proficiency across the organization</p>
+            <div class="sidebar-footer">
+                <div class="user-card" id="sidebar-user-card">
+                    <!-- User info rendered by JS -->
                 </div>
             </div>
-            <div class="section-body">
-                <div class="grid-toolbar" style="flex-wrap:wrap; gap:1rem; align-items:flex-start;">
-                    <div style="flex:1; min-width:300px;">
-                        <div style="display:flex; gap:0.5rem; margin-bottom:0.75rem">
-                            <input type="text" id="skill-search" placeholder="Add skill filter (e.g. Python)..."
-                                autocomplete="off"
-                                style="flex:1; padding:.5rem; border:1px solid var(--border); border-radius:.25rem">
-                            <select id="min-rating-select"
-                                style="width:110px; padding:.5rem; border:1px solid var(--border); border-radius:.25rem">
-                                <option value="1">≥ 1 Star</option>
-                                <option value="2">≥ 2 Stars</option>
-                                <option value="3">≥ 3 Stars</option>
-                                <option value="4">≥ 4 Stars</option>
-                                <option value="5">5 Stars</option>
-                            </select>
-                            <button id="btn-add-filter" class="btn-secondary" style="padding:.5rem 1rem">Add</button>
-                        </div>
-                        <div id="active-filters" style="display:flex; flex-wrap:wrap; gap:0.5rem; min-height: 2rem;">
-                            <!-- Active filter chips -->
+
+            <button class="sidebar-toggle" id="sidebarToggle">◀</button>
+        </aside>
+
+        <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+        <!-- ═══ Main Content ═════════════════════════════════════════════════ -->
+        <div class="main-content">
+            <!-- Page Header -->
+            <header class="page-header">
+                <div class="page-header-top">
+                    <div style="display:flex; align-items:center; gap:12px;">
+                        <button class="mobile-menu-btn" id="mobileMenuBtn">☰</button>
+                        <div>
+                            <h1 class="page-title">Skills Catalog</h1>
+                            <p class="page-subtitle">Search and analyze skill proficiency across the organization</p>
                         </div>
                     </div>
-                    <div style="display:flex; flex-direction:column; gap:0.75rem; align-items:flex-end;">
-                        <div class="view-toggle"
-                            style="display:flex; gap:0.25rem; background:var(--bg-hover); padding:0.25rem; border-radius:0.5rem">
-                            <button id="btn-view-skills" class="btn-toggle active"
-                                style="padding:0.25rem 0.75rem; border:none; background:white; border-radius:0.25rem; cursor:pointer; box-shadow:0 1px 2px rgba(0,0,0,0.1)">By
-                                Skill</button>
-                            <button id="btn-view-staff" class="btn-toggle"
-                                style="padding:0.25rem 0.75rem; border:none; background:transparent; border-radius:0.25rem; cursor:pointer; color:var(--text-muted)">By
-                                Staff</button>
-                        </div>
-                        <div class="grid-count" id="skills-count"
-                            style="margin:0; font-weight:600; color:var(--text-main)">Loading...</div>
+                    <div class="page-actions">
+                        <button class="btn btn-secondary" id="theme-toggle" data-theme-toggle>
+                            <span class="theme-icon">🌙</span>
+                            <span class="theme-label">Dark</span>
+                        </button>
                     </div>
                 </div>
+            </header>
 
-                <div id="skills-grid" class="skills-catalog-grid">
-                    <!-- Skills will be rendered here -->
+            <!-- Content Area -->
+            <main class="content-area">
+                <!-- Filters -->
+                <div class="filter-bar">
+                    <div class="search-box" style="flex: 1; min-width: 200px;">
+                        <span class="search-icon">🔍</span>
+                        <input type="text" id="skill-search" class="input" placeholder="Add skill filter (e.g., Python)...">
+                    </div>
+                    <select id="min-rating-select" class="input select" style="width: 140px; flex: none;">
+                        <option value="1">≥ 1 Star</option>
+                        <option value="2">≥ 2 Stars</option>
+                        <option value="3">≥ 3 Stars</option>
+                        <option value="4">≥ 4 Stars</option>
+                        <option value="5">5 Stars</option>
+                    </select>
+                    <button id="btn-add-filter" class="btn btn-secondary">Add Filter</button>
                 </div>
-            </div>
-        </div>
-    </main>
 
-    <script src="auth.js?v=7"></script>
-    <script src="menu.js?v=7"></script>
-    <script src="skills.js?v=7"></script>
+                <!-- Active Filters -->
+                <div id="active-filters" class="filter-chips"></div>
+
+                <!-- View Toggle & Count -->
+                <div class="section-header">
+                    <div class="view-toggle">
+                        <button id="btn-view-skills" class="active">By Skill</button>
+                        <button id="btn-view-staff">By Staff</button>
+                    </div>
+                    <span class="section-count" id="skills-count">Loading...</span>
+                </div>
+
+                <!-- Skills Grid -->
+                <div id="skills-grid" class="skills-grid">
+                    <div class="loading-state" style="grid-column: 1 / -1;">
+                        <div class="spinner"></div>
+                        <p>Loading skills...</p>
+                    </div>
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <!-- Toast Container -->
+    <div id="toast-container" class="toast-container"></div>
+
+    <script src="/auth.js"></script>
+    <script src="/sidebar.js"></script>
+    <script src="/toast.js"></script>
+    <script src="/skills.js"></script>
 </body>
 
 </html>

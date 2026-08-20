@@ -2472,7 +2472,20 @@ async function clearAllSnapshots() {
 // ── Init ───
 
 async function init() {
-    renderNav('cv-profile');
+    // Initialize sidebar navigation
+    if (typeof renderSidebarNav === 'function') {
+        renderSidebarNav('cv-profile');
+    } else if (typeof renderNav === 'function') {
+        renderNav('cv-profile');
+    }
+    // Initialize theme toggle
+    if (typeof ThemeManager !== 'undefined') {
+        ThemeManager.updateToggleButtons();
+    }
+    // Initialize toast
+    if (typeof Toast !== 'undefined') {
+        Toast.init();
+    }
     
     // Set target email from URL
     const urlParams = new URLSearchParams(window.location.search);

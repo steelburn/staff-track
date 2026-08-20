@@ -2,178 +2,229 @@
 <html lang="en">
 
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>StaffTrack — Project Involvement Update</title>
-  <meta name="description" content="Update your project involvements, skills and details.">
-  <link rel="stylesheet" href="style.css">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>StaffTrack — My Projects</title>
+    <meta name="description" content="Update your project involvements, skills and details.">
+    <link rel="stylesheet" href="/css/main.css">
+    <script src="/theme.js"></script>
 </head>
 
 <body>
+    <div class="app-layout">
+        <!-- ═══ Sidebar ═══════════════════════════════════════════════════════ -->
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-header">
+                <div class="sidebar-logo">📋</div>
+                <span class="sidebar-title">StaffTrack</span>
+            </div>
 
-  <!-- ═══ Header ═══════════════════════════════════════════════════════════════ -->
-  <header class="app-header">
-    <div class="header-inner">
-      <div class="app-logo">
-        <div class="logo-icon">📋</div>
-        <h1>StaffTrack</h1>
-      </div>
-      <p class="app-subtitle">Update your skills &amp; project involvements</p>
+            <nav class="sidebar-nav" id="sidebar-nav">
+                <!-- Navigation rendered by JS -->
+            </nav>
+
+            <div class="sidebar-footer">
+                <div class="user-card" id="sidebar-user-card">
+                    <!-- User info rendered by JS -->
+                </div>
+            </div>
+
+            <button class="sidebar-toggle" id="sidebarToggle">◀</button>
+        </aside>
+
+        <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+        <!-- ═══ Main Content ═════════════════════════════════════════════════ -->
+        <div class="main-content">
+            <!-- Page Header -->
+            <header class="page-header">
+                <div class="page-header-top">
+                    <div style="display:flex; align-items:center; gap:12px;">
+                        <button class="mobile-menu-btn" id="mobileMenuBtn">☰</button>
+                        <div>
+                            <h1 class="page-title">My Projects</h1>
+                            <p class="page-subtitle">Update your skills & project involvements</p>
+                        </div>
+                    </div>
+                    <div class="page-actions">
+                        <button class="btn btn-secondary" id="theme-toggle" data-theme-toggle>
+                            <span class="theme-icon">🌙</span>
+                            <span class="theme-label">Dark</span>
+                        </button>
+                    </div>
+                </div>
+            </header>
+
+            <!-- Content Area -->
+            <main class="content-area">
+                <!-- Stats Row -->
+                <div class="grid grid-4" style="margin-bottom: var(--space-6);">
+                    <div class="stat-card">
+                        <div class="stat-header">
+                            <div class="stat-icon blue">👤</div>
+                        </div>
+                        <div class="stat-value" id="stat-skills">0</div>
+                        <div class="stat-label">Skills</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-header">
+                            <div class="stat-icon green">🗂</div>
+                        </div>
+                        <div class="stat-value" id="stat-projects">0</div>
+                        <div class="stat-label">Active Projects</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-header">
+                            <div class="stat-icon amber">📅</div>
+                        </div>
+                        <div class="stat-value" id="stat-updated">—</div>
+                        <div class="stat-label">Last Updated</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-header">
+                            <div class="stat-icon rose">⚡</div>
+                        </div>
+                        <div class="stat-value" id="stat-status">Draft</div>
+                        <div class="stat-label">Status</div>
+                    </div>
+                </div>
+
+                <!-- ── Section 1: Staff Identity ───────────────────────────────── -->
+                <section class="card" style="margin-bottom: var(--space-6);">
+                    <div class="card-header">
+                        <div>
+                            <div class="card-title">👤 Staff Identity</div>
+                            <div class="card-subtitle">Your identity is loaded automatically. You may edit your contact or role details below.</div>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <div class="grid grid-2">
+                            <div class="form-group" style="grid-column: 1 / -1;">
+                                <label class="form-label" for="staff-name">Name / Login Identity</label>
+                                <input type="text" id="staff-name" class="input" readonly>
+                            </div>
+
+                            <div class="form-group">
+                                <label class="form-label" for="staff-title" id="lbl-title">Title</label>
+                                <input type="text" id="staff-title" class="input" placeholder="—">
+                            </div>
+
+                            <div class="form-group">
+                                <label class="form-label" for="staff-department" id="lbl-department">Department</label>
+                                <input type="text" id="staff-department" class="input" placeholder="—">
+                            </div>
+
+                            <div class="form-group">
+                                <label class="form-label" for="staff-manager" id="lbl-managerName">Manager</label>
+                                <input type="text" id="staff-manager" class="input" placeholder="—">
+                            </div>
+
+                            <div class="form-group">
+                                <label class="form-label" for="staff-email" id="lbl-email">E-Mail Address</label>
+                                <input type="email" id="staff-email" class="input" placeholder="—" readonly>
+                            </div>
+                        </div>
+
+                        <div id="edit-note" class="badge badge-warning" style="margin-top: var(--space-4); display: none;">
+                            ✏️ You have unsaved changes
+                        </div>
+                    </div>
+                </section>
+
+                <!-- ── Section 2: Skills ────────────────────────────────────────── -->
+                <section class="card" style="margin-bottom: var(--space-6);">
+                    <div class="card-header">
+                        <div>
+                            <div class="card-title">🛠 Skills</div>
+                            <div class="card-subtitle">Add your skills and rate your proficiency (1–5 stars).</div>
+                        </div>
+                        <button class="btn btn-success btn-sm" id="btn-add-skill">
+                            <span>+</span>
+                            Add Skill
+                        </button>
+                    </div>
+                    <div class="card-body" style="padding: 0;">
+                        <div id="skills-empty" class="empty-state" style="padding: var(--space-8);">
+                            <div class="empty-state-icon">🛠</div>
+                            <div class="empty-state-title">No skills added yet</div>
+                            <div class="empty-state-text">Click "Add Skill" to start building your profile.</div>
+                        </div>
+
+                        <div class="table-container" style="border: none; border-radius: 0;">
+                            <div class="table-scroll">
+                                <table class="table" id="skills-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Skill / Technology</th>
+                                            <th style="width: 160px;">Proficiency</th>
+                                            <th style="width: 60px;"></th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="skills-tbody"></tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- ── Section 3: Active Projects ──────────────────────────────── -->
+                <section class="card" style="margin-bottom: var(--space-6);">
+                    <div class="card-header">
+                        <div>
+                            <div class="card-title">🗂 Active Project Involvements</div>
+                            <div class="card-subtitle">Search by SOC, project name, or customer. Fill in your role and expected end date.</div>
+                        </div>
+                        <button class="btn btn-success btn-sm" id="btn-add-project">
+                            <span>+</span>
+                            Add Project
+                        </button>
+                    </div>
+                    <div class="card-body" style="padding: 0;">
+                        <div id="projects-empty" class="empty-state" style="padding: var(--space-8);">
+                            <div class="empty-state-icon">🗂</div>
+                            <div class="empty-state-title">No projects added yet</div>
+                            <div class="empty-state-text">Click "Add Project" to start tracking your involvements.</div>
+                        </div>
+
+                        <div class="table-container" style="border: none; border-radius: 0;">
+                            <div class="table-scroll">
+                                <table class="table" id="projects-table" style="table-layout: fixed;">
+                                    <thead>
+                                        <tr>
+                                            <th style="width: 25%;">Project</th>
+                                            <th style="width: 10%;">SOC</th>
+                                            <th style="width: 20%;">Customer</th>
+                                            <th style="width: 20%;">My Role</th>
+                                            <th style="width: 15%;">Est. End Date</th>
+                                            <th style="width: 60px;"></th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="projects-tbody"></tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- ── Actions ─────────────────────────────────────────────────── -->
+                <div class="card-footer" style="background: transparent; border: none; padding: var(--space-4) 0; display: flex; justify-content: flex-end; gap: var(--space-3); flex-wrap: wrap;">
+                    <span id="save-status" style="align-self: center; font-size: var(--font-size-sm); color: var(--color-success);"></span>
+                    <button class="btn btn-secondary" id="btn-load-previous">📂 Load Previous</button>
+                    <button class="btn btn-danger" id="btn-clear">🗑 Clear</button>
+                    <button class="btn btn-secondary" id="btn-save">💾 Save Now</button>
+                    <button class="btn btn-primary" id="btn-summary">📋 Generate Summary</button>
+                </div>
+            </main>
+        </div>
     </div>
-  </header>
 
-  <nav class="app-nav" id="main-nav"></nav>
+    <!-- Toast Container -->
+    <div id="toast-container" class="toast-container"></div>
 
-  <!-- ═══ Main ══════════════════════════════════════════════════════════════════ -->
-  <main class="main-container">
-
-    <!-- ── Section 1: Staff Identity ───────────────────────────────────────── -->
-    <section class="section-card" id="section-identity">
-      <div class="section-header">
-        <span class="section-num blue">1</span>
-        <div>
-          <div class="section-title">Staff Identity</div>
-          <div class="section-desc">Your identity is loaded automatically. You may edit your contact or role details
-            below.</div>
-        </div>
-      </div>
-      <div class="section-body">
-        <div class="form-grid">
-
-          <div class="form-group full">
-            <label for="staff-name">Name / Login Identity</label>
-            <input type="text" id="staff-name" readonly>
-          </div>
-
-          <div class="form-group">
-            <label for="staff-title" id="lbl-title">Title</label>
-            <input type="text" id="staff-title" placeholder="—">
-          </div>
-
-          <div class="form-group">
-            <label for="staff-department" id="lbl-department">Department</label>
-            <input type="text" id="staff-department" placeholder="—">
-          </div>
-
-          <div class="form-group">
-            <label for="staff-manager" id="lbl-managerName">Manager</label>
-            <input type="text" id="staff-manager" placeholder="—">
-          </div>
-
-          <div class="form-group">
-            <label for="staff-email" id="lbl-email">E-Mail Address</label>
-            <input type="email" id="staff-email" placeholder="—" readonly>
-          </div>
-
-        </div>
-
-        <!-- Edit notice -->
-        <div class="edit-note" id="edit-note"></div>
-      </div>
-    </section>
-
-    <!-- ── Section 2: Skills ────────────────────────────────────────────────── -->
-    <section class="section-card" id="section-skills">
-      <div class="section-header">
-        <span class="section-num green">2</span>
-        <div>
-          <div class="section-title">Skills</div>
-          <div class="section-desc">Add your skills and rate your proficiency (1–5 stars).</div>
-        </div>
-      </div>
-      <div class="section-body">
-
-        <div class="grid-toolbar">
-          <span class="grid-count" id="skills-count">0 skills</span>
-          <button class="btn-add" id="btn-add-skill">
-            <svg viewBox="0 0 24 24" fill="none" stroke-width="2.5" stroke-linecap="round">
-              <line x1="12" y1="5" x2="12" y2="19" />
-              <line x1="5" y1="12" x2="19" y2="12" />
-            </svg>
-            Add Skill
-          </button>
-        </div>
-
-        <div id="skills-empty" class="grid-empty">
-          No skills added yet. Click <strong>Add Skill</strong> to get started.
-        </div>
-
-        <div class="table-container">
-          <table class="grid-table" id="skills-table">
-            <thead>
-              <tr>
-                <th>Skill / Technology</th>
-                <th>Proficiency</th>
-                <th class="col-remove"></th>
-              </tr>
-            </thead>
-            <tbody id="skills-tbody"></tbody>
-          </table>
-        </div>
-
-      </div>
-    </section>
-
-    <!-- ── Section 3: Active Projects ──────────────────────────────────────── -->
-    <section class="section-card" id="section-projects">
-      <div class="section-header">
-        <span class="section-num amber">3</span>
-        <div>
-          <div class="section-title">Active Project Involvements</div>
-          <div class="section-desc">Search by SOC, project name, or customer. Fill in your role and expected end date.
-          </div>
-        </div>
-      </div>
-      <div class="section-body">
-
-        <div class="grid-toolbar">
-          <span class="grid-count" id="projects-count">0 projects</span>
-          <button class="btn-add" id="btn-add-project">
-            <svg viewBox="0 0 24 24" fill="none" stroke-width="2.5" stroke-linecap="round">
-              <line x1="12" y1="5" x2="12" y2="19" />
-              <line x1="5" y1="12" x2="19" y2="12" />
-            </svg>
-            Add Project
-          </button>
-        </div>
-
-        <div id="projects-empty" class="grid-empty">
-          No projects added yet. Click <strong>Add Project</strong> to get started.
-        </div>
-
-        <div class="table-container">
-          <table class="grid-table" id="projects-table" style="table-layout:fixed">
-            <thead>
-              <tr>
-                <th style="width:25%">Project</th>
-                <th style="width:10%">SOC</th>
-                <th style="width:20%">Customer</th>
-                <th style="width:20%">My Role</th>
-                <th style="width:15%">Est. End Date</th>
-                <th class="col-remove" style="width:40px"></th>
-              </tr>
-            </thead>
-            <tbody id="projects-tbody"></tbody>
-          </table>
-        </div>
-
-      </div>
-    </section>
-
-    <!-- ── Actions ─────────────────────────────────────────────────────────── -->
-    <div class="submit-area">
-      <span id="save-status" style="align-self:center;font-size:.85rem;color:var(--accent-green)"></span>
-      <button class="btn-secondary" id="btn-load-previous">📂 Load Previous</button>
-      <button class="btn-secondary" id="btn-clear">🗑 Clear</button>
-      <button class="btn-secondary" id="btn-save">💾 Save Now</button>
-      <button class="btn-primary" id="btn-summary">📋 Generate Summary</button>
-    </div>
-
-  </main>
-
-  <script src="auth.js?v=7"></script>
-  <script src="menu.js?v=7"></script>
-  <script src="app.js?v=7"></script>
+    <script src="/auth.js"></script>
+    <script src="/sidebar.js"></script>
+    <script src="/toast.js"></script>
+    <script src="/app.js"></script>
 </body>
 
 </html>

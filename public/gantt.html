@@ -4,298 +4,456 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Gantt Charts - StaffTrack</title>
-    <link rel="stylesheet" href="style.css">
+    <title>StaffTrack — Gantt Charts</title>
+    <link rel="stylesheet" href="/css/main.css">
+    <script src="/theme.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
+        /* Gantt-specific styles */
         .gantt-container {
+            position: relative;
             width: 100%;
-            overflow-x: auto;
-            background: var(--bg-card);
-            border: 1px solid var(--border);
+            background: var(--color-bg-surface);
+            border: 1px solid var(--color-border);
             border-radius: var(--radius-lg);
-            margin-bottom: 2rem;
-            padding: 0;
+            margin-bottom: var(--space-6);
+            overflow: hidden;
         }
 
-        .gantt-svg {
-            min-width: 800px;
+        .gantt-wrapper {
+            position: relative;
+            width: 100%;
+            overflow-x: auto;
+            overflow-y: auto;
+            max-height: calc(min(75vh, 800px));
+            min-height: 300px;
+        }
+
+        .gantt-inner {
+            display: inline-block;
+            min-width: 100%;
+        }
+
+        .gantt-timeline-container {
+            display: flex;
+            position: relative;
+            min-width: 100%;
+        }
+
+        .gantt-labels-section {
+            position: sticky;
+            left: 0;
+            z-index: 20;
+            background: var(--color-bg-surface);
+            border-right: 1px solid var(--color-border);
+            flex-shrink: 0;
+            overflow: hidden;
+        }
+
+        .gantt-chart-section {
+            flex: 1;
+            position: relative;
+            overflow: visible;
+            min-width: 0;
+        }
+
+        .gantt-resize-handle {
+            position: sticky;
+            left: 220px;
+            width: 6px;
+            height: 100%;
+            background: var(--color-border);
+            cursor: col-resize;
+            z-index: 25;
+            flex-shrink: 0;
+        }
+
+        .gantt-resize-handle:hover,
+        .gantt-resize-handle.active {
+            background: var(--color-primary);
+        }
+
+        .gantt-months-header {
+            position: sticky;
+            top: 0;
+            z-index: 10;
+            background: var(--color-bg-surface);
+            border-bottom: 1px solid var(--color-border);
+            height: 40px;
+            white-space: nowrap;
+        }
+
+        .gantt-timeline {
+            display: grid;
+            position: relative;
             font-family: 'Inter', sans-serif;
             user-select: none;
         }
 
-        .gantt-grid line {
-            stroke: var(--border);
-            stroke-width: 1;
-            stroke-dasharray: 4, 4;
+        .gantt-header {
+            display: contents;
         }
 
-        .gantt-grid text {
-            fill: var(--text-secondary);
-            font-size: 12px;
-            font-weight: 500;
+        .gantt-header-cell {
+            position: sticky;
+            top: 0;
+            z-index: 10;
+            background: var(--color-bg-surface);
+            border-bottom: 1px solid var(--color-border);
+            padding: var(--space-2) var(--space-1);
+            font-size: var(--font-size-xs);
+            font-weight: var(--font-weight-medium);
+            color: var(--color-text-secondary);
+            text-align: center;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .gantt-labels-header {
+            position: sticky;
+            top: 0;
+            left: 0;
+            z-index: 20;
+            background: var(--color-bg-surface);
+            border-right: 1px solid var(--color-border);
+            padding: var(--space-2);
+            font-size: var(--font-size-sm);
+            font-weight: var(--font-weight-semibold);
+            color: var(--color-text-secondary);
+            min-width: 200px;
+            width: 200px;
+        }
+
+        .gantt-row {
+            display: contents;
+        }
+
+        .gantt-label-cell {
+            position: sticky;
+            left: 0;
+            z-index: 5;
+            background: var(--color-bg-surface);
+            border-right: 1px solid var(--color-border);
+            border-bottom: 1px solid var(--color-border);
+            padding: var(--space-2);
+            font-size: var(--font-size-sm);
+            font-weight: var(--font-weight-medium);
+            color: var(--color-text-primary);
+            min-width: 200px;
+            width: 200px;
+            display: flex;
+            align-items: center;
+            gap: var(--space-2);
+            overflow: hidden;
+        }
+
+        .gantt-label-cell.sub-task {
+            font-weight: var(--font-weight-normal);
+            color: var(--color-text-secondary);
+            padding-left: var(--space-6);
+        }
+
+        .gantt-chart-area {
+            position: relative;
+            border-bottom: 1px solid var(--color-border);
+            min-height: 48px;
         }
 
         .gantt-bar {
-            fill: var(--accent-blue);
-            opacity: 0.8;
-            rx: 4;
-            transition: opacity 0.2s, fill 0.2s;
+            position: absolute;
+            height: 28px;
+            top: 10px;
+            border-radius: var(--radius-sm);
+            background: var(--color-primary);
+            opacity: 0.85;
+            transition: opacity 0.2s, transform 0.15s, box-shadow 0.2s;
             cursor: pointer;
+            display: flex;
+            align-items: center;
+            padding: 0 var(--space-2);
+            overflow: hidden;
+            font-size: var(--font-size-xs);
+            font-weight: var(--font-weight-semibold);
+            color: var(--color-text-inverse);
+            white-space: nowrap;
         }
 
         .gantt-bar:hover {
             opacity: 1;
-            fill: #3b82f6;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+            z-index: 10;
         }
 
-        .gantt-bar-bg {
-            fill: var(--bg-elevated);
-            rx: 4;
+        .gantt-bar.sub-bar {
+            background: #8b5cf6;
+            height: 22px;
+            top: 13px;
+            font-size: 10px;
         }
 
-        .gantt-label {
-            fill: var(--text-primary);
-            font-size: 13px;
-            font-weight: 500;
-        }
-
-        .gantt-sublabel {
-            fill: var(--text-secondary);
-            font-size: 11px;
-        }
-
-        .gantt-bar-text {
-            fill: #fff;
-            font-size: 11px;
-            font-weight: 600;
-            pointer-events: none;
-        }
-
-        .tooltip {
+        .gantt-today-marker {
             position: absolute;
-            background: #1e293b;
-            color: #fff;
-            padding: 8px 12px;
-            border-radius: 6px;
-            font-size: 12px;
+            top: 0;
+            bottom: 0;
+            width: 2px;
+            background: var(--color-danger);
+            z-index: 15;
             pointer-events: none;
-            opacity: 0;
-            transition: opacity 0.2s;
-            z-index: 100;
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        }
+
+        .gantt-today-marker::before {
+            content: 'Today';
+            position: absolute;
+            top: -20px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 10px;
+            font-weight: var(--font-weight-semibold);
+            color: var(--color-danger);
             white-space: nowrap;
         }
 
-        .chart-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 1rem;
+        .tooltip {
+            position: fixed;
+            background: var(--color-text-primary);
+            color: var(--color-text-inverse);
+            padding: 8px 12px;
+            border-radius: var(--radius-sm);
+            font-size: var(--font-size-xs);
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity var(--transition-fast);
+            z-index: 1000;
+            box-shadow: var(--shadow-md);
+            max-width: 280px;
+            line-height: 1.4;
         }
 
-        .gantt-controls {
-            display: flex;
-            justify-content: flex-end;
-            margin-bottom: 1rem;
-        }
-
-        .gantt-controls button {
-            margin: 0 5px;
-            padding: 5px 10px;
-            background: var(--accent-blue);
-            color: white;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
-        }
-
-        .gantt-controls button:hover {
-            background: #3b82f6;
+        .tooltip.visible {
+            opacity: 1;
         }
 
         .selection-list {
             display: grid;
             grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-            gap: 0.75rem;
+            gap: var(--space-3);
             max-height: 300px;
             overflow-y: auto;
-            margin-top: 1rem;
-            padding: 1rem;
-            background: var(--bg-base);
-            border-radius: 8px;
-            border: 1px solid var(--border);
+            margin-top: var(--space-4);
+            padding: var(--space-4);
+            background: var(--color-bg-muted);
+            border-radius: var(--radius-md);
+            border: 1px solid var(--color-border);
         }
 
         .selection-item {
             display: flex;
             align-items: center;
-            gap: 0.5rem;
-            padding: 0.5rem 0.75rem;
-            background: var(--bg-elevated);
-            border-radius: 6px;
-            border: 1px solid var(--border);
+            gap: var(--space-2);
+            padding: var(--space-2) var(--space-3);
+            background: var(--color-bg-surface);
+            border-radius: var(--radius-md);
+            border: 1px solid var(--color-border);
             cursor: pointer;
-            transition: all 0.2s;
-            font-size: 0.85rem;
+            transition: all var(--transition-fast);
+            font-size: var(--font-size-sm);
         }
 
         .selection-item:hover {
-            border-color: var(--accent-blue);
+            border-color: var(--color-primary);
         }
 
         .selection-item.selected {
-            background: rgba(79, 142, 247, 0.1);
-            border-color: var(--accent-blue);
-        }
-
-        .selection-item input {
-            cursor: pointer;
-        }
-
-        .search-input {
-            width: 100%;
-            margin-bottom: 0.5rem;
+            background: var(--color-primary-light);
+            border-color: var(--color-primary);
         }
 
         .selection-controls {
             display: flex;
-            gap: 1rem;
-            margin-bottom: 1rem;
+            gap: var(--space-4);
+            margin-bottom: var(--space-4);
         }
 
         .btn-text {
             background: none;
             border: none;
-            color: var(--accent-blue);
-            font-size: 0.85rem;
-            font-weight: 500;
+            color: var(--color-primary);
+            font-size: var(--font-size-sm);
+            font-weight: var(--font-weight-medium);
             cursor: pointer;
             padding: 0;
             text-decoration: underline;
         }
 
         .btn-text:hover {
-            color: #3b82f6;
+            color: var(--color-primary-hover);
+        }
+
+        @media (max-width: 768px) {
+            .gantt-bar {
+                height: 24px;
+                font-size: 10px;
+            }
+
+            .gantt-bar.sub-bar {
+                height: 18px;
+                font-size: 9px;
+            }
         }
     </style>
 </head>
 
-<body class="full-width theme-light">
-    <!-- Navbar -->
-    <header class="app-header">
-        <div class="header-inner">
-            <div class="app-logo">
-                <div class="logo-icon">📊</div>
-                <h1>StaffTrack</h1>
+<body>
+    <div class="app-layout">
+        <!-- ═══ Sidebar ═══════════════════════════════════════════════════════ -->
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-header">
+                <div class="sidebar-logo">📋</div>
+                <span class="sidebar-title">StaffTrack</span>
             </div>
-            <p class="app-subtitle">Project timelines and resource utilization overview</p>
-        </div>
-    </header>
 
-    <nav class="app-nav" id="main-nav"></nav>
+            <nav class="sidebar-nav" id="sidebar-nav">
+                <!-- Navigation rendered by JS -->
+            </nav>
 
-    <!-- Main Content -->
-    <main class="main-container full-width">
-        <div id="tooltip" class="tooltip"></div>
-
-        <div class="tabs-nav">
-            <button class="tab-btn active" data-tab="projects">Project Timelines</button>
-            <button class="tab-btn" data-tab="resources">Resource Utilization</button>
-        </div>
-
-        <!-- Projects Tab -->
-        <div id="projects-tab" class="tab-content active">
-            <div class="section-card" id="projects-selection-card">
-                <div class="section-header">
-                    <div class="section-num blue">🔍</div>
-                    <div>
-                        <h2 class="section-title">Select Projects</h2>
-                        <p class="section-desc">Choose which projects you want to visualize in the timeline.</p>
-                    </div>
+            <div class="sidebar-footer">
+                <div class="user-card" id="sidebar-user-card">
+                    <!-- User info rendered by JS -->
                 </div>
-                <div class="section-body">
-                    <div class="selection-controls">
-                        <button class="btn-text" id="project-select-all">Select All</button>
-                        <button class="btn-text" id="project-clear-all">Clear All</button>
-                    </div>
-                    <div class="form-group">
-                        <input type="text" id="project-search" placeholder="Search projects..." class="search-input">
-                        <div id="project-list" class="selection-list">
-                            <!-- Populated by JS -->
+            </div>
+
+            <button class="sidebar-toggle" id="sidebarToggle">◀</button>
+        </aside>
+
+        <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+        <!-- ═══ Main Content ═════════════════════════════════════════════════ -->
+        <div class="main-content">
+            <!-- Page Header -->
+            <header class="page-header">
+                <div class="page-header-top">
+                    <div style="display:flex; align-items:center; gap:12px;">
+                        <button class="mobile-menu-btn" id="mobileMenuBtn">☰</button>
+                        <div>
+                            <h1 class="page-title">Gantt Charts</h1>
+                            <p class="page-subtitle">Project timelines and resource utilization overview</p>
                         </div>
                     </div>
-                    <div class="submit-area" style="margin-top: 1rem;">
-                        <button id="render-projects-btn" class="btn-primary">Generate Project Timeline</button>
+                    <div class="page-actions">
+                        <button class="btn btn-secondary" id="theme-toggle" data-theme-toggle>
+                            <span class="theme-icon">🌙</span>
+                            <span class="theme-label">Dark</span>
+                        </button>
                     </div>
                 </div>
-            </div>
+            </header>
 
-            <div class="section-card" style="display: none;" id="projects-chart-card">
-                <div class="section-header">
-                    <div class="section-num blue">📈</div>
-                    <div>
-                        <h2 class="section-title">Active Projects Timeline</h2>
-                        <p class="section-desc">Overview of selected active projects and their targeted completion dates.</p>
-                    </div>
-                </div>
-                <div class="section-body full-width">
-                    <div class="gantt-container" id="gantt-projects-container"></div>
-                    <div class="submit-area">
-                        <button class="btn-secondary" onclick="document.getElementById('projects-chart-card').style.display='none'; document.getElementById('projects-selection-card').style.display='block';">Back to Selection</button>
-                    </div>
-                </div>
-            </div>
-        </div>
+            <!-- Content Area -->
+            <main class="content-area">
+                <div id="tooltip" class="tooltip"></div>
 
-        <!-- Resources Tab -->
-        <div id="resources-tab" class="tab-content">
-            <div class="section-card" id="resources-selection-card">
-                <div class="section-header">
-                    <div class="section-num green">🔍</div>
-                    <div>
-                        <h2 class="section-title">Select Resources</h2>
-                        <p class="section-desc">Choose which staff members you want to visualize in the utilization chart.</p>
-                    </div>
+                <!-- Tabs -->
+                <div class="view-toggle" style="margin-bottom: var(--space-6);">
+                    <button class="active" data-tab="projects">Project Timelines</button>
+                    <button data-tab="resources">Resource Utilization</button>
                 </div>
-                <div class="section-body">
-                    <div class="selection-controls">
-                        <button class="btn-text" id="staff-select-all">Select All</button>
-                        <button class="btn-text" id="staff-clear-all">Clear All</button>
-                    </div>
-                    <div class="form-group">
-                        <input type="text" id="staff-search" placeholder="Search staff..." class="search-input">
-                        <div id="staff-list" class="selection-list">
-                            <!-- Populated by JS -->
+
+                <!-- Projects Tab -->
+                <div id="projects-tab" class="tab-content active">
+                    <div class="card" id="projects-selection-card">
+                        <div class="card-header">
+                            <div>
+                                <div class="card-title">🔍 Select Projects</div>
+                                <div class="card-subtitle">Choose which projects you want to visualize in the timeline.</div>
+                            </div>
+                        </div>
+                        <div class="card-body">
+                            <div class="selection-controls">
+                                <button class="btn-text" id="project-select-all">Select All</button>
+                                <button class="btn-text" id="project-clear-all">Clear All</button>
+                            </div>
+                            <div class="form-group">
+                                <input type="text" id="project-search" placeholder="Search projects..." class="input">
+                                <div id="project-list" class="selection-list">
+                                    <!-- Populated by JS -->
+                                </div>
+                            </div>
+                            <div style="margin-top: var(--space-4); display: flex; justify-content: flex-end;">
+                                <button id="render-projects-btn" class="btn btn-primary">Generate Project Timeline</button>
+                            </div>
                         </div>
                     </div>
-                    <div class="submit-area" style="margin-top: 1rem;">
-                        <button id="render-resources-btn" class="btn-primary">Generate Utilization Chart</button>
-                    </div>
-                </div>
-            </div>
 
-            <div class="section-card" style="display: none;" id="resources-chart-card">
-                <div class="section-header">
-                    <div class="section-num green">👥</div>
-                    <div>
-                        <h2 class="section-title">Resource Utilization Gantt</h2>
-                        <p class="section-desc">Timeline of selected staff assignments across projects.</p>
+                    <div class="card" style="display: none; margin-top: var(--space-6);" id="projects-chart-card">
+                        <div class="card-header">
+                            <div>
+                                <div class="card-title">📈 Active Projects Timeline</div>
+                                <div class="card-subtitle">Overview of selected active projects and their targeted completion dates.</div>
+                            </div>
+                        </div>
+                        <div class="card-body">
+                            <div class="gantt-container" id="gantt-projects-container"></div>
+                            <div style="display: flex; justify-content: flex-end; margin-top: var(--space-4);">
+                                <button class="btn btn-secondary" onclick="document.getElementById('projects-chart-card').style.display='none'; document.getElementById('projects-selection-card').style.display='block';">Back to Selection</button>
+                            </div>
+                        </div>
                     </div>
                 </div>
-                <div class="section-body full-width">
-                    <div class="gantt-container" id="gantt-resources-container"></div>
-                    <div class="submit-area">
-                        <button class="btn-secondary" onclick="document.getElementById('resources-chart-card').style.display='none'; document.getElementById('resources-selection-card').style.display='block';">Back to Selection</button>
+
+                <!-- Resources Tab -->
+                <div id="resources-tab" class="tab-content" style="display: none;">
+                    <div class="card" id="resources-selection-card">
+                        <div class="card-header">
+                            <div>
+                                <div class="card-title">🔍 Select Resources</div>
+                                <div class="card-subtitle">Choose which staff members you want to visualize in the utilization chart.</div>
+                            </div>
+                        </div>
+                        <div class="card-body">
+                            <div class="selection-controls">
+                                <button class="btn-text" id="staff-select-all">Select All</button>
+                                <button class="btn-text" id="staff-clear-all">Clear All</button>
+                            </div>
+                            <div class="form-group">
+                                <input type="text" id="staff-search" placeholder="Search staff..." class="input">
+                                <div id="staff-list" class="selection-list">
+                                    <!-- Populated by JS -->
+                                </div>
+                            </div>
+                            <div style="margin-top: var(--space-4); display: flex; justify-content: flex-end;">
+                                <button id="render-resources-btn" class="btn btn-primary">Generate Utilization Chart</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card" style="display: none; margin-top: var(--space-6);" id="resources-chart-card">
+                        <div class="card-header">
+                            <div>
+                                <div class="card-title">👥 Resource Utilization Gantt</div>
+                                <div class="card-subtitle">Timeline of selected staff assignments across projects.</div>
+                            </div>
+                        </div>
+                        <div class="card-body">
+                            <div class="gantt-container" id="gantt-resources-container"></div>
+                            <div style="display: flex; justify-content: flex-end; margin-top: var(--space-4);">
+                                <button class="btn btn-secondary" onclick="document.getElementById('resources-chart-card').style.display='none'; document.getElementById('resources-selection-card').style.display='block';">Back to Selection</button>
+                            </div>
+                        </div>
                     </div>
                 </div>
-            </div>
+            </main>
         </div>
-    </main>
+    </div>
 
-    <script src="auth.js?v=7"></script>
-    <script src="menu.js?v=7"></script>
-    <script src="gantt.js?v=7"></script>
+    <!-- Toast Container -->
+    <div id="toast-container" class="toast-container"></div>
+
+    <script src="/auth.js"></script>
+    <script src="/sidebar.js"></script>
+    <script src="/toast.js"></script>
+    <script src="/gantt.js"></script>
 </body>
 
 </html>

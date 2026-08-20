@@ -5,134 +5,159 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>StaffTrack — System Management</title>
-    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="/css/main.css">
+    <script src="/theme.js"></script>
 </head>
 
 <body>
+    <div class="app-layout">
+        <!-- ═══ Sidebar ═══════════════════════════════════════════════════════ -->
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-header">
+                <div class="sidebar-logo">📋</div>
+                <span class="sidebar-title">StaffTrack</span>
+            </div>
 
-    <header class="app-header">
-        <div class="header-inner" style="display:flex;justify-content:space-between;align-items:center">
-            <div>
-                <div class="app-logo">
-                    <div class="logo-icon">💻</div>
-                    <h1>StaffTrack</h1>
+            <nav class="sidebar-nav" id="sidebar-nav">
+                <!-- Navigation rendered by JS -->
+            </nav>
+
+            <div class="sidebar-footer">
+                <div class="user-card" id="sidebar-user-card">
+                    <!-- User info rendered by JS -->
                 </div>
-                <p class="app-subtitle">System Management & Imports</p>
             </div>
-            <button class="btn-secondary" id="btn-logout" style="font-size:.8rem;padding:.4rem .8rem">Log Out</button>
-        </div>
-    </header>
 
-    <nav class="app-nav" id="main-nav">
-        <!-- Nav links injected by JS based on role -->
-    </nav>
+            <button class="sidebar-toggle" id="sidebarToggle">◀</button>
+        </aside>
 
-    <main class="main-container">
+        <div class="sidebar-overlay" id="sidebarOverlay"></div>
 
-        <div class="view-toolbar">
-            <div class="view-toolbar-left">
-                <h2 class="view-title">System Management</h2>
-                <span class="view-subtitle">Bulk import and global settings</span>
-            </div>
-        </div>
-
-        <div class="grid-3">
-            <div class="section-card">
-                <div class="section-header">
-                    <div class="section-num blue">📥</div>
-                    <div>
-                        <h4 style="margin:0;font-size:.9rem">Import Staff Catalog</h4>
-                        <p style="margin:0;font-size:.75rem;color:var(--text-muted)">Update global staff records from
-                            CSV</p>
+        <!-- ═══ Main Content ═════════════════════════════════════════════════ -->
+        <div class="main-content">
+            <!-- Page Header -->
+            <header class="page-header">
+                <div class="page-header-top">
+                    <div style="display:flex; align-items:center; gap:12px;">
+                        <button class="mobile-menu-btn" id="mobileMenuBtn">☰</button>
+                        <div>
+                            <h1 class="page-title">System Management</h1>
+                            <p class="page-subtitle">Bulk import and global settings</p>
+                        </div>
+                    </div>
+                    <div class="page-actions">
+                        <button class="btn btn-secondary" id="theme-toggle" data-theme-toggle>
+                            <span class="theme-icon">🌙</span>
+                            <span class="theme-label">Dark</span>
+                        </button>
                     </div>
                 </div>
-                <div class="section-body" style="padding:1.25rem">
-                    <input type="file" id="file-import-staff" accept=".csv" style="display:none">
-                    <button class="btn-secondary w-100"
-                        onclick="document.getElementById('file-import-staff').click()">📁 Select CSV File</button>
-                    <div id="staff-file-info"
-                        style="margin-top:.5rem;font-size:.75rem;color:var(--text-secondary);text-align:center">No file
-                        selected</div>
-                    <button class="btn-primary w-100" id="btn-do-import-staff" style="margin-top:1rem" disabled>🚀
-                        Import & Update</button>
-                </div>
-            </div>
+            </header>
 
-            <div class="section-card">
-                <div class="section-header">
-                    <div class="section-num amber">📂</div>
-                    <div>
-                        <h4 style="margin:0;font-size:.9rem">Import Project Catalog</h4>
-                        <p style="margin:0;font-size:.75rem;color:var(--text-muted)">Update global project list from CSV
-                        </p>
+            <!-- Content Area -->
+            <main class="content-area">
+                <!-- Sync Cards -->
+                <div class="grid grid-3" style="margin-bottom: var(--space-8);">
+                    <!-- Staff Sync -->
+                    <div class="card">
+                        <div class="card-header">
+                            <div>
+                                <div class="card-title">🔄 Sync Staff from BeeSuite</div>
+                                <div class="card-subtitle">Update staff records from BeeSuite API</div>
+                            </div>
+                        </div>
+                        <div class="card-body" style="text-align: center;">
+                            <p id="staff-sync-status" style="font-size: var(--font-size-sm); color: var(--color-text-secondary); margin-bottom: var(--space-4);">
+                                Click sync to fetch staff from BeeSuite
+                            </p>
+                            <button class="btn btn-primary w-100" id="btn-do-sync-staff">🔄 Sync Staff</button>
+                        </div>
+                    </div>
+
+                    <!-- Project Sync -->
+                    <div class="card">
+                        <div class="card-header">
+                            <div>
+                                <div class="card-title">📂 Sync Project Catalog</div>
+                                <div class="card-subtitle">Update global project list from BeeSuite API</div>
+                            </div>
+                        </div>
+                        <div class="card-body" style="text-align: center;">
+                            <p id="projects-sync-status" style="font-size: var(--font-size-sm); color: var(--color-text-secondary); margin-bottom: var(--space-4);">
+                                Click sync to fetch projects from BeeSuite
+                            </p>
+                            <button class="btn btn-primary w-100" id="btn-do-sync-projects">🔄 Sync Projects</button>
+                        </div>
+                    </div>
+
+                    <!-- Import Stats -->
+                    <div class="card" id="import-stats-card" style="display: none;">
+                        <div class="card-header">
+                            <div>
+                                <div class="card-title">📊 Import Results</div>
+                            </div>
+                        </div>
+                        <div class="card-body" id="import-results-body" style="font-size: var(--font-size-sm); line-height: 1.6;">
+                            <!-- Stats injected here -->
+                        </div>
                     </div>
                 </div>
-                <div class="section-body" style="padding:1.25rem">
-                    <input type="file" id="file-import-projects" accept=".csv" style="display:none">
-                    <button class="btn-secondary w-100"
-                        onclick="document.getElementById('file-import-projects').click()">📁 Select CSV File</button>
-                    <div id="projects-file-info"
-                        style="margin-top:.5rem;font-size:.75rem;color:var(--text-secondary);text-align:center">No file
-                        selected</div>
-                    <button class="btn-primary w-100" id="btn-do-import-projects" style="margin-top:1rem" disabled>🚀
-                        Import & Update</button>
-                </div>
-            </div>
 
-            <div class="section-card" id="import-stats-card" style="display:none">
-                <div class="section-header">
-                    <div class="section-num">📊</div>
+                <!-- Skill Consolidation Section -->
+                <div class="section-header" style="margin-top: var(--space-8);">
                     <div>
-                        <h4 style="margin:0;font-size:.9rem">Import Results</h4>
+                        <h2 class="section-title">Skill Consolidation (Data Governance)</h2>
+                        <p class="section-count">Merge duplicates, rename, or delete skills across all staff submissions.</p>
+                    </div>
+                    <div style="display: flex; gap: var(--space-2); align-items: center; flex-wrap: wrap;">
+                        <div class="search-box" style="width: 200px; flex: none;">
+                            <span class="search-icon">🔍</span>
+                            <input type="text" id="skill-search" class="input input-sm" placeholder="Search skills...">
+                        </div>
+                        <button class="btn btn-secondary btn-sm" id="btn-propose-merges">🔎 Propose Merges</button>
+                        <div style="width: 1px; height: 24px; background: var(--color-border);"></div>
+                        <button class="btn btn-secondary btn-sm" id="btn-rename-skill" disabled>✏️ Rename</button>
+                        <button class="btn btn-primary btn-sm" id="btn-merge-skills" disabled>🔗 Merge</button>
+                        <button class="btn btn-secondary btn-sm" id="btn-split-skill" disabled>✂️ Split</button>
+                        <button class="btn btn-danger btn-sm" id="btn-delete-skill" disabled>🗑️ Delete</button>
                     </div>
                 </div>
-                <div class="section-body" id="import-results-body" style="font-size:.85rem;line-height:1.5">
-                    <!-- stats injected here -->
+
+                <!-- Skills Table -->
+                <div class="table-container" style="margin-top: var(--space-4);">
+                    <div class="table-scroll">
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th style="width: 40px;"></th>
+                                    <th>Skill Name</th>
+                                    <th style="width: 150px;">Submissions Count</th>
+                                </tr>
+                            </thead>
+                            <tbody id="skills-catalog-tbody">
+                                <tr>
+                                    <td colspan="3">
+                                        <div class="loading-state">
+                                            <div class="spinner"></div>
+                                            <p>Loading skills...</p>
+                                        </div>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
-            </div>
+            </main>
         </div>
+    </div>
 
-        <div class="view-toolbar" style="margin-top:3rem">
-            <div class="view-toolbar-left">
-                <h2 class="view-title">Skill Consolidation (Data Governance)</h2>
-                <span class="view-subtitle">Merge duplicates, rename, or delete skills across all staff
-                    submissions.</span>
-            </div>
-            <div class="view-toolbar-right" style="display:flex;gap:0.5rem;align-items:center">
-                <input type="text" id="skill-search" placeholder="🔍 Search skills…" class="search-input" style="width:200px; margin-right:0.5rem">
-                <button class="btn-secondary" id="btn-propose-merges">🔎 Propose Merges</button>
-                <div style="width:1px; height:24px; background:var(--border); margin:0 0.5rem"></div>
-                <button class="btn-secondary" id="btn-rename-skill" disabled>✏️ Rename 1</button>
-                <button class="btn-primary" id="btn-merge-skills" disabled>🔗 Merge N &rarr; 1</button>
-                <button class="btn-secondary" id="btn-split-skill" disabled>✂️ Split 1 &rarr; N</button>
-                <button class="btn-secondary" id="btn-delete-skill" disabled style="color:var(--danger)">🗑️ Delete
-                    1</button>
-            </div>
-        </div>
+    <!-- Toast Container -->
+    <div id="toast-container" class="toast-container"></div>
 
-        <div class="section-card" style="margin-top:1rem; overflow-x:auto;">
-            <table class="data-table" style="width:100%; border-collapse:collapse; text-align:left; font-size:0.9rem;">
-                <thead>
-                    <tr style="border-bottom:1px solid var(--border)">
-                        <th style="padding:.75rem;width:40px"></th>
-                        <th style="padding:.75rem">Skill Name</th>
-                        <th style="padding:.75rem;width:150px">Submissions Count</th>
-                    </tr>
-                </thead>
-                <tbody id="skills-catalog-tbody">
-                    <tr>
-                        <td colspan="3" style="padding:1rem;color:var(--text-muted);text-align:center">Loading skills...
-                        </td>
-                    </tr>
-                </tbody>
-            </table>
-        </div>
-
-    </main>
-
-    <script src="auth.js?v=7"></script>
-    <script src="menu.js?v=7"></script>
-    <script src="system.js?v=7"></script>
+    <script src="/auth.js"></script>
+    <script src="/sidebar.js"></script>
+    <script src="/toast.js"></script>
+    <script src="/system.js"></script>
 </body>
 
 </html>

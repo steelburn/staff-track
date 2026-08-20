@@ -16,80 +16,163 @@ function showToast(msg, isErr = false) {
     setTimeout(() => { t.classList.add('hide'); setTimeout(() => t.remove(), 400); }, 2800);
 }
 
-// ── Import Logic ──────────────────────────────────────────────────────────────
-async function handleImport(type, csv) {
-    const btn = document.getElementById(`btn-do-import-${type}`);
+async function handleSyncStaff() {
+    const btn = document.getElementById('btn-do-sync-staff');
+    const statusDiv = document.getElementById('staff-sync-status');
     const statsCard = document.getElementById('import-stats-card');
     const resultsBody = document.getElementById('import-results-body');
 
     if (!btn) return;
 
     btn.disabled = true;
-    btn.textContent = '⌛ Processing...';
+    const originalText = btn.textContent;
+    btn.textContent = '⌛ Starting...';
+    if (statusDiv) statusDiv.textContent = 'Starting sync...';
 
     try {
-        const res = await window.StaffTrackAuth.apiFetch(`/api/admin/import-${type}`, {
+        const res = await window.StaffTrackAuth.apiFetch('/api/admin/sync-staff', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ csv })
+            headers: { 'Content-Type': 'application/json' }
+        });
+        const data = await res.json();
+
+        if (data.started) {
+            if (statusDiv) statusDiv.textContent = 'Syncing staff... please wait';
+            btn.textContent = '⏳ Syncing...';
+            
+            // Poll for status until complete
+            let pollCount = 0;
+            const maxPolls = 180; // 3 minutes max
+            while (pollCount < maxPolls) {
+                await new Promise(r => setTimeout(r, 1000));
+                
+                const statusRes = await window.StaffTrackAuth.apiFetch('/api/admin/sync-staff/status');
+                if (statusRes.ok) {
+                    const status = await statusRes.json();
+                    
+                    if (status.completed) {
+                        const result = status.result;
+                        if (result.success) {
+                            showToast(`Sync Success: ${result.count} added, ${result.updated} updated`);
+                            if (statusDiv) statusDiv.textContent = `Last sync: ${new Date().toLocaleString()}`;
+                            if (statsCard) statsCard.style.display = 'block';
+                            if (resultsBody) {
+                                let detailsHtml = `
+                                    <div style="color:var(--accent-blue);font-weight:600">Sync Complete</div>
+                                    <div>✅ New staff added: <b>${result.count}</b></div>
+                                    <div>🔄 Staff updated: <b>${result.updated}</b></div>
+                                    <div>⏭️ Skipped: <b>${result.skipped}</b></div>
+                                `;
+                                if (result.inactiveSkipped > 0) detailsHtml += `<div>🚫 Inactive users: <b>${result.inactiveSkipped}</b></div>`;
+                                if (result.resignedSkipped > 0) detailsHtml += `<div>📅 Resigned users: <b>${result.resignedSkipped}</b></div>`;
+                                if (result.wrongTenantDeactivated > 0) detailsHtml += `<div>🏢 Wrong tenant deactivated: <b>${result.wrongTenantDeactivated}</b></div>`;
+                                detailsHtml += `<div style="margin-top:.5rem;font-size:.75rem">Staff catalog is now up to date.</div>`;
+                                resultsBody.innerHTML = detailsHtml;
+                            }
+                        } else {
+                            throw new Error(result.error || 'Sync failed');
+                        }
+                        break;
+                    } else if (status.inProgress) {
+                        const pct = status.total > 0 ? Math.round((status.progress / status.total) * 100) : 0;
+                        btn.textContent = `⏳ ${status.progress}/${status.total} (${pct}%)`;
+                        if (statusDiv) statusDiv.textContent = `Syncing: ${status.currentStaff || 'loading...'} (${status.progress}/${status.total})`;
+                    }
+                }
+                pollCount++;
+            }
+            
+            if (pollCount >= maxPolls && !status.completed) {
+                showToast('Sync timed out. Check status later.', true);
+            }
+        } else {
+            throw new Error(data.error || 'Failed to start sync');
+        }
+    } catch (e) {
+        showToast(e.message, true);
+        if (statusDiv) statusDiv.textContent = 'Sync failed. Please try again.';
+    } finally {
+        btn.disabled = false;
+        btn.textContent = originalText;
+    }
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    // Initialize sidebar navigation
+    if (typeof renderSidebarNav === 'function') {
+        renderSidebarNav('system');
+    } else if (typeof renderNav === 'function') {
+        renderNav();
+    }
+    // Initialize theme toggle
+    if (typeof ThemeManager !== 'undefined') {
+        ThemeManager.updateToggleButtons();
+    }
+    // Initialize toast
+    if (typeof Toast !== 'undefined') {
+        Toast.init();
+    }
+
+    const syncStaffBtn = document.getElementById('btn-do-sync-staff');
+    if (syncStaffBtn) {
+        syncStaffBtn.addEventListener('click', handleSyncStaff);
+    }
+
+    const syncProjectsBtn = document.getElementById('btn-do-sync-projects');
+    if (syncProjectsBtn) {
+        syncProjectsBtn.addEventListener('click', handleSyncProjects);
+    }
+
+    initSkillConsolidation();
+});
+
+// ── Project Sync from BeeSuite ───────────────────────────────────────────────
+async function handleSyncProjects() {
+    const btn = document.getElementById('btn-do-sync-projects');
+    const statusDiv = document.getElementById('projects-sync-status');
+
+    if (!btn) return;
+
+    btn.disabled = true;
+    const originalText = btn.textContent;
+    btn.textContent = '⏳ Syncing...';
+    if (statusDiv) statusDiv.textContent = 'Syncing projects from BeeSuite...';
+
+    try {
+        const res = await window.StaffTrackAuth.apiFetch('/api/admin/sync-projects-catalog', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' }
         });
         const data = await res.json();
 
         if (data.success) {
-            showToast(`Import Success: ${data.count} added, ${data.skipped} skipped`);
+            showToast(data.message || 'Sync complete');
+            if (statusDiv) statusDiv.textContent = `Last sync: ${new Date().toLocaleString()}`;
+            
+            const statsCard = document.getElementById('import-stats-card');
+            const resultsBody = document.getElementById('import-results-body');
             if (statsCard) statsCard.style.display = 'block';
-            if (resultsBody) {
+            if (resultsBody && data.stats) {
                 resultsBody.innerHTML = `
-                    <div style="color:var(--accent-blue);font-weight:600">Import Complete (${type})</div>
-                    <div>✅ New records added: <b>${data.count}</b></div>
-                    <div>⏭️ Duplicates skipped: <b>${data.skipped}</b></div>
-                    <div style="margin-top:.5rem;font-size:.75rem">Caches refreshed. New data is now active.</div>
+                    <div style="color:var(--accent-blue);font-weight:600">Sync Complete</div>
+                    <div>➕ New projects: <b>${data.stats.added}</b></div>
+                    <div>🔄 Updated: <b>${data.stats.updated}</b></div>
+                    <div>✅ Unchanged: <b>${data.stats.unchanged}</b></div>
+                    <div>⏭️ Skipped: <b>${data.stats.skipped}</b></div>
+                    <div style="margin-top:.5rem;font-size:.75rem">Total from BeeSuite: ${data.stats.total}</div>
                 `;
             }
         } else {
-            throw new Error(data.error || 'Import failed');
+            throw new Error(data.error || 'Sync failed');
         }
     } catch (e) {
         showToast(e.message, true);
+        if (statusDiv) statusDiv.textContent = 'Sync failed. Please try again.';
     } finally {
         btn.disabled = false;
-        btn.textContent = '🚀 Import & Update';
+        btn.textContent = originalText;
     }
 }
-
-// ── Initialization ────────────────────────────────────────────────────────────
-document.addEventListener('DOMContentLoaded', () => {
-    renderNav();
-
-    // File Inputs
-    const setupFile = (id, type) => {
-        const input = document.getElementById(`file-import-${id}`);
-        const info = document.getElementById(`${id}-file-info`);
-        const btn = document.getElementById(`btn-do-import-${id}`);
-
-        if (!input || !btn || !info) return;
-
-        input.addEventListener('change', () => {
-            if (input.files.length) {
-                const f = input.files[0];
-                info.textContent = `📄 ${f.name} (${(f.size / 1024).toFixed(1)} KB)`;
-                btn.disabled = false;
-            }
-        });
-
-        btn.addEventListener('click', () => {
-            const reader = new FileReader();
-            reader.onload = (e) => handleImport(id, e.target.result);
-            reader.readAsText(input.files[0]);
-        });
-    };
-
-    setupFile('staff', 'staff');
-    setupFile('projects', 'projects');
-
-    // Init Skill Consolidation
-    initSkillConsolidation();
-});
 
 // ── Skill Consolidation Logic ─────────────────────────────────────────────────
 let catalogSkills = [];
@@ -169,11 +252,16 @@ function setupSkillActions() {
 
     // Propose Merges
     document.getElementById('btn-propose-merges')?.addEventListener('click', () => {
-        const map = new Map(); // lowercase -> array of names
+        // Normalize skill name for grouping: trim, collapse spaces, lowercase
+        function normalizeForGrouping(name) {
+            return name.trim().replace(/\s+/g, ' ').toLowerCase();
+        }
+        
+        const map = new Map(); // normalized -> array of original names
         catalogSkills.forEach(s => {
-            const low = s.name.toLowerCase();
-            if (!map.has(low)) map.set(low, []);
-            map.get(low).push(s.name);
+            const key = normalizeForGrouping(s.name);
+            if (!map.has(key)) map.set(key, []);
+            map.get(key).push(s.name);
         });
 
         const toCheck = new Set();

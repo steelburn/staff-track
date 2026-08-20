@@ -4,7 +4,20 @@ const authUser = requireAuth();
 
 
 document.addEventListener('DOMContentLoaded', async () => {
-    renderNav('orgchart');
+    // Initialize sidebar navigation
+    if (typeof renderSidebarNav === 'function') {
+        renderSidebarNav('orgchart');
+    } else if (typeof renderNav === 'function') {
+        renderNav('orgchart');
+    }
+    // Initialize theme toggle
+    if (typeof ThemeManager !== 'undefined') {
+        ThemeManager.updateToggleButtons();
+    }
+    // Initialize toast
+    if (typeof Toast !== 'undefined') {
+        Toast.init();
+    }
     await initChart();
 });
 
@@ -14,7 +27,7 @@ async function initChart() {
         if (!res.ok) throw new Error('Failed to load staff data');
         const staff = await res.json();
 
-        const chartData = buildFlatData(staff);
+        let chartData = buildFlatData(staff);
 
         var chart = new OrgChart(document.getElementById("chart-container"), {
             template: "ana",
@@ -25,12 +38,24 @@ async function initChart() {
                 field_0: "name",
                 field_1: "title"
             },
-            nodes: chartData,
             // Event handler for node click - expand/focus on clicked node
             nodeClick: function (sender, args) {
                 chart.focus(args.node.id, { expand: true, center: true });
             }
         });
+        // OrgChart v7+ requires explicit load() call to render
+        // Validate data structure before loading
+        const rootCount = chartData.filter(n => !n.pid).length;
+        const selfCycles = chartData.filter(n => n.pid && n.pid === n.id).length;
+        console.log(`OrgChart: Loading ${chartData.length} nodes, ${rootCount} roots, ${selfCycles} self-cycles`);
+        if (rootCount === 0) {
+            console.warn('OrgChart: No root nodes found! Chart may not render.');
+        }
+        if (selfCycles > 0) {
+            console.warn(`OrgChart: ${selfCycles} self-cycle(s) detected and filtered.`);
+            chartData = chartData.filter(n => !n.pid || n.pid !== n.id);
+        }
+        chart.load(chartData);
         window._orgChart = chart;
 
         // Try to centre on the logged-in user after the chart has rendered
@@ -91,7 +116,11 @@ function buildFlatData(staff) {
         };
 
         if (s.manager_name && nameMap.has(s.manager_name)) {
-            node.pid = nameMap.get(s.manager_name);
+            const managerEmail = nameMap.get(s.manager_name);
+            // Prevent self-cycle: if manager is self, treat as root
+            if (managerEmail !== s.email) {
+                node.pid = managerEmail;
+            }
         }
 
         nodes.push(node);

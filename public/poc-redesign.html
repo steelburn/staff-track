@@ -1,0 +1,1964 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>StaffTrack — UI/UX Redesign Proof of Concept</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        /* ═══════════════════════════════════════════════════════════════════
+           DESIGN TOKENS
+           ═══════════════════════════════════════════════════════════════════ */
+        :root {
+            /* Light Mode */
+            --bg-base: #f8fafc;
+            --bg-surface: #ffffff;
+            --bg-muted: #f1f5f9;
+            --bg-hover: #f1f5f9;
+            --bg-elevated: #ffffff;
+            --border: #e2e8f0;
+            --border-hover: #cbd5e1;
+            --primary: #6366f1;
+            --primary-hover: #4f46e5;
+            --primary-light: rgba(99, 102, 241, 0.1);
+            --success: #10b981;
+            --success-light: rgba(16, 185, 129, 0.1);
+            --warning: #f59e0b;
+            --warning-light: rgba(245, 158, 11, 0.1);
+            --danger: #ef4444;
+            --danger-light: rgba(239, 68, 68, 0.1);
+            --text-primary: #0f172a;
+            --text-secondary: #64748b;
+            --text-muted: #94a3b8;
+            --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
+            --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.07), 0 2px 4px -2px rgba(0, 0, 0, 0.05);
+            --shadow-lg: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.05);
+            --sidebar-width: 260px;
+            --sidebar-collapsed: 72px;
+            --header-height: 64px;
+        }
+
+        [data-theme="dark"] {
+            --bg-base: #0f172a;
+            --bg-surface: #1e293b;
+            --bg-muted: #334155;
+            --bg-hover: #334155;
+            --bg-elevated: #1e293b;
+            --border: #334155;
+            --border-hover: #475569;
+            --primary: #818cf8;
+            --primary-hover: #6366f1;
+            --primary-light: rgba(129, 140, 248, 0.15);
+            --success: #34d399;
+            --success-light: rgba(52, 211, 153, 0.15);
+            --warning: #fbbf24;
+            --warning-light: rgba(251, 191, 36, 0.15);
+            --danger: #f87171;
+            --danger-light: rgba(248, 113, 113, 0.15);
+            --text-primary: #f1f5f9;
+            --text-secondary: #94a3b8;
+            --text-muted: #475569;
+            --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.3);
+            --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.4);
+            --shadow-lg: 0 10px 30px rgba(0, 0, 0, 0.5);
+        }
+
+        /* ═══════════════════════════════════════════════════════════════════
+           RESET & BASE
+           ═══════════════════════════════════════════════════════════════════ */
+        *,
+        *::before,
+        *::after {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        html {
+            scroll-behavior: smooth;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: var(--bg-base);
+            color: var(--text-primary);
+            line-height: 1.5;
+            min-height: 100vh;
+            display: flex;
+        }
+
+        /* ═══════════════════════════════════════════════════════════════════
+           SIDEBAR
+           ═══════════════════════════════════════════════════════════════════ */
+        .sidebar {
+            width: var(--sidebar-width);
+            height: 100vh;
+            background: var(--bg-surface);
+            border-right: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            position: fixed;
+            left: 0;
+            top: 0;
+            z-index: 100;
+            transition: width 250ms cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .sidebar.collapsed {
+            width: var(--sidebar-collapsed);
+        }
+
+        .sidebar-header {
+            height: var(--header-height);
+            display: flex;
+            align-items: center;
+            padding: 0 20px;
+            border-bottom: 1px solid var(--border);
+            gap: 12px;
+        }
+
+        .sidebar-logo {
+            width: 36px;
+            height: 36px;
+            background: linear-gradient(135deg, var(--primary), #8b5cf6);
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            flex-shrink: 0;
+        }
+
+        .sidebar-title {
+            font-size: 18px;
+            font-weight: 700;
+            color: var(--text-primary);
+            white-space: nowrap;
+            overflow: hidden;
+            transition: opacity 200ms;
+        }
+
+        .sidebar.collapsed .sidebar-title {
+            opacity: 0;
+            width: 0;
+        }
+
+        .sidebar-nav {
+            flex: 1;
+            padding: 12px 8px;
+            overflow-y: auto;
+            overflow-x: hidden;
+        }
+
+        .nav-section {
+            margin-bottom: 8px;
+        }
+
+        .nav-section-label {
+            font-size: 11px;
+            font-weight: 600;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            padding: 8px 12px 4px;
+            white-space: nowrap;
+            overflow: hidden;
+        }
+
+        .sidebar.collapsed .nav-section-label {
+            opacity: 0;
+        }
+
+        .nav-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 10px 12px;
+            border-radius: 8px;
+            color: var(--text-secondary);
+            text-decoration: none;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 150ms ease;
+            cursor: pointer;
+            white-space: nowrap;
+            position: relative;
+        }
+
+        .nav-item:hover {
+            background: var(--bg-hover);
+            color: var(--text-primary);
+        }
+
+        .nav-item.active {
+            background: var(--primary-light);
+            color: var(--primary);
+        }
+
+        .nav-item.active::before {
+            content: '';
+            position: absolute;
+            left: 0;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 3px;
+            height: 20px;
+            background: var(--primary);
+            border-radius: 0 3px 3px 0;
+        }
+
+        .nav-icon {
+            width: 20px;
+            height: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            font-size: 16px;
+        }
+
+        .nav-label {
+            overflow: hidden;
+            transition: opacity 200ms;
+        }
+
+        .sidebar.collapsed .nav-label {
+            opacity: 0;
+            width: 0;
+        }
+
+        .nav-badge {
+            margin-left: auto;
+            background: var(--primary);
+            color: white;
+            font-size: 11px;
+            font-weight: 600;
+            padding: 2px 8px;
+            border-radius: 10px;
+            min-width: 20px;
+            text-align: center;
+        }
+
+        .sidebar.collapsed .nav-badge {
+            display: none;
+        }
+
+        .nav-divider {
+            height: 1px;
+            background: var(--border);
+            margin: 8px 12px;
+        }
+
+        /* Sidebar Footer */
+        .sidebar-footer {
+            padding: 12px;
+            border-top: 1px solid var(--border);
+        }
+
+        .user-card {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 10px 12px;
+            border-radius: 8px;
+            background: var(--bg-muted);
+            cursor: pointer;
+            transition: background 150ms;
+        }
+
+        .user-card:hover {
+            background: var(--bg-hover);
+        }
+
+        .user-avatar {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, var(--success), #059669);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: 600;
+            font-size: 14px;
+            flex-shrink: 0;
+        }
+
+        .user-info {
+            flex: 1;
+            min-width: 0;
+            overflow: hidden;
+        }
+
+        .user-name {
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--text-primary);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .user-role {
+            font-size: 11px;
+            color: var(--text-muted);
+            white-space: nowrap;
+        }
+
+        .sidebar.collapsed .user-info {
+            opacity: 0;
+            width: 0;
+        }
+
+        .sidebar-toggle {
+            position: absolute;
+            right: -14px;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 28px;
+            height: 28px;
+            background: var(--bg-surface);
+            border: 1px solid var(--border);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            font-size: 14px;
+            color: var(--text-secondary);
+            box-shadow: var(--shadow-sm);
+            transition: all 150ms;
+            z-index: 101;
+        }
+
+        .sidebar-toggle:hover {
+            background: var(--primary);
+            color: white;
+            border-color: var(--primary);
+        }
+
+        /* ═══════════════════════════════════════════════════════════════════
+           MAIN CONTENT
+           ═══════════════════════════════════════════════════════════════════ */
+        .main-content {
+            flex: 1;
+            margin-left: var(--sidebar-width);
+            min-height: 100vh;
+            transition: margin-left 250ms cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .sidebar.collapsed ~ .main-content {
+            margin-left: var(--sidebar-collapsed);
+        }
+
+        /* Page Header */
+        .page-header {
+            background: var(--bg-surface);
+            border-bottom: 1px solid var(--border);
+            padding: 24px 32px;
+            position: sticky;
+            top: 0;
+            z-index: 50;
+        }
+
+        .page-header-top {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 16px;
+        }
+
+        .page-title {
+            font-size: 24px;
+            font-weight: 700;
+            color: var(--text-primary);
+        }
+
+        .page-subtitle {
+            font-size: 14px;
+            color: var(--text-secondary);
+            margin-top: 4px;
+        }
+
+        .page-actions {
+            display: flex;
+            gap: 12px;
+            align-items: center;
+        }
+
+        /* Toolbar */
+        .toolbar {
+            display: flex;
+            gap: 12px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .search-box {
+            position: relative;
+            flex: 1;
+            max-width: 320px;
+        }
+
+        .search-box input {
+            width: 100%;
+            padding: 10px 14px 10px 40px;
+            background: var(--bg-muted);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            font-size: 14px;
+            color: var(--text-primary);
+            transition: all 150ms;
+        }
+
+        .search-box input:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+            background: var(--bg-surface);
+        }
+
+        .search-box input::placeholder {
+            color: var(--text-muted);
+        }
+
+        .search-box .search-icon {
+            position: absolute;
+            left: 14px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: var(--text-muted);
+            font-size: 14px;
+        }
+
+        /* View Toggle */
+        .view-toggle {
+            display: flex;
+            background: var(--bg-muted);
+            border-radius: 8px;
+            padding: 3px;
+            gap: 2px;
+        }
+
+        .view-toggle button {
+            padding: 8px 14px;
+            border: none;
+            background: transparent;
+            border-radius: 6px;
+            font-size: 13px;
+            font-weight: 500;
+            color: var(--text-secondary);
+            cursor: pointer;
+            transition: all 150ms;
+        }
+
+        .view-toggle button.active {
+            background: var(--bg-surface);
+            color: var(--text-primary);
+            box-shadow: var(--shadow-sm);
+        }
+
+        /* Filter Chips */
+        .filter-group {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+
+        .filter-chip {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 12px;
+            background: var(--bg-muted);
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            font-size: 13px;
+            color: var(--text-secondary);
+            cursor: pointer;
+            transition: all 150ms;
+        }
+
+        .filter-chip:hover {
+            border-color: var(--primary);
+            color: var(--primary);
+        }
+
+        .filter-chip.active {
+            background: var(--primary-light);
+            border-color: var(--primary);
+            color: var(--primary);
+        }
+
+        /* ═══════════════════════════════════════════════════════════════════
+           CONTENT AREA
+           ═══════════════════════════════════════════════════════════════════ */
+        .content-area {
+            padding: 24px 32px;
+        }
+
+        /* Stats Row */
+        .stats-row {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+
+        .stat-card {
+            background: var(--bg-surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 20px;
+            transition: all 200ms;
+        }
+
+        .stat-card:hover {
+            box-shadow: var(--shadow-md);
+            border-color: var(--border-hover);
+        }
+
+        .stat-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 12px;
+        }
+
+        .stat-icon {
+            width: 40px;
+            height: 40px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+        }
+
+        .stat-icon.blue {
+            background: var(--primary-light);
+        }
+
+        .stat-icon.green {
+            background: var(--success-light);
+        }
+
+        .stat-icon.amber {
+            background: var(--warning-light);
+        }
+
+        .stat-icon.rose {
+            background: var(--danger-light);
+        }
+
+        .stat-trend {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .stat-trend.up {
+            color: var(--success);
+        }
+
+        .stat-trend.down {
+            color: var(--danger);
+        }
+
+        .stat-value {
+            font-size: 28px;
+            font-weight: 700;
+            color: var(--text-primary);
+            margin-bottom: 4px;
+        }
+
+        .stat-label {
+            font-size: 13px;
+            color: var(--text-secondary);
+        }
+
+        /* Cards Grid */
+        .cards-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+
+        .data-card {
+            background: var(--bg-surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            overflow: hidden;
+            transition: all 200ms;
+        }
+
+        .data-card:hover {
+            box-shadow: var(--shadow-md);
+            border-color: var(--border-hover);
+            transform: translateY(-2px);
+        }
+
+        .data-card-header {
+            padding: 16px 20px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .data-card-title {
+            font-size: 15px;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .data-card-subtitle {
+            font-size: 12px;
+            color: var(--text-secondary);
+            margin-top: 2px;
+        }
+
+        .data-card-body {
+            padding: 16px 20px;
+        }
+
+        .data-card-footer {
+            padding: 12px 20px;
+            background: var(--bg-muted);
+            border-top: 1px solid var(--border);
+        }
+
+        /* Staff Avatars Row */
+        .avatar-row {
+            display: flex;
+            align-items: center;
+        }
+
+        .avatar-stack {
+            display: flex;
+        }
+
+        .avatar-stack .avatar {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            border: 2px solid var(--bg-surface);
+            margin-left: -8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 11px;
+            font-weight: 600;
+            color: white;
+        }
+
+        .avatar-stack .avatar:first-child {
+            margin-left: 0;
+        }
+
+        .avatar-more {
+            background: var(--bg-muted);
+            color: var(--text-secondary);
+            font-size: 11px;
+        }
+
+        /* Tags */
+        .tag-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+        }
+
+        .tag {
+            display: inline-flex;
+            align-items: center;
+            padding: 4px 10px;
+            background: var(--bg-muted);
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 500;
+            color: var(--text-secondary);
+        }
+
+        .tag.primary {
+            background: var(--primary-light);
+            color: var(--primary);
+        }
+
+        .tag.success {
+            background: var(--success-light);
+            color: var(--success);
+        }
+
+        .tag.warning {
+            background: var(--warning-light);
+            color: var(--warning);
+        }
+
+        /* ═══════════════════════════════════════════════════════════════════
+           TABLE
+           ═══════════════════════════════════════════════════════════════════ */
+        .table-container {
+            background: var(--bg-surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            overflow: hidden;
+        }
+
+        .table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .table th {
+            background: var(--bg-muted);
+            padding: 12px 16px;
+            text-align: left;
+            font-size: 11px;
+            font-weight: 600;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .table td {
+            padding: 14px 16px;
+            font-size: 14px;
+            color: var(--text-primary);
+            border-bottom: 1px solid var(--border);
+        }
+
+        .table tbody tr:last-child td {
+            border-bottom: none;
+        }
+
+        .table tbody tr:hover {
+            background: var(--bg-hover);
+        }
+
+        .table-name {
+            font-weight: 600;
+        }
+
+        .table-meta {
+            font-size: 12px;
+            color: var(--text-secondary);
+        }
+
+        /* Status Badges */
+        .status-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .status-badge::before {
+            content: '';
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+        }
+
+        .status-badge.active {
+            background: var(--success-light);
+            color: var(--success);
+        }
+
+        .status-badge.active::before {
+            background: var(--success);
+        }
+
+        .status-badge.pending {
+            background: var(--warning-light);
+            color: var(--warning);
+        }
+
+        .status-badge.pending::before {
+            background: var(--warning);
+        }
+
+        .status-badge.inactive {
+            background: var(--bg-muted);
+            color: var(--text-muted);
+        }
+
+        .status-badge.inactive::before {
+            background: var(--text-muted);
+        }
+
+        /* ═══════════════════════════════════════════════════════════════════
+           BUTTONS
+           ═══════════════════════════════════════════════════════════════════ */
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 18px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            font-family: inherit;
+            cursor: pointer;
+            transition: all 150ms ease;
+            border: none;
+            text-decoration: none;
+        }
+
+        .btn-primary {
+            background: var(--primary);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: var(--primary-hover);
+            transform: translateY(-1px);
+            box-shadow: var(--shadow-md);
+        }
+
+        .btn-secondary {
+            background: var(--bg-surface);
+            color: var(--text-primary);
+            border: 1px solid var(--border);
+        }
+
+        .btn-secondary:hover {
+            border-color: var(--border-hover);
+            background: var(--bg-muted);
+        }
+
+        .btn-ghost {
+            background: transparent;
+            color: var(--text-secondary);
+        }
+
+        .btn-ghost:hover {
+            background: var(--bg-hover);
+            color: var(--text-primary);
+        }
+
+        .btn-danger {
+            background: var(--danger-light);
+            color: var(--danger);
+        }
+
+        .btn-danger:hover {
+            background: var(--danger);
+            color: white;
+        }
+
+        .btn-icon {
+            padding: 10px;
+        }
+
+        .btn-sm {
+            padding: 6px 12px;
+            font-size: 13px;
+        }
+
+        /* ═══════════════════════════════════════════════════════════════════
+           FORMS
+           ═══════════════════════════════════════════════════════════════════ */
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .form-label {
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--text-secondary);
+        }
+
+        .form-input {
+            padding: 10px 14px;
+            background: var(--bg-surface);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            font-size: 14px;
+            color: var(--text-primary);
+            transition: all 150ms;
+        }
+
+        .form-input:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+        }
+
+        .form-input::placeholder {
+            color: var(--text-muted);
+        }
+
+        .form-input[readonly] {
+            background: var(--bg-muted);
+            color: var(--text-muted);
+            cursor: not-allowed;
+        }
+
+        /* ═══════════════════════════════════════════════════════════════════
+           MODAL
+           ═══════════════════════════════════════════════════════════════════ */
+        .modal-backdrop {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.5);
+            backdrop-filter: blur(4px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 200ms;
+        }
+
+        .modal-backdrop.active {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        .modal {
+            background: var(--bg-surface);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            width: 90%;
+            max-width: 520px;
+            max-height: 85vh;
+            display: flex;
+            flex-direction: column;
+            box-shadow: var(--shadow-lg);
+            transform: scale(0.95);
+            transition: transform 200ms;
+        }
+
+        .modal-backdrop.active .modal {
+            transform: scale(1);
+        }
+
+        .modal-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 20px 24px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .modal-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .modal-close {
+            width: 32px;
+            height: 32px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: none;
+            background: var(--bg-muted);
+            border-radius: 8px;
+            color: var(--text-secondary);
+            cursor: pointer;
+            transition: all 150ms;
+        }
+
+        .modal-close:hover {
+            background: var(--danger-light);
+            color: var(--danger);
+        }
+
+        .modal-body {
+            padding: 24px;
+            overflow-y: auto;
+            flex: 1;
+        }
+
+        .modal-footer {
+            padding: 16px 24px;
+            border-top: 1px solid var(--border);
+            display: flex;
+            justify-content: flex-end;
+            gap: 12px;
+        }
+
+        /* ═══════════════════════════════════════════════════════════════════
+           SECTION HEADER
+           ═══════════════════════════════════════════════════════════════════ */
+        .section-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 16px;
+        }
+
+        .section-title {
+            font-size: 16px;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .section-count {
+            font-size: 13px;
+            color: var(--text-muted);
+        }
+
+        /* ═══════════════════════════════════════════════════════════════════
+           TOAST
+           ═══════════════════════════════════════════════════════════════════ */
+        .toast-container {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            z-index: 2000;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .toast {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 14px 20px;
+            background: var(--bg-surface);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            box-shadow: var(--shadow-lg);
+            animation: toastSlideIn 300ms ease;
+        }
+
+        .toast.success {
+            border-left: 3px solid var(--success);
+        }
+
+        .toast.error {
+            border-left: 3px solid var(--danger);
+        }
+
+        .toast-icon {
+            font-size: 18px;
+        }
+
+        .toast-message {
+            font-size: 14px;
+            color: var(--text-primary);
+        }
+
+        @keyframes toastSlideIn {
+            from {
+                opacity: 0;
+                transform: translateX(100%);
+            }
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
+        }
+
+        /* ═══════════════════════════════════════════════════════════════════
+           EMPTY STATE
+           ═══════════════════════════════════════════════════════════════════ */
+        .empty-state {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 60px 40px;
+            text-align: center;
+        }
+
+        .empty-state-icon {
+            width: 80px;
+            height: 80px;
+            background: var(--bg-muted);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 36px;
+            margin-bottom: 20px;
+        }
+
+        .empty-state-title {
+            font-size: 16px;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-bottom: 8px;
+        }
+
+        .empty-state-text {
+            font-size: 14px;
+            color: var(--text-secondary);
+            max-width: 320px;
+            margin-bottom: 20px;
+        }
+
+        /* ═══════════════════════════════════════════════════════════════════
+           MOBILE RESPONSIVE
+           ═══════════════════════════════════════════════════════════════════ */
+        .mobile-menu-btn {
+            display: none;
+            width: 40px;
+            height: 40px;
+            border: 1px solid var(--border);
+            background: var(--bg-surface);
+            border-radius: 8px;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            font-size: 18px;
+            color: var(--text-primary);
+        }
+
+        @media (max-width: 1024px) {
+            .stats-row {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+
+        @media (max-width: 768px) {
+            .sidebar {
+                transform: translateX(-100%);
+                width: var(--sidebar-width);
+            }
+
+            .sidebar.mobile-open {
+                transform: translateX(0);
+            }
+
+            .main-content {
+                margin-left: 0 !important;
+            }
+
+            .mobile-menu-btn {
+                display: flex;
+            }
+
+            .page-header {
+                padding: 16px 20px;
+            }
+
+            .content-area {
+                padding: 16px 20px;
+            }
+
+            .stats-row {
+                grid-template-columns: 1fr;
+            }
+
+            .cards-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .toolbar {
+                flex-direction: column;
+                align-items: stretch;
+            }
+
+            .search-box {
+                max-width: 100%;
+            }
+
+            .page-header-top {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 12px;
+            }
+
+            .page-actions {
+                width: 100%;
+                justify-content: flex-end;
+            }
+        }
+
+        /* ═══════════════════════════════════════════════════════════════════
+           PROOF OF CONCEPT SPECIFIC
+           ═══════════════════════════════════════════════════════════════════ */
+        .poc-banner {
+            background: linear-gradient(135deg, var(--primary), #8b5cf6);
+            color: white;
+            padding: 12px 20px;
+            border-radius: 10px;
+            margin-bottom: 24px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .poc-banner-icon {
+            font-size: 24px;
+        }
+
+        .poc-banner-text {
+            flex: 1;
+        }
+
+        .poc-banner-title {
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+        .poc-banner-desc {
+            font-size: 12px;
+            opacity: 0.9;
+        }
+
+        .poc-section {
+            margin-bottom: 40px;
+        }
+
+        .poc-section-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-bottom: 16px;
+            padding-bottom: 8px;
+            border-bottom: 2px solid var(--border);
+        }
+
+        /* Profile Card */
+        .profile-card {
+            display: flex;
+            gap: 24px;
+            background: var(--bg-surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 24px;
+        }
+
+        .profile-avatar {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, var(--primary), #8b5cf6);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 28px;
+            font-weight: 700;
+            flex-shrink: 0;
+        }
+
+        .profile-info {
+            flex: 1;
+        }
+
+        .profile-name {
+            font-size: 20px;
+            font-weight: 700;
+            color: var(--text-primary);
+            margin-bottom: 4px;
+        }
+
+        .profile-title {
+            font-size: 14px;
+            color: var(--text-secondary);
+            margin-bottom: 12px;
+        }
+
+        .profile-meta {
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+        }
+
+        .profile-meta-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 13px;
+            color: var(--text-secondary);
+        }
+
+        .profile-meta-icon {
+            color: var(--text-muted);
+        }
+
+        @media (max-width: 600px) {
+            .profile-card {
+                flex-direction: column;
+                align-items: center;
+                text-align: center;
+            }
+
+            .profile-meta {
+                justify-content: center;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <!-- ═══ SIDEBAR ═══════════════════════════════════════════════════════ -->
+    <aside class="sidebar" id="sidebar">
+        <div class="sidebar-header">
+            <div class="sidebar-logo">📋</div>
+            <span class="sidebar-title">StaffTrack</span>
+        </div>
+
+        <nav class="sidebar-nav">
+            <div class="nav-section">
+                <div class="nav-section-label">Main</div>
+                <a href="#" class="nav-item active">
+                    <span class="nav-icon">📄</span>
+                    <span class="nav-label">My CV</span>
+                </a>
+                <a href="#" class="nav-item">
+                    <span class="nav-icon">📋</span>
+                    <span class="nav-label">My Projects</span>
+                </a>
+                <a href="#" class="nav-item">
+                    <span class="nav-icon">🗂</span>
+                    <span class="nav-label">Projects</span>
+                    <span class="nav-badge">12</span>
+                </a>
+                <a href="#" class="nav-item">
+                    <span class="nav-icon">📊</span>
+                    <span class="nav-label">Skills</span>
+                </a>
+                <a href="#" class="nav-item">
+                    <span class="nav-icon">🌳</span>
+                    <span class="nav-label">Org Chart</span>
+                </a>
+                <a href="#" class="nav-item">
+                    <span class="nav-icon">📈</span>
+                    <span class="nav-label">Gantt Charts</span>
+                </a>
+            </div>
+
+            <div class="nav-divider"></div>
+
+            <div class="nav-section">
+                <div class="nav-section-label">Management</div>
+                <a href="#" class="nav-item">
+                    <span class="nav-icon">👥</span>
+                    <span class="nav-label">All Staff</span>
+                    <span class="nav-badge">48</span>
+                </a>
+                <a href="#" class="nav-item">
+                    <span class="nav-icon">⚙️</span>
+                    <span class="nav-label">Catalog</span>
+                </a>
+                <a href="#" class="nav-item">
+                    <span class="nav-icon">💻</span>
+                    <span class="nav-label">System</span>
+                </a>
+                <a href="#" class="nav-item">
+                    <span class="nav-icon">🛡️</span>
+                    <span class="nav-label">Admin</span>
+                </a>
+            </div>
+        </nav>
+
+        <div class="sidebar-footer">
+            <div class="user-card">
+                <div class="user-avatar">JD</div>
+                <div class="user-info">
+                    <div class="user-name">John Doe</div>
+                    <div class="user-role">Admin</div>
+                </div>
+            </div>
+        </div>
+
+        <button class="sidebar-toggle" id="sidebarToggle">◀</button>
+    </aside>
+
+    <!-- ═══ MAIN CONTENT ═════════════════════════════════════════════════ -->
+    <div class="main-content">
+        <!-- Page Header -->
+        <header class="page-header">
+            <div class="page-header-top">
+                <div>
+                    <div style="display:flex; align-items:center; gap:12px;">
+                        <button class="mobile-menu-btn" id="mobileMenuBtn">☰</button>
+                        <div>
+                            <h1 class="page-title">StaffTrack Redesign</h1>
+                            <p class="page-subtitle">UI/UX Proof of Concept — Interactive Demo</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="page-actions">
+                    <button class="btn btn-secondary btn-sm" id="themeToggle">
+                        <span id="themeIcon">🌙</span>
+                        <span id="themeLabel">Dark</span>
+                    </button>
+                    <button class="btn btn-primary">
+                        <span>✨</span>
+                        New Action
+                    </button>
+                </div>
+            </div>
+
+            <div class="toolbar">
+                <div class="search-box">
+                    <span class="search-icon">🔍</span>
+                    <input type="text" placeholder="Search staff, projects, skills...">
+                </div>
+                <div class="filter-group">
+                    <span class="filter-chip active">All</span>
+                    <span class="filter-chip">Active</span>
+                    <span class="filter-chip">Pending</span>
+                </div>
+                <div class="view-toggle">
+                    <button class="active">Cards</button>
+                    <button>Table</button>
+                </div>
+            </div>
+        </header>
+
+        <!-- Content Area -->
+        <main class="content-area">
+            <!-- POC Banner -->
+            <div class="poc-banner">
+                <span class="poc-banner-icon">🎨</span>
+                <div class="poc-banner-text">
+                    <div class="poc-banner-title">New Design System in Action</div>
+                    <div class="poc-banner-desc">This page demonstrates the proposed UI/UX changes. Click elements to interact.</div>
+                </div>
+                <button class="btn btn-sm" style="background:rgba(255,255,255,0.2); color:white; border:1px solid rgba(255,255,255,0.3);">Dismiss</button>
+            </div>
+
+            <!-- ═══ SECTION 1: Stats Overview ═══════════════════════════════ -->
+            <section class="poc-section">
+                <h2 class="poc-section-title">📊 Statistics Overview</h2>
+                <div class="stats-row">
+                    <div class="stat-card">
+                        <div class="stat-header">
+                            <div class="stat-icon blue">👥</div>
+                            <div class="stat-trend up">↑ 12%</div>
+                        </div>
+                        <div class="stat-value">48</div>
+                        <div class="stat-label">Total Staff</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-header">
+                            <div class="stat-icon green">🗂</div>
+                            <div class="stat-trend up">↑ 3</div>
+                        </div>
+                        <div class="stat-value">12</div>
+                        <div class="stat-label">Active Projects</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-header">
+                            <div class="stat-icon amber">🛠</div>
+                            <div class="stat-trend up">↑ 8%</div>
+                        </div>
+                        <div class="stat-value">156</div>
+                        <div class="stat-label">Unique Skills</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-header">
+                            <div class="stat-icon rose">📝</div>
+                            <div class="stat-trend down">↓ 2</div>
+                        </div>
+                        <div class="stat-value">3</div>
+                        <div class="stat-label">Pending Updates</div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- ═══ SECTION 2: Profile Card ═══════════════════════════════ -->
+            <section class="poc-section">
+                <h2 class="poc-section-title">👤 Staff Profile Card</h2>
+                <div class="profile-card">
+                    <div class="profile-avatar">JD</div>
+                    <div class="profile-info">
+                        <div class="profile-name">John Doe</div>
+                        <div class="profile-title">Senior Software Engineer</div>
+                        <div class="profile-meta">
+                            <div class="profile-meta-item">
+                                <span class="profile-meta-icon">🏢</span>
+                                Engineering
+                            </div>
+                            <div class="profile-meta-item">
+                                <span class="profile-meta-icon">📧</span>
+                                john.doe@company.com
+                            </div>
+                            <div class="profile-meta-item">
+                                <span class="profile-meta-icon">📍</span>
+                                Kuala Lumpur
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- ═══ SECTION 3: Project Cards ═══════════════════════════════ -->
+            <section class="poc-section">
+                <div class="section-header">
+                    <h2 class="section-title">🗂 Active Projects</h2>
+                    <span class="section-count">12 projects</span>
+                </div>
+                <div class="cards-grid">
+                    <!-- Project Card 1 -->
+                    <div class="data-card">
+                        <div class="data-card-header">
+                            <div>
+                                <div class="data-card-title">E-Commerce Platform</div>
+                                <div class="data-card-subtitle">SOC-2024-001 • TechCorp</div>
+                            </div>
+                            <span class="status-badge active">Active</span>
+                        </div>
+                        <div class="data-card-body">
+                            <div class="avatar-row" style="margin-bottom: 12px;">
+                                <div class="avatar-stack">
+                                    <div class="avatar" style="background:#6366f1">JD</div>
+                                    <div class="avatar" style="background:#10b981">AK</div>
+                                    <div class="avatar" style="background:#f59e0b">SM</div>
+                                    <div class="avatar avatar-more">+5</div>
+                                </div>
+                                <span style="font-size:12px; color:var(--text-muted); margin-left:8px;">8 team members</span>
+                            </div>
+                            <div class="tag-list">
+                                <span class="tag primary">React</span>
+                                <span class="tag primary">Node.js</span>
+                                <span class="tag">PostgreSQL</span>
+                                <span class="tag success">AWS</span>
+                            </div>
+                        </div>
+                        <div class="data-card-footer" style="display:flex; justify-content:space-between; align-items:center;">
+                            <span style="font-size:12px; color:var(--text-muted);">End: Dec 2026</span>
+                            <button class="btn btn-ghost btn-sm">View Details →</button>
+                        </div>
+                    </div>
+
+                    <!-- Project Card 2 -->
+                    <div class="data-card">
+                        <div class="data-card-header">
+                            <div>
+                                <div class="data-card-title">Mobile Banking App</div>
+                                <div class="data-card-subtitle">SOC-2024-002 • FinServ</div>
+                            </div>
+                            <span class="status-badge active">Active</span>
+                        </div>
+                        <div class="data-card-body">
+                            <div class="avatar-row" style="margin-bottom: 12px;">
+                                <div class="avatar-stack">
+                                    <div class="avatar" style="background:#ec4899">LM</div>
+                                    <div class="avatar" style="background:#8b5cf6">RW</div>
+                                    <div class="avatar avatar-more">+3</div>
+                                </div>
+                                <span style="font-size:12px; color:var(--text-muted); margin-left:8px;">5 team members</span>
+                            </div>
+                            <div class="tag-list">
+                                <span class="tag primary">React Native</span>
+                                <span class="tag primary">TypeScript</span>
+                                <span class="tag">Firebase</span>
+                            </div>
+                        </div>
+                        <div class="data-card-footer" style="display:flex; justify-content:space-between; align-items:center;">
+                            <span style="font-size:12px; color:var(--text-muted);">End: Mar 2027</span>
+                            <button class="btn btn-ghost btn-sm">View Details →</button>
+                        </div>
+                    </div>
+
+                    <!-- Project Card 3 -->
+                    <div class="data-card">
+                        <div class="data-card-header">
+                            <div>
+                                <div class="data-card-title">Data Analytics Dashboard</div>
+                                <div class="data-card-subtitle">SOC-2024-003 • DataCo</div>
+                            </div>
+                            <span class="status-badge pending">Pending</span>
+                        </div>
+                        <div class="data-card-body">
+                            <div class="avatar-row" style="margin-bottom: 12px;">
+                                <div class="avatar-stack">
+                                    <div class="avatar" style="background:#06b6d4">TC</div>
+                                    <div class="avatar" style="background:#84cc16">NP</div>
+                                </div>
+                                <span style="font-size:12px; color:var(--text-muted); margin-left:8px;">2 team members</span>
+                            </div>
+                            <div class="tag-list">
+                                <span class="tag primary">Python</span>
+                                <span class="tag primary">TensorFlow</span>
+                                <span class="tag success">GCP</span>
+                            </div>
+                        </div>
+                        <div class="data-card-footer" style="display:flex; justify-content:space-between; align-items:center;">
+                            <span style="font-size:12px; color:var(--text-muted);">End: Jun 2027</span>
+                            <button class="btn btn-ghost btn-sm">View Details →</button>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- ═══ SECTION 4: Table View ═════════════════════════════════ -->
+            <section class="poc-section">
+                <div class="section-header">
+                    <h2 class="section-title">👥 Staff Directory</h2>
+                    <div style="display:flex; gap:8px;">
+                        <button class="btn btn-secondary btn-sm">⬇ Export</button>
+                        <button class="btn btn-primary btn-sm">+ Add Staff</button>
+                    </div>
+                </div>
+                <div class="table-container">
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Title</th>
+                                <th>Department</th>
+                                <th>Projects</th>
+                                <th>Status</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>
+                                    <div class="table-name">Alice Wong</div>
+                                    <div class="table-meta">alice.wong@company.com</div>
+                                </td>
+                                <td>Lead Developer</td>
+                                <td>Engineering</td>
+                                <td>
+                                    <div class="tag-list">
+                                        <span class="tag primary">E-Commerce</span>
+                                        <span class="tag">Mobile App</span>
+                                    </div>
+                                </td>
+                                <td><span class="status-badge active">Active</span></td>
+                                <td>
+                                    <button class="btn btn-ghost btn-sm">View</button>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td>
+                                    <div class="table-name">Bob Chen</div>
+                                    <div class="table-meta">bob.chen@company.com</div>
+                                </td>
+                                <td>UI/UX Designer</td>
+                                <td>Design</td>
+                                <td>
+                                    <div class="tag-list">
+                                        <span class="tag primary">E-Commerce</span>
+                                    </div>
+                                </td>
+                                <td><span class="status-badge active">Active</span></td>
+                                <td>
+                                    <button class="btn btn-ghost btn-sm">View</button>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td>
+                                    <div class="table-name">Carol Tan</div>
+                                    <div class="table-meta">carol.tan@company.com</div>
+                                </td>
+                                <td>Project Manager</td>
+                                <td>Management</td>
+                                <td>
+                                    <div class="tag-list">
+                                        <span class="tag primary">Mobile App</span>
+                                        <span class="tag primary">Analytics</span>
+                                    </div>
+                                </td>
+                                <td><span class="status-badge pending">On Leave</span></td>
+                                <td>
+                                    <button class="btn btn-ghost btn-sm">View</button>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td>
+                                    <div class="table-name">David Lee</div>
+                                    <div class="table-meta">david.lee@company.com</div>
+                                </td>
+                                <td>DevOps Engineer</td>
+                                <td>Infrastructure</td>
+                                <td>
+                                    <div class="tag-list">
+                                        <span class="tag primary">All Projects</span>
+                                    </div>
+                                </td>
+                                <td><span class="status-badge active">Active</span></td>
+                                <td>
+                                    <button class="btn btn-ghost btn-sm">View</button>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td>
+                                    <div class="table-name">Eva Martinez</div>
+                                    <div class="table-meta">eva.martinez@company.com</div>
+                                </td>
+                                <td>Data Scientist</td>
+                                <td>Analytics</td>
+                                <td>
+                                    <div class="tag-list">
+                                        <span class="tag primary">Analytics</span>
+                                    </div>
+                                </td>
+                                <td><span class="status-badge inactive">Inactive</span></td>
+                                <td>
+                                    <button class="btn btn-ghost btn-sm">View</button>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <!-- ═══ SECTION 5: Empty State ═════════════════════════════════ -->
+            <section class="poc-section">
+                <h2 class="poc-section-title">📭 Empty State Example</h2>
+                <div class="table-container">
+                    <div class="empty-state">
+                        <div class="empty-state-icon">📋</div>
+                        <div class="empty-state-title">No projects yet</div>
+                        <div class="empty-state-text">Get started by creating your first project. You can assign team members and track progress.</div>
+                        <button class="btn btn-primary">
+                            <span>+</span>
+                            Create Project
+                        </button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- ═══ SECTION 6: Modal Demo ═════════════════════════════════ -->
+            <section class="poc-section">
+                <h2 class="poc-section-title">🪟 Modal Dialog</h2>
+                <button class="btn btn-secondary" id="openModal">Open Modal Demo</button>
+            </section>
+
+            <!-- ═══ SECTION 7: Buttons & Forms ═════════════════════════════ -->
+            <section class="poc-section">
+                <h2 class="poc-section-title">🎨 Component Library</h2>
+
+                <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap:24px;">
+                    <!-- Buttons -->
+                    <div class="data-card">
+                        <div class="data-card-header">
+                            <div class="data-card-title">Buttons</div>
+                        </div>
+                        <div class="data-card-body" style="display:flex; flex-wrap:wrap; gap:8px;">
+                            <button class="btn btn-primary">Primary</button>
+                            <button class="btn btn-secondary">Secondary</button>
+                            <button class="btn btn-ghost">Ghost</button>
+                            <button class="btn btn-danger">Danger</button>
+                            <button class="btn btn-primary btn-sm">Small</button>
+                            <button class="btn btn-secondary btn-icon">⚙️</button>
+                        </div>
+                    </div>
+
+                    <!-- Status Badges -->
+                    <div class="data-card">
+                        <div class="data-card-header">
+                            <div class="data-card-title">Status Badges</div>
+                        </div>
+                        <div class="data-card-body" style="display:flex; flex-wrap:wrap; gap:8px;">
+                            <span class="status-badge active">Active</span>
+                            <span class="status-badge pending">Pending</span>
+                            <span class="status-badge inactive">Inactive</span>
+                        </div>
+                    </div>
+
+                    <!-- Tags -->
+                    <div class="data-card">
+                        <div class="data-card-header">
+                            <div class="data-card-title">Tags / Pills</div>
+                        </div>
+                        <div class="data-card-body">
+                            <div class="tag-list">
+                                <span class="tag">Default</span>
+                                <span class="tag primary">Primary</span>
+                                <span class="tag success">Success</span>
+                                <span class="tag warning">Warning</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Form Elements -->
+                    <div class="data-card">
+                        <div class="data-card-header">
+                            <div class="data-card-title">Form Elements</div>
+                        </div>
+                        <div class="data-card-body" style="display:flex; flex-direction:column; gap:12px;">
+                            <div class="form-group">
+                                <label class="form-label">Email Address</label>
+                                <input type="email" class="form-input" placeholder="name@company.com">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Read Only Field</label>
+                                <input type="text" class="form-input" value="john.doe@company.com" readonly>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- ═══ MODAL ═══════════════════════════════════════════════════════ -->
+    <div class="modal-backdrop" id="modalBackdrop">
+        <div class="modal">
+            <div class="modal-header">
+                <h3 class="modal-title">Add New Project</h3>
+                <button class="modal-close" id="closeModal">✕</button>
+            </div>
+            <div class="modal-body">
+                <div style="display:flex; flex-direction:column; gap:16px;">
+                    <div class="form-group">
+                        <label class="form-label">Project Name</label>
+                        <input type="text" class="form-input" placeholder="Enter project name">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">SOC Reference</label>
+                        <input type="text" class="form-input" placeholder="SOC-XXXX-XXX">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Customer</label>
+                        <input type="text" class="form-input" placeholder="Customer name">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Description</label>
+                        <textarea class="form-input" rows="3" placeholder="Brief project description..." style="resize:vertical;"></textarea>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" id="cancelModal">Cancel</button>
+                <button class="btn btn-primary">Create Project</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ═══ TOAST ═══════════════════════════════════════════════════════ -->
+    <div class="toast-container" id="toastContainer">
+        <div class="toast success" id="demoToast" style="display:none;">
+            <span class="toast-icon">✅</span>
+            <span class="toast-message">Changes saved successfully!</span>
+        </div>
+    </div>
+
+    <!-- ═══ SCRIPTS ═════════════════════════════════════════════════════ -->
+    <script>
+        // Theme Toggle
+        const themeToggle = document.getElementById('themeToggle');
+        const themeIcon = document.getElementById('themeIcon');
+        const themeLabel = document.getElementById('themeLabel');
+        const html = document.documentElement;
+
+        // Load saved theme
+        const savedTheme = localStorage.getItem('poc-theme') || 'light';
+        html.setAttribute('data-theme', savedTheme);
+        updateThemeButton(savedTheme);
+
+        themeToggle.addEventListener('click', () => {
+            const current = html.getAttribute('data-theme');
+            const next = current === 'dark' ? 'light' : 'dark';
+            html.setAttribute('data-theme', next);
+            localStorage.setItem('poc-theme', next);
+            updateThemeButton(next);
+        });
+
+        function updateThemeButton(theme) {
+            if (theme === 'dark') {
+                themeIcon.textContent = '☀️';
+                themeLabel.textContent = 'Light';
+            } else {
+                themeIcon.textContent = '🌙';
+                themeLabel.textContent = 'Dark';
+            }
+        }
+
+        // Sidebar Toggle
+        const sidebar = document.getElementById('sidebar');
+        const sidebarToggle = document.getElementById('sidebarToggle');
+
+        sidebarToggle.addEventListener('click', () => {
+            sidebar.classList.toggle('collapsed');
+            sidebarToggle.textContent = sidebar.classList.contains('collapsed') ? '▶' : '◀';
+        });
+
+        // Mobile Menu
+        const mobileMenuBtn = document.getElementById('mobileMenuBtn');
+        mobileMenuBtn.addEventListener('click', () => {
+            sidebar.classList.toggle('mobile-open');
+        });
+
+        // Close mobile menu when clicking outside
+        document.addEventListener('click', (e) => {
+            if (sidebar.classList.contains('mobile-open') &&
+                !sidebar.contains(e.target) &&
+                e.target !== mobileMenuBtn) {
+                sidebar.classList.remove('mobile-open');
+            }
+        });
+
+        // Modal
+        const modalBackdrop = document.getElementById('modalBackdrop');
+        const openModalBtn = document.getElementById('openModal');
+        const closeModalBtn = document.getElementById('closeModal');
+        const cancelModalBtn = document.getElementById('cancelModal');
+
+        openModalBtn.addEventListener('click', () => {
+            modalBackdrop.classList.add('active');
+            showToast();
+        });
+
+        closeModalBtn.addEventListener('click', () => {
+            modalBackdrop.classList.remove('active');
+        });
+
+        cancelModalBtn.addEventListener('click', () => {
+            modalBackdrop.classList.remove('active');
+        });
+
+        modalBackdrop.addEventListener('click', (e) => {
+            if (e.target === modalBackdrop) {
+                modalBackdrop.classList.remove('active');
+            }
+        });
+
+        // Toast
+        function showToast() {
+            const toast = document.getElementById('demoToast');
+            toast.style.display = 'flex';
+            toast.style.animation = 'none';
+            toast.offsetHeight; // Trigger reflow
+            toast.style.animation = 'toastSlideIn 300ms ease';
+
+            setTimeout(() => {
+                toast.style.display = 'none';
+            }, 3000);
+        }
+
+        // Filter Chips
+        document.querySelectorAll('.filter-chip').forEach(chip => {
+            chip.addEventListener('click', () => {
+                document.querySelectorAll('.filter-chip').forEach(c => c.classList.remove('active'));
+                chip.classList.add('active');
+            });
+        });
+
+        // View Toggle
+        document.querySelectorAll('.view-toggle button').forEach(btn => {
+            btn.addEventListener('click', () => {
+                document.querySelectorAll('.view-toggle button').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+            });
+        });
+
+        // Nav Items
+        document.querySelectorAll('.nav-item').forEach(item => {
+            item.addEventListener('click', (e) => {
+                e.preventDefault();
+                document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
+                item.classList.add('active');
+            });
+        });
+    </script>
+</body>
+
+</html>

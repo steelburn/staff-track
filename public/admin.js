@@ -30,6 +30,7 @@ async function loadData() {
             const overrides = await rolesRes.json();
             overrides.forEach(r => {
                 roleOverrides.set(r.email.toLowerCase(), {
+                    is_admin: r.role === 'admin',
                     is_hr: !!r.is_hr,
                     is_coordinator: !!r.is_coordinator
                 });
@@ -61,19 +62,20 @@ function renderRoles() {
     }
 
     if (!list.length) {
-        tbody.innerHTML = `<tr><td colspan="5" class="table-empty">No matching staff found.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="6" class="table-empty">No matching staff found.</td></tr>`;
         return;
     }
 
     tbody.innerHTML = list.map((s, i) => {
         const email = (s.email || '').toLowerCase();
         if (!email) return '';
-        const role = roleOverrides.get(email) || { is_hr: false, is_coordinator: false };
+        const role = roleOverrides.get(email) || { is_admin: false, is_hr: false, is_coordinator: false };
 
         return `<tr data-email="${email}">
           <td style="font-weight:600">${s.name}</td>
           <td style="color:var(--text-secondary);font-size:.85rem">${s.title || '—'}</td>
           <td style="color:var(--text-secondary);font-size:.85rem">${s.email}</td>
+          <td style="text-align:center"><input type="checkbox" class="cb-admin" ${role.is_admin ? 'checked' : ''}></td>
           <td style="text-align:center"><input type="checkbox" class="cb-hr" ${role.is_hr ? 'checked' : ''}></td>
           <td style="text-align:center"><input type="checkbox" class="cb-coord" ${role.is_coordinator ? 'checked' : ''}></td>
         </tr>`;
@@ -81,32 +83,38 @@ function renderRoles() {
 
     tbody.querySelectorAll('tr').forEach(tr => {
         const email = tr.dataset.email;
+        const cbAdmin = tr.querySelector('.cb-admin');
         const cbHr = tr.querySelector('.cb-hr');
         const cbCoord = tr.querySelector('.cb-coord');
 
-        const onChange = () => updateRole(email, cbHr.checked, cbCoord.checked);
+        const onChange = () => updateRole(email, cbAdmin.checked, cbHr.checked, cbCoord.checked);
+        cbAdmin?.addEventListener('change', onChange);
         cbHr?.addEventListener('change', onChange);
         cbCoord?.addEventListener('change', onChange);
     });
 }
 
-async function updateRole(email, is_hr, is_coordinator) {
+async function updateRole(email, is_admin, is_hr, is_coordinator) {
     try {
-        // Convert boolean flags to role string
+        // Determine the primary role string based on flags
+        // Priority: admin > hr > coordinator > staff
         let role = 'staff';
-        if (is_hr) {
+        if (is_admin) {
+            role = 'admin';
+        } else if (is_hr) {
             role = 'hr';
         } else if (is_coordinator) {
             role = 'coordinator';
         }
 
+        // Send both the role string AND the boolean flags to the backend
         const res = await window.StaffTrackAuth.apiFetch('/api/admin/roles', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ email, role, is_active: true })
+            body: JSON.stringify({ email, role, is_hr, is_coordinator, is_active: true })
         });
         if (!res.ok) throw new Error('Save failed');
-        roleOverrides.set(email, { is_hr, is_coordinator });
+        roleOverrides.set(email, { is_admin, is_hr, is_coordinator });
         showToast(`Saved roles for ${email} ✓`);
     } catch (err) {
         showToast('Failed to update role', true);
@@ -116,7 +124,20 @@ async function updateRole(email, is_hr, is_coordinator) {
 
 // ── Initialization ────────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
-    renderNav();
+    // Initialize sidebar navigation
+    if (typeof renderSidebarNav === 'function') {
+        renderSidebarNav('admin');
+    } else if (typeof renderNav === 'function') {
+        renderNav();
+    }
+    // Initialize theme toggle
+    if (typeof ThemeManager !== 'undefined') {
+        ThemeManager.updateToggleButtons();
+    }
+    // Initialize toast
+    if (typeof Toast !== 'undefined') {
+        Toast.init();
+    }
     loadData();
 
     // Roles Search

@@ -2,13 +2,12 @@
 
 const authUser = requireAuth();
 // ── Data ──────────────────────────────────────────────────────────────────────
-let ALL_PROJECTS_CSV = []; // from extracted_projects.csv (full project list)
+let ALL_PROJECTS_CSV = []; // from BeeSuite API /admin/soc/list
 let API_PROJECTS = [];     // from /api/reports/projects (projects with staff)
 let STAFF_DATA = [];       // from Staff CSV (for assign modal autocomplete)
 let MANAGED_PROJECTS = []; // from /api/managed-projects
 
-// ── CSV helpers ───────────────────────────────────────────────────────────────
-// (Removed: moved to backend seeder script)
+// ── Export helpers ──────────────────────────────────────────────────────────
 
 // ── Toast ─────────────────────────────────────────────────────────────────────
 function showToast(msg, isErr = false) {
@@ -411,6 +410,13 @@ function showCreateProjectModal() {
     const project_name = nameInput.value.trim();
     if (!project_name) return showToast('Project Name is required', true);
 
+    // Date validation
+    const startDate = document.getElementById('cp-start').value;
+    const endDate = document.getElementById('cp-end').value;
+    if (startDate && endDate && startDate > endDate) {
+      return showToast('End date must be on or after the start date', true);
+    }
+
     btn.disabled = true;
     btn.textContent = 'Creating...';
     try {
@@ -514,6 +520,13 @@ function showEditProjectModal(id, p) {
     const btn = backdrop.querySelector('#ep-submit');
     const project_name = document.getElementById('ep-project_name').value.trim();
     if (!project_name) return showToast('Project Name is required', true);
+
+    // Date validation
+    const startDate = document.getElementById('ep-start').value;
+    const endDate = document.getElementById('ep-end').value;
+    if (startDate && endDate && startDate > endDate) {
+      return showToast('End date must be on or after the start date', true);
+    }
 
     btn.disabled = true;
     btn.textContent = 'Saving...';
@@ -803,7 +816,20 @@ async function loadData() {
 
 // ── Init ──────────────────────────────────────────────────────────────────────
 async function init() {
-  renderNav('projects');
+  // Initialize sidebar navigation
+  if (typeof renderSidebarNav === 'function') {
+    renderSidebarNav('projects');
+  } else if (typeof renderNav === 'function') {
+    renderNav('projects');
+  }
+  // Initialize theme toggle
+  if (typeof ThemeManager !== 'undefined') {
+    ThemeManager.updateToggleButtons();
+  }
+  // Initialize toast
+  if (typeof Toast !== 'undefined') {
+    Toast.init();
+  }
 
   // If coordinator or admin, inject "Add New Project" button
   if (authUser.is_coordinator === true || authUser.is_coordinator === 1 || authUser.isAdmin === true) {

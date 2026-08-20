@@ -532,7 +532,20 @@ function updateEditorGrid() {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
-    renderNav('cv-template-editor');
+    // Initialize sidebar navigation
+    if (typeof renderSidebarNav === 'function') {
+        renderSidebarNav('cv-template-editor');
+    } else if (typeof renderNav === 'function') {
+        renderNav('cv-template-editor');
+    }
+    // Initialize theme toggle
+    if (typeof ThemeManager !== 'undefined') {
+        ThemeManager.updateToggleButtons();
+    }
+    // Initialize toast
+    if (typeof Toast !== 'undefined') {
+        Toast.init();
+    }
     wireToggles();
     wireColumnToggles();
     wireVarChips();

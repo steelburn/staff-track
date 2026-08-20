@@ -2,7 +2,8 @@
 
 const authUser = requireAuth();
 // ── Data ──────────────────────────────────────────────────────────────────────
-let STAFF_REPORT = []; // from /api/reports/staff
+let STAFF_REPORT = [];
+let includeInactive = false;
 
 // ── Utility ───────────────────────────────────────────────────────────────────
 function hl(text, q) {
@@ -202,17 +203,40 @@ function showDetailPanel(s, q = '') {
 }
 
 // ── Init ──────────────────────────────────────────────────────────────────────
-async function init() {
-    renderNav('staff');
+async function loadStaffData() {
     try {
-        const res = await window.StaffTrackAuth.apiFetch('/api/reports/staff');
+        const url = includeInactive ? '/api/reports/staff?include_inactive=true' : '/api/reports/staff';
+        const res = await window.StaffTrackAuth.apiFetch(url);
         if (res.ok) STAFF_REPORT = await res.json();
     } catch (e) { console.error('Failed to load staff report', e); }
+}
 
+async function init() {
+    // Initialize sidebar navigation
+    if (typeof renderSidebarNav === 'function') {
+        renderSidebarNav('staff');
+    } else if (typeof renderNav === 'function') {
+        renderNav('staff');
+    }
+    // Initialize theme toggle
+    if (typeof ThemeManager !== 'undefined') {
+        ThemeManager.updateToggleButtons();
+    }
+    // Initialize toast
+    if (typeof Toast !== 'undefined') {
+        Toast.init();
+    }
+    await loadStaffData();
     renderTable();
 
     document.getElementById('staff-search').addEventListener('input', e => {
         renderTable(e.target.value.trim());
+    });
+
+    document.getElementById('toggle-inactive').addEventListener('change', async e => {
+        includeInactive = e.target.checked;
+        await loadStaffData();
+        renderTable();
     });
 
     document.getElementById('btn-export-staff').addEventListener('click', exportStaffCSV);

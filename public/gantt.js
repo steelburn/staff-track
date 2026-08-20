@@ -10,7 +10,20 @@ let allProjects = [];
 let allStaff = [];
 
 async function init() {
-    if (window.renderNav) window.renderNav('gantt');
+    // Initialize sidebar navigation
+    if (typeof renderSidebarNav === 'function') {
+        renderSidebarNav('gantt');
+    } else if (typeof renderNav === 'function') {
+        renderNav('gantt');
+    }
+    // Initialize theme toggle
+    if (typeof ThemeManager !== 'undefined') {
+        ThemeManager.updateToggleButtons();
+    }
+    // Initialize toast
+    if (typeof Toast !== 'undefined') {
+        Toast.init();
+    }
 
     try {
         const [projectsRes, staffRes] = await Promise.all([
@@ -22,30 +35,27 @@ async function init() {
 
         const rawProjects = await projectsRes.json();
         const rawStaff = await staffRes.json();
-        
-        // Transform projects data: convert snake_case field names to camelCase and 'submissions' to 'assignments'
+
         allProjects = rawProjects.map(p => ({
           ...p,
-          id: p.soc || p.id,
+          id: p.id || p.soc || p.assignment_id || p.project_name,
           name: p.project_name,
           projectName: p.project_name,
           staffName: p.staff_name,
-          // Rename submissions to assignments for gantt rendering
           assignments: (p.submissions || []).map(s => ({
+            startDate: s.start_date,
             endDate: s.staff_end_date,
             name: s.staff_name,
             role: s.role,
             email: s.staff_email
           }))
         }));
-        
-        // Staff data is already in correct format
+
         allStaff = rawStaff;
 
         setupSelection('project', allProjects, (item) => item.projectName || item.name);
         setupSelection('staff', allStaff, (item) => item.staffName);
 
-        // Tab Switching
         document.querySelectorAll('.tab-btn').forEach(btn => {
             btn.addEventListener('click', () => {
                 document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
@@ -55,7 +65,6 @@ async function init() {
             });
         });
 
-        // Selection Buttons
         const setupBulkSelect = (type, select) => {
             const list = document.getElementById(`${type}-list`);
             const inputs = list.querySelectorAll('input[type="checkbox"]');
@@ -73,7 +82,7 @@ async function init() {
         document.getElementById('render-projects-btn').addEventListener('click', () => {
             const selectedIds = getSelectedIds('project');
             if (selectedIds.length === 0) return alert('Please select at least one project');
-            
+
             const filteredData = allProjects.filter(p => selectedIds.includes(String(p.id || p.projectName || p.name)));
             document.getElementById('projects-selection-card').style.display = 'none';
             document.getElementById('projects-chart-card').style.display = 'block';
@@ -83,7 +92,7 @@ async function init() {
         document.getElementById('render-resources-btn').addEventListener('click', () => {
             const selectedIds = getSelectedIds('staff');
             if (selectedIds.length === 0) return alert('Please select at least one staff member');
-            
+
             const filteredData = allStaff.filter(s => selectedIds.includes(String(s.id)));
             document.getElementById('resources-selection-card').style.display = 'none';
             document.getElementById('resources-chart-card').style.display = 'block';
@@ -101,81 +110,56 @@ function renderGanttSection(type, data, currentScale, renderFn) {
     const container = document.getElementById(containerId);
     if (!container) return;
 
-    // Create wrapper if it doesn't exist
-    let wrapper = container.querySelector('.gantt-wrapper');
-    if (!wrapper) {
-        container.innerHTML = '';
-        
-        // Add zoom controls
-        const controls = document.createElement('div');
-        controls.className = 'gantt-controls';
-        controls.innerHTML = `
-            <button class="btn-secondary" id="zoom-out-${type}">🔍 -</button>
-            <button class="btn-secondary" id="zoom-in-${type}">🔍 +</button>
-        `;
-        container.appendChild(controls);
+    container.innerHTML = '';
 
-        wrapper = document.createElement('div');
-        wrapper.className = 'gantt-wrapper';
-        wrapper.style.width = '100%';
-        container.appendChild(wrapper);
+    const controls = document.createElement('div');
+    controls.className = 'gantt-controls';
+    controls.innerHTML = `
+        <span class="gantt-scale-info">Zoom:</span>
+        <button class="btn-secondary" id="zoom-out-${type}">−</button>
+        <span class="zoom-level" id="zoom-level-${type}">${Math.round(currentScale * 100)}%</span>
+        <button class="btn-secondary" id="zoom-in-${type}">+</button>
+    `;
+    container.appendChild(controls);
 
-        // Attach event listeners
-        document.getElementById(`zoom-in-${type}`).addEventListener('click', () => {
-            if (type === 'projects') projectsScale = Math.min(projectsScale * 1.5, 10);
-            else resourcesScale = Math.min(resourcesScale * 1.5, 10);
-            renderFn(wrapper, data, type === 'projects' ? projectsScale : resourcesScale);
-        });
+    const wrapper = document.createElement('div');
+    wrapper.className = 'gantt-wrapper';
+    wrapper.id = `gantt-wrapper-${type}`;
+    container.appendChild(wrapper);
 
-        document.getElementById(`zoom-out-${type}`).addEventListener('click', () => {
-            if (type === 'projects') projectsScale = Math.max(projectsScale / 1.5, 0.1);
-            else resourcesScale = Math.max(resourcesScale / 1.5, 0.1);
-            renderFn(wrapper, data, type === 'projects' ? projectsScale : resourcesScale);
-        });
+    const tooltip = document.getElementById('tooltip');
 
-        const tooltip = document.getElementById('tooltip');
-        
-        wrapper.addEventListener('mousemove', (e) => {
-            const canvas = wrapper.querySelector('canvas');
-            if (!canvas || !canvas._hitRegions) {
-                tooltip.style.opacity = 0;
-                return;
-            }
+    document.getElementById(`zoom-in-${type}`).addEventListener('click', () => {
+        if (type === 'projects') projectsScale = Math.min(projectsScale * 1.5, 3);
+        else resourcesScale = Math.min(resourcesScale * 1.5, 3);
+        const scale = type === 'projects' ? projectsScale : resourcesScale;
+        document.getElementById(`zoom-level-${type}`).textContent = `${Math.round(scale * 100)}%`;
+        renderFn(wrapper, data, scale);
+    });
 
-            const rect = canvas.getBoundingClientRect();
-            const x = e.clientX - rect.left;
-            const y = e.clientY - rect.top;
+    document.getElementById(`zoom-out-${type}`).addEventListener('click', () => {
+        if (type === 'projects') projectsScale = Math.max(projectsScale / 1.5, 0.33);
+        else resourcesScale = Math.max(resourcesScale / 1.5, 0.33);
+        const scale = type === 'projects' ? projectsScale : resourcesScale;
+        document.getElementById(`zoom-level-${type}`).textContent = `${Math.round(scale * 100)}%`;
+        renderFn(wrapper, data, scale);
+    });
 
-            let found = null;
-            // Only check regions if we are to the right of the sticky labels
-            // (labelWidth + padding = 250 + 20 = 270)
-            if (x > 270) {
-                for (const region of canvas._hitRegions) {
-                    if (x >= region.x && x <= region.x + region.w &&
-                        y >= region.y && y <= region.y + region.h) {
-                        found = region;
-                        break;
-                    }
-                }
-            }
+    wrapper.addEventListener('mousemove', (e) => {
+        const bar = e.target.closest('.gantt-bar');
+        if (bar && bar.dataset.tooltip) {
+            tooltip.innerHTML = bar.dataset.tooltip.replace(/\n/g, '<br>');
+            tooltip.classList.add('visible');
+            tooltip.style.left = `${e.pageX + 12}px`;
+            tooltip.style.top = `${e.pageY + 12}px`;
+        } else {
+            tooltip.classList.remove('visible');
+        }
+    });
 
-            if (found) {
-                const tip = found.tip.replace(/\n/g, '<br>');
-                tooltip.innerHTML = tip;
-                tooltip.style.opacity = 1;
-                tooltip.style.left = (e.pageX + 10) + 'px';
-                tooltip.style.top = (e.pageY + 10) + 'px';
-                canvas.style.cursor = 'pointer';
-            } else {
-                tooltip.style.opacity = 0;
-                canvas.style.cursor = 'default';
-            }
-        });
-
-        container.addEventListener('mouseleave', () => {
-            tooltip.style.opacity = 0;
-        });
-    }
+    wrapper.addEventListener('mouseleave', () => {
+        tooltip.classList.remove('visible');
+    });
 
     renderFn(wrapper, data, currentScale);
 }
@@ -192,12 +176,13 @@ function setupSelection(type, items, labelFn) {
         });
 
         filtered.forEach(item => {
-            const id = item.id || item.name;
+            const label = labelFn(item) || 'item';
+            const id = item.id || label.replace(/[^a-zA-Z0-9]/g, '_');
             const div = document.createElement('div');
             div.className = 'selection-item';
             div.innerHTML = `
                 <input type="checkbox" value="${id}" id="chk-${type}-${id}">
-                <label for="chk-${type}-${id}">${labelFn(item)}</label>
+                <label for="chk-${type}-${id}">${label}</label>
             `;
             div.addEventListener('click', (e) => {
                 if (e.target.tagName !== 'INPUT' && e.target.tagName !== 'LABEL') {
@@ -232,23 +217,25 @@ function renderActiveProjectsGantt(wrapper, projectsList, scale = 1) {
         .filter(p => p.assignments && p.assignments.length > 0)
         .map(p => {
             let maxEndDate = null;
-            let minStartDate = new Date();
+            let minStartDate = null;
             p.assignments.forEach(a => {
                 const ed = parseDate(a.endDate);
+                const sd = parseDate(a.startDate);
                 if (ed) {
-                    // For a better visual, try to guess start date if it were available.
-                    // Here we just use current date as a baseline if they don't have start dates.
-                    const sd = new Date(minStartDate);
-                    sd.setMonth(sd.getMonth() - 1);
-                    if (sd < minStartDate) minStartDate = sd;
-
                     if (!maxEndDate || ed > maxEndDate) maxEndDate = ed;
                 }
+                if (sd && (!minStartDate || sd < minStartDate)) {
+                    minStartDate = sd;
+                }
             });
+            if (!minStartDate && maxEndDate) {
+                minStartDate = new Date(maxEndDate);
+                minStartDate.setMonth(minStartDate.getMonth() - 1);
+            }
             return {
-                id: p.id || p.name,
-                name: p.name,
-                start: minStartDate,
+                id: p.id || p.projectName || p.name,
+                name: p.projectName || p.name,
+                start: minStartDate || new Date(),
                 end: maxEndDate,
                 subtext: `${p.assignments ? p.assignments.length : 0} team members`
             };
@@ -257,11 +244,11 @@ function renderActiveProjectsGantt(wrapper, projectsList, scale = 1) {
         .sort((a, b) => a.end - b.end);
 
     if (data.length === 0) {
-        wrapper.innerHTML = '<div style="color:var(--text-secondary); text-align:center; padding:2rem;">No active project timelines available.</div>';
+        wrapper.innerHTML = '<div class="gantt-empty">No active project timelines available.</div>';
         return;
     }
 
-    renderCanvasGantt(wrapper, data, scale);
+    renderHTMLGantt(wrapper, data, scale);
 }
 
 function renderResourcesGantt(wrapper, staffList, scale = 1) {
@@ -273,13 +260,12 @@ function renderResourcesGantt(wrapper, staffList, scale = 1) {
         let overallMaxEnd = null;
         let projectCount = 0;
 
-        // Separate lines per project per staff
         s.projects.forEach((p) => {
             const ed = parseDate(p.endDate);
+            const sp = parseDate(p.startDate);
             if (ed) {
-                // Estimate a start date for the chart to look better if none recorded
-                const sd = new Date();
-                sd.setMonth(sd.getMonth() - parseInt(Math.random() * 3 + 1)); 
+                const sd = sp || new Date();
+                if (!sp) sd.setMonth(sd.getMonth() - 2);
 
                 if (!overallMinStart || sd < overallMinStart) overallMinStart = sd;
                 if (!overallMaxEnd || ed > overallMaxEnd) overallMaxEnd = ed;
@@ -287,7 +273,7 @@ function renderResourcesGantt(wrapper, staffList, scale = 1) {
 
                 data.push({
                     id: `${s.id}-${p.projectName}`,
-                    name: "↳ " + p.projectName, // Indent subsequent projects
+                    name: "\u2192 " + p.projectName,
                     start: sd,
                     end: ed,
                     subtext: p.projectName,
@@ -297,7 +283,6 @@ function renderResourcesGantt(wrapper, staffList, scale = 1) {
             }
         });
 
-        // Add overall resource line
         if (overallMaxEnd) {
             data.push({
                 id: s.id,
@@ -311,35 +296,26 @@ function renderResourcesGantt(wrapper, staffList, scale = 1) {
         }
     });
 
-    // Sort by staff name, then sub-projects (parent first)
     data.sort((a, b) => {
         if (a.staffName === b.staffName) {
             if (!a.isSub && b.isSub) return -1;
             if (a.isSub && !b.isSub) return 1;
-            return a.subtext.localeCompare(b.subtext); // subtext is project name for subs
+            return a.subtext.localeCompare(b.subtext);
         }
         return a.staffName.localeCompare(b.staffName);
     });
 
-    const finalData = data;
-
-    if (finalData.length === 0) {
-        wrapper.innerHTML = '<div style="color:var(--text-secondary); text-align:center; padding:2rem;">No staff assignments with valid end dates available.</div>';
+    if (data.length === 0) {
+        wrapper.innerHTML = '<div class="gantt-empty">No staff assignments with valid end dates available.</div>';
         return;
     }
 
-    renderCanvasGantt(wrapper, finalData, scale);
+    renderHTMLGantt(wrapper, data, scale);
 }
 
-function renderCanvasGantt(container, data, scale = 1) {
-    const rowHeight = 40;
-    const labelWidth = 250;
-    const padding = 20;
-    const topMargin = 50;
-
+function renderHTMLGantt(wrapper, data, scale = 1) {
     if (data.length === 0) return;
 
-    // Use actual data bounds for initialization
     let minDate = new Date(data[0].start);
     let maxDate = new Date(data[0].end);
 
@@ -348,174 +324,237 @@ function renderCanvasGantt(container, data, scale = 1) {
         if (d.end && d.end > maxDate) maxDate = new Date(d.end);
     });
 
-    // Safety: Cap years to reasonable range
     const minYear = 2020;
     const maxYear = 2040;
     if (minDate.getFullYear() < minYear) minDate = new Date(minYear, 0, 1);
     if (maxDate.getFullYear() > maxYear) maxDate = new Date(maxYear, 11, 31);
-    
-    // Buffer
+
     minDate.setMonth(minDate.getMonth() - 1);
     maxDate.setMonth(maxDate.getMonth() + 2);
 
-    let totalDuration = maxDate - minDate;
-    if (totalDuration <= 0) totalDuration = 86400000;
+    const totalDuration = maxDate - minDate;
+    const DAY_PX_BASE = 3;
+    const dayWidth = DAY_PX_BASE * scale;
 
-    const minWidth = 800;
-    const baseChartWidth = Math.max(minWidth - labelWidth, (totalDuration / (1000 * 60 * 60 * 24)) * 3);
-    const virtualChartWidth = Math.min(baseChartWidth * scale, 50000); 
-    const virtualTotalWidth = Number(virtualChartWidth + labelWidth + padding * 2);
-    const virtualTotalHeight = (data.length * rowHeight) + topMargin + padding;
-
-    // Track scroll position to keep zoom centered-ish
-    const oldScrollLeft = container.scrollLeft;
-    const oldVirtualWidth = container._virtualWidth || virtualTotalWidth;
-    const scrollRatio = oldScrollLeft / oldVirtualWidth;
-
-    // Setup Virtual Scroll Structure
-    container.innerHTML = '';
-    container.style.position = 'relative';
-    container.style.height = 'calc(min(75vh, ' + (virtualTotalHeight + 40) + 'px))'; 
-    container.style.minHeight = '300px';
-    container.style.overflow = 'auto';
-    container._virtualWidth = virtualTotalWidth;
-
-    const spacer = document.createElement('div');
-    spacer.style.width = virtualTotalWidth + 'px';
-    spacer.style.height = virtualTotalHeight + 'px';
-    spacer.style.pointerEvents = 'none';
-    container.appendChild(spacer);
-
-    const canvas = document.createElement('canvas');
-    canvas.style.position = 'sticky';
-    canvas.style.top = '0';
-    canvas.style.left = '0';
-    canvas.style.zIndex = '1';
-    container.appendChild(canvas);
-
-    const dpr = window.devicePixelRatio || 1;
-    const ctx = canvas.getContext('2d', { alpha: false });
-
-    const updateCanvasSize = () => {
-        const rect = container.getBoundingClientRect();
-        canvas.width = rect.width * dpr;
-        canvas.height = rect.height * dpr;
-        canvas.style.width = rect.width + 'px';
-        canvas.style.height = rect.height + 'px';
-        ctx.scale(dpr, dpr);
-        draw();
-    };
-
-    const draw = () => {
-        const scrollLeft = container.scrollLeft;
-        const scrollTop = container.scrollTop;
-        const vw = canvas.width / dpr;
-        const vh = canvas.height / dpr;
-
-        // Background
-        ctx.fillStyle = '#fff';
-        ctx.fillRect(0, 0, vw, vh);
-
-        const scaleX = (date) => labelWidth + padding + ((date - minDate) / totalDuration) * virtualChartWidth - scrollLeft;
-
-        // 1. Grid and Month Headers
-        const headerH = 35;
-        const stickyHeaderY = Math.max(0, topMargin - headerH - scrollTop);
-        
-        // Month Header Background (Sticky at top of canvas)
-        ctx.fillStyle = '#fff';
-        ctx.fillRect(0, 0, vw, Math.max(headerH, topMargin - scrollTop));
-
-        ctx.strokeStyle = '#e2e8f0';
-        ctx.lineWidth = 1;
-        ctx.font = '500 12px Inter, sans-serif';
-        ctx.fillStyle = '#64748b';
-
-        let curr = new Date(minDate.getFullYear(), minDate.getMonth(), 1);
-        while (curr <= maxDate) {
-            const x = scaleX(curr);
-            if (x > -200 && x < vw + 200) { 
-                ctx.beginPath();
-                ctx.setLineDash([4, 4]);
-                ctx.moveTo(x, topMargin - scrollTop);
-                ctx.lineTo(x, vh);
-                ctx.stroke();
-                ctx.setLineDash([]);
-                
-                const name = curr.toLocaleString('default', { month: 'short', year: 'numeric' });
-                ctx.fillText(name, x + 5, Math.max(25, topMargin - 10 - scrollTop));
-            }
-            curr.setMonth(curr.getMonth() + 1);
-        }
-
-        // 2. Bars and Labels
-        const hitRegions = [];
-        const startVisibleIdx = Math.max(0, Math.floor((scrollTop - topMargin) / rowHeight));
-        const endVisibleIdx = Math.min(data.length - 1, Math.ceil((scrollTop + vh) / rowHeight));
-
-        for (let i = startVisibleIdx; i <= endVisibleIdx; i++) {
-            const d = data[i];
-            const y = topMargin + (i * rowHeight) - scrollTop;
-            if (y < -rowHeight || y > vh) continue;
-
-            const xStart = scaleX(d.start);
-            const xEnd = scaleX(d.end);
-            const barWidth = Math.max(xEnd - xStart, 10);
-            const barY = y + 8;
-            const barH = 24;
-
-            if (!d.isSub) {
-                ctx.fillStyle = '#f8fafc';
-                // Row background should cover the full width if needed, but visually just the chart area
-                ctx.fillRect(labelWidth + padding - scrollLeft, y + 5, virtualChartWidth, 30);
-            }
-
-            // Labels - Sticky in their own column
-            ctx.fillStyle = '#fff'; // Background for label area to keep it readable while scrolling
-            ctx.fillRect(0, y, labelWidth + padding, rowHeight);
-
-            ctx.font = d.isSub ? '400 11px Inter, sans-serif' : '500 13px Inter, sans-serif';
-            ctx.fillStyle = d.isSub ? '#64748b' : '#1e293b';
-            const labelText = d.name.length > 30 ? d.name.substring(0, 30) + '...' : d.name;
-            const labelOffset = d.isSub ? padding + 15 : padding;
-            ctx.fillText(labelText, labelOffset, y + 25);
-
-            if (xEnd > (labelWidth + padding) && xStart < vw) {
-                ctx.save();
-                // Clip to the chart area to prevent overlap with sticky labels
-                ctx.beginPath();
-                ctx.rect(labelWidth + padding, 0, vw - (labelWidth + padding), vh);
-                ctx.clip();
-
-                ctx.fillStyle = d.isSub ? '#8b5cf6' : '#3b82f6';
-                ctx.globalAlpha = d.isSub ? 0.6 : 0.8;
-                
-                if (ctx.roundRect) {
-                    ctx.beginPath();
-                    ctx.roundRect(xStart, barY, barWidth, barH, 4);
-                    ctx.fill();
-                } else {
-                    ctx.fillRect(xStart, barY, barWidth, barH);
-                }
-                ctx.restore();
-
-                hitRegions.push({
-                    x: xStart, y: barY, w: barWidth, h: barH,
-                    tip: `${d.isSub ? d.staffName + ' - ' + d.subtext : d.name}\nEnd: ${d.end.toLocaleDateString()}\n${d.subtext || ''}`
-                });
-            }
-        }
-        canvas._hitRegions = hitRegions;
-    };
-
-    container.addEventListener('scroll', draw);
-    window.addEventListener('resize', updateCanvasSize);
-    updateCanvasSize();
-
-    // Restore scroll position proportional to new width
-    if (oldScrollLeft > 0) {
-        container.scrollLeft = scrollRatio * virtualTotalWidth;
+    const months = [];
+    let curr = new Date(minDate.getFullYear(), minDate.getMonth(), 1);
+    while (curr <= maxDate) {
+        months.push({
+            date: new Date(curr),
+            startX: ((curr - minDate) / totalDuration) * 100,
+            daysInMonth: new Date(curr.getFullYear(), curr.getMonth() + 1, 0).getDate(),
+            label: curr.toLocaleString('default', { month: 'short', year: 'numeric' })
+        });
+        curr.setMonth(curr.getMonth() + 1);
     }
+
+    const rowHeight = 48;
+    const headerHeight = 40;
+    const chartWidthPx = (totalDuration / (1000 * 60 * 60 * 24)) * dayWidth;
+
+    const savedLabelWidth = wrapper._labelWidth || 220;
+    const LABEL_WIDTH = savedLabelWidth;
+
+    wrapper.innerHTML = '';
+    wrapper.style.position = 'relative';
+    wrapper.style.width = '100%';
+    wrapper.style.minHeight = '300px';
+
+    const container = document.createElement('div');
+    container.className = 'gantt-timeline-container';
+    container.style.display = 'flex';
+    container.style.position = 'relative';
+    container.style.height = (headerHeight + data.length * rowHeight) + 'px';
+    wrapper.appendChild(container);
+
+    const labelSection = document.createElement('div');
+    labelSection.className = 'gantt-labels-section';
+    labelSection.style.position = 'sticky';
+    labelSection.style.left = '0';
+    labelSection.style.zIndex = '20';
+    labelSection.style.width = LABEL_WIDTH + 'px';
+    labelSection.style.minWidth = LABEL_WIDTH + 'px';
+    labelSection.style.background = 'var(--bg-card)';
+    labelSection.style.borderRight = '1px solid var(--border)';
+    labelSection.style.overflow = 'hidden';
+    labelSection.style.flexShrink = '0';
+    container.appendChild(labelSection);
+
+    const labelHeader = document.createElement('div');
+    labelHeader.className = 'gantt-labels-header';
+    labelHeader.style.height = headerHeight + 'px';
+    labelHeader.style.display = 'flex';
+    labelHeader.style.alignItems = 'center';
+    labelHeader.style.padding = '0 0.75rem';
+    labelHeader.style.borderBottom = '1px solid var(--border)';
+    labelHeader.style.fontWeight = '600';
+    labelHeader.style.fontSize = '0.75rem';
+    labelHeader.style.color = 'var(--text-secondary)';
+    labelHeader.textContent = 'Task / Resource';
+    labelSection.appendChild(labelHeader);
+
+    data.forEach((d, index) => {
+        const labelCell = document.createElement('div');
+        labelCell.className = 'gantt-label-cell' + (d.isSub ? ' sub-task' : '');
+        labelCell.style.height = rowHeight + 'px';
+        labelCell.style.display = 'flex';
+        labelCell.style.alignItems = 'center';
+        labelCell.style.padding = '0 0.75rem';
+        labelCell.style.borderBottom = '1px solid var(--border)';
+        labelCell.style.fontSize = '0.85rem';
+        labelCell.style.fontWeight = d.isSub ? '400' : '500';
+        labelCell.style.color = d.isSub ? 'var(--text-secondary)' : 'var(--text-primary)';
+        labelCell.style.paddingLeft = d.isSub ? '1.5rem' : '0.75rem';
+        labelCell.innerHTML = '<span style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">' + escapeHtml(d.name) + '</span>';
+        labelSection.appendChild(labelCell);
+    });
+
+    const resizeHandle = document.createElement('div');
+    resizeHandle.className = 'gantt-resize-handle';
+    resizeHandle.style.width = '6px';
+    resizeHandle.style.height = '100%';
+    resizeHandle.style.background = 'var(--border)';
+    resizeHandle.style.cursor = 'col-resize';
+    resizeHandle.style.position = 'sticky';
+    resizeHandle.style.left = LABEL_WIDTH + 'px';
+    resizeHandle.style.zIndex = '25';
+    resizeHandle.style.flexShrink = '0';
+    container.appendChild(resizeHandle);
+
+    const chartSection = document.createElement('div');
+    chartSection.className = 'gantt-chart-section';
+    chartSection.style.flex = '1';
+    chartSection.style.position = 'relative';
+    chartSection.style.overflowX = 'auto';
+    chartSection.style.overflowY = 'hidden';
+    chartSection.style.minWidth = '0';
+    container.appendChild(chartSection);
+
+    const chartInner = document.createElement('div');
+    chartInner.style.position = 'relative';
+    chartInner.style.width = chartWidthPx + 'px';
+    chartInner.style.minWidth = chartWidthPx + 'px';
+    chartSection.appendChild(chartInner);
+
+    const monthHeader = document.createElement('div');
+    monthHeader.className = 'gantt-months-header';
+    monthHeader.style.position = 'sticky';
+    monthHeader.style.top = '0';
+    monthHeader.style.zIndex = '10';
+    monthHeader.style.height = headerHeight + 'px';
+    monthHeader.style.background = 'var(--bg-card)';
+    monthHeader.style.borderBottom = '1px solid var(--border)';
+    monthHeader.style.whiteSpace = 'nowrap';
+    chartInner.appendChild(monthHeader);
+
+    months.forEach((m, i) => {
+        const nextMonth = months[i + 1];
+        const endX = nextMonth ? nextMonth.startX : 100;
+        const widthPct = endX - m.startX;
+
+        const cell = document.createElement('div');
+        cell.className = 'gantt-header-cell';
+        cell.textContent = m.label;
+        cell.style.position = 'absolute';
+        cell.style.left = m.startX + '%';
+        cell.style.width = widthPct + '%';
+        cell.style.height = '100%';
+        cell.style.borderLeft = i > 0 ? '1px solid var(--border)' : 'none';
+        cell.style.boxSizing = 'border-box';
+        cell.style.display = 'flex';
+        cell.style.alignItems = 'center';
+        cell.style.justifyContent = 'center';
+        cell.style.fontSize = '0.7rem';
+        cell.style.fontWeight = '500';
+        cell.style.color = 'var(--text-secondary)';
+        cell.style.overflow = 'hidden';
+        cell.style.textOverflow = 'ellipsis';
+        monthHeader.appendChild(cell);
+    });
+
+    const todayX = ((Date.now() - minDate) / totalDuration) * 100;
+    if (todayX > 0 && todayX < 100) {
+        const todayMarker = document.createElement('div');
+        todayMarker.className = 'gantt-today-marker';
+        todayMarker.style.left = (todayX / 100 * chartWidthPx) + 'px';
+        todayMarker.style.height = (headerHeight + data.length * rowHeight) + 'px';
+        todayMarker.style.top = '0';
+        chartInner.appendChild(todayMarker);
+    }
+
+    data.forEach((d, index) => {
+        const row = document.createElement('div');
+        row.style.position = 'relative';
+        row.style.width = chartWidthPx + 'px';
+        row.style.height = rowHeight + 'px';
+        row.style.borderBottom = '1px solid var(--border)';
+        chartInner.appendChild(row);
+
+        const startOffset = Math.max(0, (d.start - minDate) / totalDuration);
+        const endOffset = (d.end - minDate) / totalDuration;
+        const widthPct = Math.max(0.005, endOffset - startOffset);
+
+        const bar = document.createElement('div');
+        bar.className = 'gantt-bar' + (d.isSub ? ' sub-bar' : '');
+        bar.style.position = 'absolute';
+        bar.style.left = (startOffset * 100) + '%';
+        bar.style.width = (widthPct * 100) + '%';
+        bar.style.height = d.isSub ? '22px' : '28px';
+        bar.style.top = d.isSub ? '13px' : '10px';
+        bar.style.borderRadius = '4px';
+        bar.style.zIndex = '5';
+
+        const tooltipText = d.isSub
+            ? d.staffName + ' - ' + d.subtext + '\nEnd: ' + d.end.toLocaleDateString()
+            : d.name + '\nEnd: ' + d.end.toLocaleDateString() + '\n' + (d.subtext || '');
+        bar.dataset.tooltip = tooltipText;
+
+        const barText = document.createElement('span');
+        barText.className = 'gantt-bar-text';
+        barText.textContent = widthPct * 100 > 5 ? d.name.replace('\u2192 ', '') : '';
+        bar.appendChild(barText);
+
+        row.appendChild(bar);
+    });
+
+    let isResizing = false;
+    let startX = 0;
+    let startWidth = LABEL_WIDTH;
+
+    resizeHandle.addEventListener('mousedown', (e) => {
+        isResizing = true;
+        startX = e.clientX;
+        startWidth = LABEL_WIDTH;
+        resizeHandle.style.background = 'var(--accent-blue)';
+        document.body.style.cursor = 'col-resize';
+        document.body.style.userSelect = 'none';
+    });
+
+    document.addEventListener('mousemove', (e) => {
+        if (!isResizing) return;
+        const diff = e.clientX - startX;
+        const newWidth = Math.max(120, Math.min(500, startWidth + diff));
+        wrapper._labelWidth = newWidth;
+
+        labelSection.style.width = newWidth + 'px';
+        labelSection.style.minWidth = newWidth + 'px';
+        resizeHandle.style.left = newWidth + 'px';
+    });
+
+    document.addEventListener('mouseup', () => {
+        if (isResizing) {
+            isResizing = false;
+            resizeHandle.style.background = 'var(--border)';
+            document.body.style.cursor = '';
+            document.body.style.userSelect = '';
+        }
+    });
+}
+
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
 }
 
 document.addEventListener('DOMContentLoaded', init);
