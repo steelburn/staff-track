@@ -13,12 +13,15 @@ import { router as dataToolsRouter } from './routes/data-tools.js';
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// Trust first proxy (nginx) so req.protocol respects X-Forwarded-Proto
+app.set('trust proxy', 1);
+
 // ── Middleware ────────────────────────────────────────────────────────────────
 app.use(helmet({
     contentSecurityPolicy: {
         directives: {
             defaultSrc: ["'self'"],
-            imgSrc: ["'self'", "data:"],
+            imgSrc: ["'self'", "data:", "http:", "https:"],
             styleSrc: ["'self'", "'unsafe-inline'", "https:"],
             scriptSrc: ["'self'"],
             fontSrc: ["'self'", "https:", "data:"],

@@ -63,6 +63,10 @@ function applyViewOnlyMode() {
         sectionBody.prepend(banner);
     }
 
+    // Hide photo upload section in view-only mode
+    const uploadSection = document.getElementById('photo-upload-section');
+    if (uploadSection) uploadSection.style.display = 'none';
+
     // Disable all editing buttons and forms
     const editSelectors = [
         '#btn-add-skill', '#btn-add-project', '#btn-save', '#btn-load-previous', '#btn-clear',
@@ -453,7 +457,22 @@ async function loadSubmissionData() {
             const latestId = mySubs[0].id;
             sessionStorage.setItem('stafftrack_id', latestId);
             const ok = await loadFromBackend(latestId);
-            if (ok) { restoreForm(); setSaveStatus('Restored from server'); }
+            if (ok) {
+                restoreForm();
+                setSaveStatus('Restored from server');
+            } else {
+                // Fallback: populate identity from catalog even if submission load failed
+                AppState.staff = {
+                    name: dbUser ? (dbUser.name || identityName) : identityName,
+                    title: dbUser ? dbUser.title || '' : '',
+                    department: dbUser ? dbUser.department || '' : '',
+                    managerName: dbUser ? dbUser.manager_name || '' : '',
+                    email: dbUser ? dbUser.email || targetProfileEmail : targetProfileEmail,
+                };
+                AppState.originalStaff = { ...AppState.staff };
+                restoreForm();
+                setSaveStatus('Partial restore');
+            }
         } else {
             AppState.submissionId = null;
             const snap = {
@@ -548,6 +567,7 @@ function showSkillsEmpty(show) {
 function updateSkillsCount() {
     const el = document.getElementById('skills-count');
     if (el) el.textContent = `${AppState.skills.length} skill${AppState.skills.length !== 1 ? 's' : ''}`;
+    refreshSidebarCompletion();
 }
 
 function addProjectRowSub(data = {}) {
@@ -681,6 +701,7 @@ function showProjectsEmptySub(show) {
 function updateProjectsCountSub() {
     const el = document.getElementById('projects-count');
     if (el) el.textContent = `${AppState.projects.length} project${AppState.projects.length !== 1 ? 's' : ''}`;
+    refreshSidebarCompletion();
 }
 
 function restoreForm() {
@@ -708,16 +729,18 @@ function restoreForm() {
 async function loadProfile() {
     const email = targetProfileEmail;
     const profileFields = ['cv-phone', 'cv-linkedin', 'cv-location', 'cv-summary'];
-    const photoContainer = document.getElementById('photo-preview-container');
-    const photoPreview = document.getElementById('photo-preview');
 
     // Clear form fields
     profileFields.forEach(id => {
         const el = document.getElementById(id);
         if (el) el.value = '';
     });
-    if (photoContainer) photoContainer.style.display = 'none';
-    if (photoPreview) photoPreview.src = '';
+    // Reset avatar to initial state
+    const avatarEl = document.getElementById('profile-avatar');
+    if (avatarEl) {
+        avatarEl.innerHTML = '?';
+        avatarEl.classList.remove('has-photo');
+    }
 
     try {
         const res = await window.StaffTrackAuth.apiFetch(`/api/cv-profiles/${email}`);
@@ -738,8 +761,11 @@ async function loadProfile() {
 
             // Show photo if exists
             if (data.profile && data.profile.photo_path) {
-                if (photoContainer) photoContainer.style.display = 'block';
-                if (photoPreview) photoPreview.src = data.profile.photo_path;
+                const avatarEl = document.getElementById('profile-avatar');
+                if (avatarEl) {
+                    avatarEl.innerHTML = `<img src="${data.profile.photo_path}" alt="Profile Photo" onerror="this.parentElement.innerHTML='?'">`;
+                    avatarEl.classList.add('has-photo');
+                }
             }
 
             // Pre-populate all section data from the same response so that
@@ -759,6 +785,9 @@ async function loadProfile() {
             renderPastProjectsList();
             pastProjectsLoaded = true;
 
+            // Update profile sidebar
+            updateProfileSidebar(data);
+
         } else {
             // Any error (including legacy 404) = treat as no profile
             profileExists = false;
@@ -767,6 +796,84 @@ async function loadProfile() {
         console.error('Error loading profile:', err);
         profileExists = false;
     }
+}
+
+// ── Profile Sidebar & Completion ───
+function updateProfileSidebar(data) {
+    // Update name
+    const nameEl = document.getElementById('profile-name');
+    const titleEl = document.getElementById('profile-title');
+    if (nameEl) nameEl.textContent = AppState.staff.name || targetProfileEmail;
+    if (titleEl) titleEl.textContent = AppState.staff.title || '—';
+
+    // Update stats
+    const skills = AppState.skills?.length || 0;
+    const projects = AppState.projects?.length || 0;
+    const education = data.education?.length || 0;
+    const certs = data.certifications?.length || 0;
+
+    const statSkills = document.getElementById('stat-skills');
+    const statProjects = document.getElementById('stat-projects');
+    const statEducation = document.getElementById('stat-education');
+    const statCerts = document.getElementById('stat-certs');
+    if (statSkills) statSkills.textContent = skills;
+    if (statProjects) statProjects.textContent = projects;
+    if (statEducation) statEducation.textContent = education;
+    if (statCerts) statCerts.textContent = certs;
+
+    // Calculate completion percentage
+    // Criteria: photo(15%), name(10%), summary(15%), phone(10%), skills(15%), projects(15%), education(10%), certs(10%)
+    let score = 0;
+    const avatarImg = document.querySelector('#profile-avatar img');
+    const hasPhoto = avatarImg && avatarImg.src && !avatarImg.src.endsWith('/');
+    if (hasPhoto) score += 15;
+    if (AppState.staff.name) score += 10;
+    if (data.profile?.summary) score += 15;
+    if (data.profile?.phone) score += 10;
+    if (skills > 0) score += 15;
+    if (projects > 0) score += 15;
+    if (education > 0) score += 10;
+    if (certs > 0) score += 10;
+
+    const percentEl = document.getElementById('completion-percent');
+    const fillEl = document.getElementById('completion-fill');
+    if (percentEl) percentEl.textContent = score + '%';
+    if (fillEl) fillEl.style.width = score + '%';
+}
+
+// Lightweight refresh that doesn't need the full data object —
+// reads counts from current state and re-evaluates completion.
+function refreshSidebarCompletion() {
+    const skills = AppState.skills?.length || 0;
+    const projects = AppState.projects?.length || 0;
+    const education = educationData?.length || 0;
+    const certs = certificationsData?.length || 0;
+
+    const statSkills = document.getElementById('stat-skills');
+    const statProjects = document.getElementById('stat-projects');
+    const statEducation = document.getElementById('stat-education');
+    const statCerts = document.getElementById('stat-certs');
+    if (statSkills) statSkills.textContent = skills;
+    if (statProjects) statProjects.textContent = projects;
+    if (statEducation) statEducation.textContent = education;
+    if (statCerts) statCerts.textContent = certs;
+
+    let score = 0;
+    const avatarImg = document.querySelector('#profile-avatar img');
+    const hasPhoto = avatarImg && avatarImg.src && !avatarImg.src.endsWith('/');
+    if (hasPhoto) score += 15;
+    if (AppState.staff.name) score += 10;
+    if (document.getElementById('cv-summary')?.value?.trim()) score += 15;
+    if (document.getElementById('cv-phone')?.value?.trim()) score += 10;
+    if (skills > 0) score += 15;
+    if (projects > 0) score += 15;
+    if (education > 0) score += 10;
+    if (certs > 0) score += 10;
+
+    const percentEl = document.getElementById('completion-percent');
+    const fillEl = document.getElementById('completion-fill');
+    if (percentEl) percentEl.textContent = score + '%';
+    if (fillEl) fillEl.style.width = score + '%';
 }
 
 async function saveProfile() {
@@ -831,14 +938,13 @@ async function uploadPhoto() {
 
         if (res.ok) {
             const data = await res.json();
-            
-            // Show the uploaded photo immediately
-            const photoContainer = document.getElementById('photo-preview-container');
-            const photoPreview = document.getElementById('photo-preview');
+            const cacheBust = data.photo_path + '?t=' + Date.now();
 
-            if (photoContainer) photoContainer.style.display = 'block';
-            if (photoPreview) {
-                photoPreview.src = data.photo_path + '?t=' + Date.now(); // Cache-bust with timestamp
+            // Update the profile avatar
+            const avatarEl = document.getElementById('profile-avatar');
+            if (avatarEl) {
+                avatarEl.innerHTML = `<img src="${cacheBust}" alt="Profile Photo">`;
+                avatarEl.classList.add('has-photo');
             }
 
             showToast('Photo uploaded successfully');
@@ -930,7 +1036,7 @@ function renderEducationList() {
                     <div style="font-weight:700; font-size:1rem; margin-bottom:0.25rem;">${institution}</div>
                     <div style="color:var(--accent-blue); font-size:0.9rem; margin-bottom:0.25rem;">${degree}${field ? ' — ' + field : ''}</div>
                     <div style="color:var(--text-secondary); font-size:0.82rem; margin-bottom:0.5rem;">${startYear} – ${endYear}</div>
-                    ${description ? '<div style="font-size:0.85rem; color:var(--text-secondary);">' + description + '</div>' : ''}
+                    ${description ? '<div class="preserve-newlines" style="font-size:0.85rem; color:var(--text-secondary);">' + description + '</div>' : ''}
                     ${proofPath ? `<div style="margin-top:0.5rem;"><a href="${proofPath}" target="_blank" style="font-size:0.78rem; color:var(--accent-amber); text-decoration:none;">📎 View Proof</a></div>` : ''}
                     ${isViewOnly ? '' : `<div style="display:flex; gap:0.5rem; margin-top:1rem;">
                         <button class="btn-secondary btn-edit-education" data-id="${entry.id}" style="padding:0.35rem 0.75rem; font-size:0.8rem;">✏️ Edit</button>
@@ -958,6 +1064,7 @@ function renderEducationList() {
             });
         });
     }
+    refreshSidebarCompletion();
 }
 
 function showEducationForm(entry = null) {
@@ -1248,7 +1355,7 @@ function renderCertificationsList() {
                         ${expiryDate ? ' · Expires: ' + expiryDate : ''}
                     </div>
                     ${credentialId ? '<div style="font-size:0.78rem; color:var(--text-muted);">ID: ' + credentialId + '</div>' : ''}
-                    ${description ? '<div style="font-size:0.85rem; color:var(--text-secondary); margin-top:0.5rem;">' + description + '</div>' : ''}
+                    ${description ? '<div class="preserve-newlines" style="font-size:0.85rem; color:var(--text-secondary); margin-top:0.5rem;">' + description + '</div>' : ''}
                     ${proofPath ? `<div style="margin-top:0.5rem;"><a href="${proofPath}" target="_blank" style="font-size:0.78rem; color:var(--accent-amber); text-decoration:none;">📎 View Proof</a></div>` : ''}
                     ${isViewOnly ? '' : `<div style="display:flex; gap:0.5rem; margin-top:1rem;">
                         <button class="btn-secondary btn-edit-certification" data-id="${entry.id}" style="padding:0.35rem 0.75rem; font-size:0.8rem;">✏️ Edit</button>
@@ -1276,6 +1383,7 @@ function renderCertificationsList() {
             });
         });
     }
+    refreshSidebarCompletion();
 }
 
 function showCertificationForm(entry = null) {
@@ -1569,7 +1677,7 @@ function renderWorkHistoryList() {
                     </div>
                     <div style="color:var(--accent-blue); font-size:0.9rem; margin-bottom:0.25rem;">${jobTitle}</div>
                     <div style="color:var(--text-secondary); font-size:0.82rem; margin-bottom:0.5rem;">${startDate} – ${endDate}</div>
-                    ${description ? '<div style="font-size:0.85rem; color:var(--text-secondary);">' + description + '</div>' : ''}
+                    ${description ? '<div class="preserve-newlines" style="font-size:0.85rem; color:var(--text-secondary);">' + description + '</div>' : ''}
                     ${isViewOnly ? '' : `<div style="display:flex; gap:0.5rem; margin-top:1rem;">
                         <button class="btn-secondary btn-edit-work-history" data-id="${entry.id}" style="padding:0.35rem 0.75rem; font-size:0.8rem;">✏️ Edit</button>
                         <button class="btn-remove btn-delete-work-history" data-id="${entry.id}" style="width:auto; padding:0.35rem 0.75rem; font-size:0.8rem;">🗑 Delete</button>
@@ -1596,6 +1704,7 @@ function renderWorkHistoryList() {
             });
         });
     }
+    refreshSidebarCompletion();
 }
 
 function showWorkHistoryForm(entry = null) {
@@ -1829,7 +1938,7 @@ function renderPastProjectsList() {
                     <div style="color:var(--accent-blue); font-size:0.9rem; margin-bottom:0.25rem;">${role}</div>
                     <div style="color:var(--text-secondary); font-size:0.82rem; margin-bottom:0.5rem;">${startDate} – ${endDate}</div>
                     ${technologies ? '<div style="font-size:0.78rem; color:var(--accent-amber); margin-bottom:0.5rem;">' + technologies + '</div>' : ''}
-                    ${description ? '<div style="font-size:0.85rem; color:var(--text-secondary);">' + description + '</div>' : ''}
+                    ${description ? '<div class="preserve-newlines" style="font-size:0.85rem; color:var(--text-secondary);">' + description + '</div>' : ''}
                     ${isViewOnly ? '' : `<div style="display:flex; gap:0.5rem; margin-top:1rem;">
                         <button class="btn-secondary btn-edit-past-project" data-id="${entry.id}" style="padding:0.35rem 0.75rem; font-size:0.8rem;">✏️ Edit</button>
                         <button class="btn-remove btn-delete-past-project" data-id="${entry.id}" style="width:auto; padding:0.35rem 0.75rem; font-size:0.8rem;">🗑 Delete</button>
@@ -1856,6 +1965,7 @@ function renderPastProjectsList() {
             });
         });
     }
+    refreshSidebarCompletion();
 }
 
 function showPastProjectForm(entry = null) {
@@ -2508,6 +2618,13 @@ async function init() {
     } catch (e) {
         console.error('Initial data load failed:', e);
     }
+
+    // Ensure sidebar reflects final state after both loads complete
+    refreshSidebarCompletion();
+    const nameEl = document.getElementById('profile-name');
+    const titleEl = document.getElementById('profile-title');
+    if (nameEl) nameEl.textContent = AppState.staff.name || targetProfileEmail;
+    if (titleEl) titleEl.textContent = AppState.staff.title || '—';
 
     // 2. Tab Infrastructure
     initSubmissionTab(); 

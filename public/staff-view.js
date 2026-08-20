@@ -13,6 +13,13 @@ function hl(text, q) {
     return text.slice(0, i) + `<mark>${text.slice(i, i + q.length)}</mark>` + text.slice(i + q.length);
 }
 
+function escapeHtml(text) {
+    if (!text) return '';
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
 function formatDate(iso) {
     if (!iso) return '—';
     return new Date(iso).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
@@ -138,7 +145,7 @@ function showDetailPanel(s, q = '') {
 
     const skills = s.skills.length
         ? `<div class="skill-badges">${s.skills.map(sk =>
-            `<span class="skill-badge">${sk.skill} <span class="skill-stars">${'★'.repeat(sk.rating)}${'☆'.repeat(5 - sk.rating)}</span></span>`
+            `<span class="skill-badge">${escapeHtml(sk.skill)} <span class="skill-stars">${'★'.repeat(sk.rating)}${'☆'.repeat(5 - sk.rating)}</span></span>`
         ).join('')}</div>`
         : `<p style="color:var(--text-muted);font-size:.85rem;padding:.5rem 0">No skills listed.</p>`;
 

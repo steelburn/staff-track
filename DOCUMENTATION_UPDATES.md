@@ -33,13 +33,38 @@
   - Resolved `authUser` ReferenceError in `app.js`.
   - Implemented consistent session redirection for unauthenticated users.
 
-## Current Project Status
+## Recent Updates (April 18, 2026)
+- **BeeSuite Auto-Sync on Login**:
+  - When a valid BeeSuite user signs in but the app doesn't have their profile yet, the backend automatically syncs their data from BeeSuite.
+  - Creates `staff` record with name, title, department, and manager info.
+  - Creates `user_roles` record with default `staff` role.
+  - Frontend now stores the user's name in session for display purposes.
+  - Token refresh preserves existing user data (like name) via merge logic.
+- **Documentation Updates**:
+  - Updated README, PROJECT_STRUCTURE, COPILOT_SPECS, CODEBASE_ANALYSIS to reflect auto-sync and MySQL migration.
 
 ### Completed Features
 - ✅ CV Profiles: Full implementation including personal info, education, certifications, work history, and past projects
 - ✅ Skill Search & Consolidation: Advanced search and skill governance tools
 - ✅ Access Control: JWT authentication, refresh tokens, audit logging, 6 roles (admin, hr, coordinator, sa, sales, staff)
 - ✅ Staff Search: Multi-criteria skill matching
+
+## Recent Updates (August 21, 2026)
+- **Newline Preservation in Text Display**:
+  - Added `.preserve-newlines` CSS class with `white-space: pre-line` to honor newlines in text content.
+  - Updated `cv-profile.js` to apply the class to education, certification, work history, and past project descriptions.
+  - Skills and descriptions now display line breaks correctly instead of as continuous text.
+- **Skill Badge Styling**:
+  - Added `.skill-badges` and `.skill-badge` CSS classes in `components.css` for proper skill display.
+  - Skills now render as styled, wrapping badges instead of inline spans.
+  - Added `escapeHtml()` function in `staff-view.js` to prevent XSS in skill names.
+- **CSP Fix for Generated CV Images**:
+  - Fixed Content Security Policy in `index.js` to allow images from `http:` and `https:` origins.
+  - Previously, `img-src 'self'` blocked photos and certificate links when page origin port differed from image URL port.
+  - Generated CVs now correctly display profile photos and certificate proof links.
+- **File Upload Path Fixes**:
+  - Migrated old photo and proof files from `backend/files/photos/` and `backend/files/proofs/` to `backend/files/uploads/`.
+  - Server correctly serves uploaded files via Docker volume mount at `/data/uploads`.
 
 ### Running the Application
 ```bash
