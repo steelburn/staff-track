@@ -2257,6 +2257,49 @@ function openCvInTab() {
     window.open(url, '_blank');
 }
 
+async function downloadCertificateBundle() {
+    const email = currentGenerateEmail || authUser.email;
+    const btn = document.getElementById('btn-download-certs');
+    
+    if (btn) {
+        btn.disabled = true;
+        btn.textContent = '⏳ Preparing...';
+    }
+
+    try {
+        const res = await window.StaffTrackAuth.apiFetch(`/api/cv-profiles/${email}/certifications/bundle`);
+        
+        if (!res.ok) {
+            const err = await res.json().catch(() => ({}));
+            showToast(err.error || 'No certificate proofs available', true);
+            return;
+        }
+
+        // Get the blob from the response
+        const blob = await res.blob();
+        const url = URL.createObjectURL(blob);
+        
+        // Create a temporary link to trigger download
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `certificates_${email.split('@')[0]}.zip`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+
+        showToast('Certificate bundle downloaded!');
+    } catch (err) {
+        console.error('Error downloading certificate bundle:', err);
+        showToast('Failed to download certificate bundle', true);
+    } finally {
+        if (btn) {
+            btn.disabled = false;
+            btn.textContent = '📎 Download Certificates';
+        }
+    }
+}
+
 async function saveSnapshot() {
     const email = currentGenerateEmail || authUser.email;
     if (!lastGeneratedHtml) {
@@ -2550,6 +2593,7 @@ async function init() {
     document.getElementById('btn-save-snapshot')?.addEventListener('click', saveSnapshot);
     document.getElementById('btn-print-cv')?.addEventListener('click', printCv);
     document.getElementById('btn-open-cv')?.addEventListener('click', openCvInTab);
+    document.getElementById('btn-download-certs')?.addEventListener('click', downloadCertificateBundle);
     document.getElementById('btn-clear-snapshots')?.addEventListener('click', clearAllSnapshots);
     document.getElementById('btn-load-gen-target')?.addEventListener('click', loadGenTarget);
 }

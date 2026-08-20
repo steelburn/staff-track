@@ -85,7 +85,31 @@ Standardize skill naming by suggesting values from the `skills_catalog`.
 
 ---
 
-## 4. Skill Search & Consolidation (Features 6 & 8) - ✅ COMPLETED
+## 4. BeeSuite Auto-Sync on Login — ✅ COMPLETED
+
+### Objective
+Automatically sync user profile data from BeeSuite when a valid user signs in for the first time, eliminating the need for manual admin imports.
+
+### Technical Implementation
+
+#### Backend (`backend/src/routes/auth.js`)
+- Added `syncUserFromBeeSuite(db, email, beesuiteToken)` helper function.
+- After BeeSuite authentication succeeds, if `user_roles` lookup returns empty:
+  1. Fetches staff list from BeeSuite `/api/users/staff` using the login token.
+  2. Finds the matching user by email.
+  3. Fetches employment detail from `/api/admin/user-info-details/employment-detail/:id` for manager name.
+  4. Creates `staff` record (email, name, title, department, manager_name).
+  5. Creates `user_roles` record with default `staff` role (is_hr=0, is_coordinator=0).
+  6. Re-queries roles and proceeds with login.
+- Login response now includes `name` field from the `staff` table.
+
+#### Frontend
+- `login.js`: Stores `name` from backend response in `st_user` session data.
+- `auth.js`: `setTokens()` merges existing user data (like `name`) when refreshing tokens, preserving user info across refreshes.
+
+---
+
+## 5. Skill Search & Consolidation (Features 6 & 8) - ✅ COMPLETED
 
 ### Objective
 Improve the accuracy of skill reporting and provide powerful search capabilities for Pre-Sales/Sales teams.
@@ -114,6 +138,44 @@ Improve the accuracy of skill reporting and provide powerful search capabilities
   - Redesign Skills dashboard with an **Advanced Skill Filter**.
   - Multi-view modes: **View by Skill** and **View by Staff** (staff cards).
   - Smart view switching: Automatically switches to Staff view when adding advanced filter chips.
+
+---
+
+## 6. CV Certification Enhancements - ✅ COMPLETED
+
+### Objective
+Enhance CV profiles with certification proof attachments and bundle download capabilities.
+
+### Technical Implementation
+
+#### 1. Database Schema
+- **Certifications table**: Added `proof_path` column for storing attached proof document paths.
+- **Education table**: Added `proof_path` column for storing attached proof document paths.
+
+#### 2. Backend API (`backend/src/routes/cv_profiles.js`)
+- **POST `/:email/certifications/:id/proof`**: Upload certification proof document (PDF/image).
+- **DELETE `/:email/certifications/:id/proof`**: Remove certification proof document.
+- **GET `/:email/certifications/bundle`**: Download all certification proofs as a ZIP file with manifest.
+- **CV Generation**: Updated to include `proof_path` in certification data and convert to absolute URLs.
+- **Markdown to HTML**: Added link conversion `[text](url)` → `<a href="url" target="_blank">text</a>`.
+
+#### 3. Template System
+- **Default Templates**: Updated Classic, Modern, and Minimal templates to include Certifications section with proof links.
+- **Template Variables**: Added `{{#proof_path}}` conditional block for showing certificate links.
+- **Database Update**: All existing templates updated with certifications section.
+
+#### 4. Frontend (`public/cv-profile.html` & `public/cv-profile.js`)
+- **Certification Form**: Added proof upload section (visible in edit mode).
+- **Education Form**: Added proof upload section (visible in edit mode).
+- **Generate CV Tab**: Added "Download Certificates" button for ZIP bundle download.
+- **Card Views**: Added "View Proof" links for certifications and education entries.
+
+#### 5. CV Template Editor (`public/cv-template-editor.html` & `public/cv-template-editor.js`)
+- **Variable Chips**: Added `{{proof_path}}` to certifications and education loop variables.
+- **Sample Data**: Added sample proof paths for live preview.
+
+#### 6. Dependencies
+- Added `archiver` package for ZIP file creation.
 
 ---
 *Follow the Clean Host rule: Always use containerized development environment for implementation.*

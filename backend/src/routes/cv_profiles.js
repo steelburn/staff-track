@@ -8,6 +8,101 @@ import multer from 'multer';
 
 const router = express.Router();
 
+// ── Date validation helpers ──────────────────────────────────────────────────
+const DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;
+
+/**
+ * Validate a date string is in YYYY-MM-DD format
+ * @param {string} dateStr - The date string to validate
+ * @param {string} fieldName - Field name for error messages
+ * @returns {string|null} - Error message or null if valid
+ */
+function validateDateFormat(dateStr, fieldName) {
+    if (!dateStr) return null; // null/empty is valid (optional field)
+    if (!DATE_REGEX.test(dateStr)) {
+        return `${fieldName} must be in YYYY-MM-DD format`;
+    }
+    // Additional check: ensure it's a valid date
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) {
+        return `${fieldName} is not a valid date`;
+    }
+    return null;
+}
+
+/**
+ * Validate date range (end >= start)
+ * @param {string} startDate - Start date string
+ * @param {string} endDate - End date string
+ * @param {string} startFieldName - Start field name for error
+ * @param {string} endFieldName - End field name for error
+ * @returns {string|null} - Error message or null if valid
+ */
+function validateDateRange(startDate, endDate, startFieldName = 'Start date', endFieldName = 'End date') {
+    if (startDate && endDate && startDate > endDate) {
+        return `${endFieldName} must be on or after ${startFieldName.toLowerCase()}`;
+    }
+    return null;
+}
+
+/**
+ * Format a date value to YYYY-MM-DD string for template display.
+ * Handles Date objects, strings, and null/undefined.
+ * @param {Date|string|null|undefined} dateVal - The date value to format
+ * @returns {string|null} - Formatted date string or null
+ */
+function formatDateForTemplate(dateVal) {
+    if (!dateVal) return null;
+    
+    // If it's already a string in YYYY-MM-DD format, return as-is
+    if (typeof dateVal === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(dateVal)) {
+        return dateVal;
+    }
+    
+    // Handle datetime strings like "2023-01-01 00:00:00" or "2023-01-01T00:00:00.000Z"
+    if (typeof dateVal === 'string') {
+        // Extract just the date part from datetime strings
+        const dateMatch = dateVal.match(/^(\d{4}-\d{2}-\d{2})/);
+        if (dateMatch) {
+            return dateMatch[1];
+        }
+    }
+    
+    // If it's a Date object or a string that can be parsed as a date
+    try {
+        const d = dateVal instanceof Date ? dateVal : new Date(dateVal);
+        if (isNaN(d.getTime())) return null;
+        
+        // Get the date components using UTC to avoid timezone issues
+        // MySQL DATE columns are timezone-agnostic, so we should preserve the stored date
+        const year = d.getUTCFullYear();
+        const month = String(d.getUTCMonth() + 1).padStart(2, '0');
+        const day = String(d.getUTCDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+    } catch {
+        return null;
+    }
+}
+
+/**
+ * Format all date fields in an array of objects for template display.
+ * @param {Array} items - Array of objects with date fields
+ * @param {string[]} dateFields - Array of field names that contain dates
+ * @returns {Array} - New array with formatted dates
+ */
+function formatDatesInArray(items, dateFields) {
+    if (!Array.isArray(items)) return items;
+    return items.map(item => {
+        const formatted = { ...item };
+        for (const field of dateFields) {
+            if (field in formatted) {
+                formatted[field] = formatDateForTemplate(formatted[field]);
+            }
+        }
+        return formatted;
+    });
+}
+
 // ── Photo upload setup ────────────────────────────────────────────────────────
 const UPLOAD_DIR = '/data/uploads/photos';
 const PROOF_DIR = '/data/uploads/proofs';
@@ -36,7 +131,25 @@ const upload = multer({
 
 // ── Authorization helpers ─────────────────────────────────────────────────────
 
-// Admin, HR, and Coordinator can view/manage any profile
+/**
+ * Check if the logged-in user is authorized to modify the target profile.
+ * - Users can always modify their own profile
+ * - Admin, HR, and Coordinator can view any profile but NOT modify others'
+ * - Only the profile owner can modify their own profile
+ */
+function canModifyProfile(req, targetEmail) {
+    if (!req.user || !req.user.email) return false;
+    const userEmail = req.user.email.toLowerCase();
+    const target = targetEmail.toLowerCase();
+    
+    // Users can always modify their own profile
+    if (userEmail === target) return true;
+    
+    // No one can modify another user's profile (admin/HR can only view)
+    return false;
+}
+
+// Admin, HR, and Coordinator can view any profile
 
 // ── CV Templates Routes ────────────────────────────────────────────────────────
 
@@ -182,6 +295,11 @@ router.put('/:email', verifyToken, async (req, res) => {
     try {
         const { email } = req.params;
         const { summary, phone, linkedin, location } = req.body;
+
+        // Check authorization - only profile owner can modify
+        if (!canModifyProfile(req, email)) {
+            return res.status(403).json({ error: 'You can only edit your own profile' });
+        }
 
         const db = await getDb();
         const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
@@ -359,20 +477,40 @@ function processTemplate(template, data) {
     });
 
     // Process arrays and boolean conditionals: {{#arrayName}}...{{/arrayName}}
+    // This handles nested conditionals like {{#proof_path}}...{{/proof_path}} inside loops
     const arrayRegex = /\{\{#(\w+)\}\}([\s\S]*?)\{\{\/\1\}\}/g;
     result = result.replace(arrayRegex, (match, arrayName, content) => {
         const value = data[arrayName];
         
+        // Helper function to process nested conditionals within an item
+        function processItemContent(itemContent, itemData) {
+            // First, process nested conditional blocks: {{#fieldName}}...{{/fieldName}}
+            const nestedCondRegex = /\{\{#(\w+)\}\}([\s\S]*?)\{\{\/\1\}\}/g;
+            itemContent = itemContent.replace(nestedCondRegex, (nestedMatch, fieldName, nestedContent) => {
+                const fieldValue = itemData[fieldName];
+                if (fieldValue) {
+                    // Replace variables in nested content
+                    const varRegex = /\{\{([^}]+)\}\}/g;
+                    return nestedContent.replace(varRegex, (varMatch, varName) => {
+                        return itemData[varName] || varMatch;
+                    });
+                }
+                return '';
+            });
+            
+            // Then, replace simple variables
+            const varRegex = /\{\{([^}]+)\}\}/g;
+            itemContent = itemContent.replace(varRegex, (varMatch, varName) => {
+                return itemData[varName] || varMatch;
+            });
+            
+            return itemContent;
+        }
+        
         // Handle boolean/truthy values
         if (!Array.isArray(value)) {
             if (value) {
-                // For non-array truthy values, just include the content as-is
-                let itemContent = content;
-                const varRegex = /\{\{([^}]+)\}\}/g;
-                itemContent = itemContent.replace(varRegex, (varMatch, varName) => {
-                    return data[varName] || varMatch;
-                });
-                return itemContent;
+                return processItemContent(content, data);
             }
             return '';
         }
@@ -380,15 +518,7 @@ function processTemplate(template, data) {
         // Handle arrays
         if (value.length === 0) return '';
         
-        return value.map(item => {
-            let itemContent = content;
-            // Replace variables in item context
-            const varRegex = /\{\{([^}]+)\}\}/g;
-            itemContent = itemContent.replace(varRegex, (varMatch, varName) => {
-                return item[varName] || varMatch;
-            });
-            return itemContent;
-        }).join('');
+        return value.map(item => processItemContent(content, item)).join('');
     });
 
     // Process simple variable replacements: {{variableName}}
@@ -433,6 +563,9 @@ function markdownToHtml(markdown) {
 
     // Italic: *text* → <em>text</em>
     html = html.replace(/\*(.*?)\*/g, '<em>$1</em>');
+
+    // Links: [text](url) → <a href="url">text</a>
+    html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
 
     // Horizontal rules: --- or *** → <hr>
     html = html.replace(/^(\-{3,}|\*{3,})$/gm, '<hr style="margin: 16px 0; border: none; border-top: 1px solid #e5e7eb;">');
@@ -488,10 +621,19 @@ router.post('/:email/generate', verifyToken, async (req, res) => {
             'SELECT id, staff_email, summary, phone, linkedin, location, photo_path FROM cv_profiles WHERE LOWER(staff_email) = ? LIMIT 1',
             [email.toLowerCase()]
         );
-        const profile = profiles[0];
+        let profile = profiles[0];
 
+        // Auto-create CV profile if it doesn't exist
         if (!profile) {
-            return res.status(404).json({ error: 'CV profile not found' });
+            const id = uuidv4();
+            const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
+            await db.query(
+                `INSERT INTO cv_profiles (id, staff_email, summary, phone, linkedin, location, created_at, updated_at)
+                 VALUES (?, ?, NULL, NULL, NULL, NULL, ?, ?)`,
+                [id, email.toLowerCase(), now, now]
+            );
+            profile = { id, staff_email: email.toLowerCase(), summary: null, phone: null, linkedin: null, location: null, photo_path: null };
+            console.log(`Auto-created CV profile for ${email}`);
         }
 
         // Fetch related data
@@ -509,7 +651,7 @@ router.post('/:email/generate', verifyToken, async (req, res) => {
         let certifications = [];
         try {
             const [certRows] = await db.query(
-                'SELECT id, name, issuer, date_obtained, expiry_date, credential_id FROM certifications WHERE LOWER(staff_email) = ? ORDER BY date_obtained DESC',
+                'SELECT id, name, issuer, date_obtained, expiry_date, credential_id, proof_path FROM certifications WHERE LOWER(staff_email) = ? ORDER BY date_obtained DESC',
                 [email.toLowerCase()]
             );
             certifications = certRows || [];
@@ -621,6 +763,39 @@ router.post('/:email/generate', verifyToken, async (req, res) => {
         }
 
         // Prepare data object for template processing
+        // Format all date fields to YYYY-MM-DD strings for template display
+        const formattedEducation = formatDatesInArray(education, ['start_year', 'end_year']);
+        const formattedCertifications = formatDatesInArray(certifications, ['date_obtained', 'expiry_date']);
+        const formattedWorkHistory = formatDatesInArray(workHistory, ['start_date', 'end_date']);
+        const formattedPastProjects = formatDatesInArray(pastProjects, ['start_date', 'end_date']);
+        const formattedSubmissionProjects = formatDatesInArray(submissionProjects, ['start_date', 'end_date']);
+
+        // Convert relative paths to absolute URLs so they resolve correctly
+        // when the CV HTML is opened in a new tab or printed (blob: URLs have no origin).
+        const proto = req.protocol;             // 'http' or 'https'
+        const host = req.get('host');           // e.g. 'localhost:3000'
+        
+        let absolutePhotoPath = profile.photo_path || undefined;
+        if (absolutePhotoPath && !absolutePhotoPath.startsWith('http')) {
+            absolutePhotoPath = `${proto}://${host}${absolutePhotoPath}`;
+        }
+        
+        // Convert certification proof_path to absolute URLs
+        const absoluteCertifications = formattedCertifications.map(cert => {
+            if (cert.proof_path && !cert.proof_path.startsWith('http')) {
+                return { ...cert, proof_path: `${proto}://${host}${cert.proof_path}` };
+            }
+            return cert;
+        });
+        
+        // Convert education proof_path to absolute URLs
+        const absoluteEducation = formattedEducation.map(edu => {
+            if (edu.proof_path && !edu.proof_path.startsWith('http')) {
+                return { ...edu, proof_path: `${proto}://${host}${edu.proof_path}` };
+            }
+            return edu;
+        });
+
         const templateData = {
             name: staffName,
             email: profile.staff_email,
@@ -631,13 +806,13 @@ router.post('/:email/generate', verifyToken, async (req, res) => {
             department: staffDepartment,
             summary: profile.summary || '',
             generatedAt: new Date().toLocaleDateString(),
-            education,
-            certifications,
-            workHistory,
-            projects: submissionProjects.length > 0 ? submissionProjects : pastProjects,
+            education: absoluteEducation,
+            certifications: absoluteCertifications,
+            workHistory: formattedWorkHistory,
+            projects: formattedSubmissionProjects.length > 0 ? formattedSubmissionProjects : formattedPastProjects,
             skills: submissionSkills,
             photo: profile.photo_path ? true : false,
-            photo_path: profile.photo_path || undefined
+            photo_path: absolutePhotoPath
         };
 
         // Process template
@@ -756,10 +931,109 @@ router.delete('/:email/snapshots', verifyToken, async (req, res) => {
     }
 });
 
+// GET /:email/certifications/bundle - Download all certification proofs as a ZIP
+router.get('/:email/certifications/bundle', verifyToken, async (req, res) => {
+    try {
+        const { email } = req.params;
+        const db = await getDb();
+
+        // Fetch certifications with proof paths
+        const [certRows] = await db.query(
+            'SELECT id, name, issuer, date_obtained, credential_id, proof_path FROM certifications WHERE LOWER(staff_email) = ? AND proof_path IS NOT NULL ORDER BY date_obtained DESC',
+            [email.toLowerCase()]
+        );
+
+        if (!certRows || certRows.length === 0) {
+            console.log(`No certifications with proofs found for ${email}`);
+            return res.status(404).json({ error: 'No certification proofs found' });
+        }
+
+        console.log(`Found ${certRows.length} certifications with proofs for ${email}`);
+
+        // Import archiver dynamically
+        const { ZipArchive } = await import('archiver');
+
+        // Set response headers for ZIP download
+        const staffName = email.split('@')[0].replace(/[^a-zA-Z0-9]/g, '_');
+        res.setHeader('Content-Type', 'application/zip');
+        res.setHeader('Content-Disposition', `attachment; filename="certificates_${staffName}.zip"`);
+
+        // Create ZIP archive and pipe to response
+        const archive = new ZipArchive({ zlib: { level: 6 } });
+        archive.pipe(res);
+
+        // Add each certification proof to the ZIP
+        let addedFiles = 0;
+        for (const cert of certRows) {
+            if (!cert.proof_path) continue;
+
+            // Convert relative path to absolute filesystem path
+            const relativePath = cert.proof_path.replace(/^\/uploads\//, '');
+            const absolutePath = path.join('/data/uploads', relativePath);
+
+            if (fs.existsSync(absolutePath)) {
+                // Create a descriptive filename: cert_name_issuer.ext
+                const ext = path.extname(absolutePath);
+                const certName = (cert.name || 'cert').replace(/[^a-zA-Z0-9]/g, '_');
+                const issuer = (cert.issuer || '').replace(/[^a-zA-Z0-9]/g, '_');
+                const filename = issuer ? `${certName}_${issuer}${ext}` : `${certName}${ext}`;
+
+                console.log(`Adding file: ${absolutePath} as ${filename}`);
+                archive.file(absolutePath, { name: filename });
+                addedFiles++;
+            } else {
+                console.log(`File not found: ${absolutePath}`);
+            }
+        }
+
+        console.log(`Total files added to bundle: ${addedFiles}`);
+
+        if (addedFiles === 0) {
+            res.status(404).json({ error: 'No certification proof files found on disk' });
+            return;
+        }
+
+        // Add a manifest file with certification details
+        const manifest = certRows.map(cert => ({
+            name: cert.name,
+            issuer: cert.issuer,
+            date_obtained: cert.date_obtained,
+            credential_id: cert.credential_id,
+            proof_file: cert.proof_path ? path.basename(cert.proof_path) : null
+        }));
+        archive.append(JSON.stringify(manifest, null, 2), { name: 'certificates_manifest.json' });
+
+        // Handle archiver errors
+        archive.on('error', (err) => {
+            console.error('Archiver error:', err);
+            if (!res.headersSent) {
+                res.status(500).json({ error: 'Failed to create ZIP archive' });
+            }
+        });
+
+        archive.on('end', () => {
+            console.log('Archive created successfully');
+        });
+
+        await archive.finalize();
+    } catch (err) {
+        console.error('Error creating certificate bundle:', err);
+        if (!res.headersSent) {
+            res.status(500).json({ error: 'Failed to create certificate bundle' });
+        }
+    }
+});
+
 // POST /:email/photo - Upload profile photo
 router.post('/:email/photo', verifyToken, upload.single('photo'), async (req, res) => {
     try {
         const { email } = req.params;
+
+        // Check authorization - only profile owner can modify
+        if (!canModifyProfile(req, email)) {
+            return res.status(403).json({ error: 'You can only edit your own profile' });
+        }
+
         const db = await getDb();
 
         if (!req.file) {
@@ -821,6 +1095,12 @@ router.get('/:email/photo', verifyToken, async (req, res) => {
 router.post('/:email/education', verifyToken, async (req, res) => {
     try {
         const { email } = req.params;
+
+        // Check authorization - only profile owner can modify
+        if (!canModifyProfile(req, email)) {
+            return res.status(403).json({ error: 'You can only edit your own profile' });
+        }
+
         const { institution, degree, field, start_year, end_year, description } = req.body;
         const db = await getDb();
 
@@ -839,13 +1119,75 @@ router.post('/:email/education', verifyToken, async (req, res) => {
     }
 });
 
+// PUT /:email/education/:id - Update education record
+router.put('/:email/education/:id', verifyToken, async (req, res) => {
+    try {
+        const { email, id } = req.params;
+
+        // Check authorization - only profile owner can modify
+        if (!canModifyProfile(req, email)) {
+            return res.status(403).json({ error: 'You can only edit your own profile' });
+        }
+
+        const { institution, degree, field, start_year, end_year, description } = req.body;
+        const db = await getDb();
+
+        const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
+        await db.query(
+            `UPDATE education SET institution = ?, degree = ?, field = ?, start_year = ?, end_year = ?, description = ?
+             WHERE id = ? AND LOWER(staff_email) = ?`,
+            [institution || null, degree || null, field || null, start_year || null, end_year || null, description || null, id, email.toLowerCase()]
+        );
+
+        res.json({ success: true });
+    } catch (err) {
+        console.error('Error updating education:', err);
+        res.status(500).json({ error: 'Failed to update education' });
+    }
+});
+
+// DELETE /:email/education/:id - Delete education record
+router.delete('/:email/education/:id', verifyToken, async (req, res) => {
+    try {
+        const { email, id } = req.params;
+
+        // Check authorization - only profile owner can modify
+        if (!canModifyProfile(req, email)) {
+            return res.status(403).json({ error: 'You can only edit your own profile' });
+        }
+
+        const db = await getDb();
+        await db.query('DELETE FROM education WHERE id = ? AND LOWER(staff_email) = ?', [id, email.toLowerCase()]);
+        res.json({ success: true });
+    } catch (err) {
+        console.error('Error deleting education:', err);
+        res.status(500).json({ error: 'Failed to delete education' });
+    }
+});
+
 // POST /:email/certifications - Add certification record
 router.post('/:email/certifications', verifyToken, async (req, res) => {
     try {
         const { email } = req.params;
-        const { name, issuer, date_obtained, expiry_date, credential_id, description } = req.body;
-        const db = await getDb();
 
+        // Check authorization - only profile owner can modify
+        if (!canModifyProfile(req, email)) {
+            return res.status(403).json({ error: 'You can only edit your own profile' });
+        }
+
+        const { name, issuer, date_obtained, expiry_date, credential_id, description } = req.body;
+
+        // Date format validation
+        const dateObtainedErr = validateDateFormat(date_obtained, 'Date obtained');
+        if (dateObtainedErr) return res.status(400).json({ error: dateObtainedErr });
+        const expiryDateErr = validateDateFormat(expiry_date, 'Expiry date');
+        if (expiryDateErr) return res.status(400).json({ error: expiryDateErr });
+
+        // Date range validation
+        const dateRangeErr = validateDateRange(date_obtained, expiry_date, 'Date obtained', 'Expiry date');
+        if (dateRangeErr) return res.status(400).json({ error: dateRangeErr });
+
+        const db = await getDb();
         const id = uuidv4();
         const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
         await db.query(
@@ -861,13 +1203,84 @@ router.post('/:email/certifications', verifyToken, async (req, res) => {
     }
 });
 
+// PUT /:email/certifications/:id - Update certification record
+router.put('/:email/certifications/:id', verifyToken, async (req, res) => {
+    try {
+        const { email, id } = req.params;
+
+        // Check authorization - only profile owner can modify
+        if (!canModifyProfile(req, email)) {
+            return res.status(403).json({ error: 'You can only edit your own profile' });
+        }
+
+        const { name, issuer, date_obtained, expiry_date, credential_id, description } = req.body;
+
+        // Date format validation
+        const dateObtainedErr = validateDateFormat(date_obtained, 'Date obtained');
+        if (dateObtainedErr) return res.status(400).json({ error: dateObtainedErr });
+        const expiryDateErr = validateDateFormat(expiry_date, 'Expiry date');
+        if (expiryDateErr) return res.status(400).json({ error: expiryDateErr });
+
+        // Date range validation
+        const dateRangeErr = validateDateRange(date_obtained, expiry_date, 'Date obtained', 'Expiry date');
+        if (dateRangeErr) return res.status(400).json({ error: dateRangeErr });
+
+        const db = await getDb();
+        await db.query(
+            `UPDATE certifications SET name = ?, issuer = ?, date_obtained = ?, expiry_date = ?, credential_id = ?, description = ?
+             WHERE id = ? AND LOWER(staff_email) = ?`,
+            [name || null, issuer || null, date_obtained || null, expiry_date || null, credential_id || null, description || null, id, email.toLowerCase()]
+        );
+
+        res.json({ success: true });
+    } catch (err) {
+        console.error('Error updating certification:', err);
+        res.status(500).json({ error: 'Failed to update certification' });
+    }
+});
+
+// DELETE /:email/certifications/:id - Delete certification record
+router.delete('/:email/certifications/:id', verifyToken, async (req, res) => {
+    try {
+        const { email, id } = req.params;
+
+        // Check authorization - only profile owner can modify
+        if (!canModifyProfile(req, email)) {
+            return res.status(403).json({ error: 'You can only edit your own profile' });
+        }
+
+        const db = await getDb();
+        await db.query('DELETE FROM certifications WHERE id = ? AND LOWER(staff_email) = ?', [id, email.toLowerCase()]);
+        res.json({ success: true });
+    } catch (err) {
+        console.error('Error deleting certification:', err);
+        res.status(500).json({ error: 'Failed to delete certification' });
+    }
+});
+
 // POST /:email/work-history - Add work history record
 router.post('/:email/work-history', verifyToken, async (req, res) => {
     try {
         const { email } = req.params;
-        const { employer, job_title, start_date, end_date, description, is_current } = req.body;
-        const db = await getDb();
 
+        // Check authorization - only profile owner can modify
+        if (!canModifyProfile(req, email)) {
+            return res.status(403).json({ error: 'You can only edit your own profile' });
+        }
+
+        const { employer, job_title, start_date, end_date, description, is_current } = req.body;
+
+        // Date format validation
+        const startDateErr = validateDateFormat(start_date, 'Start date');
+        if (startDateErr) return res.status(400).json({ error: startDateErr });
+        const endDateErr = validateDateFormat(end_date, 'End date');
+        if (endDateErr) return res.status(400).json({ error: endDateErr });
+
+        // Date range validation
+        const dateRangeErr = validateDateRange(start_date, end_date);
+        if (dateRangeErr) return res.status(400).json({ error: dateRangeErr });
+
+        const db = await getDb();
         const id = uuidv4();
         const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
         await db.query(
@@ -883,11 +1296,83 @@ router.post('/:email/work-history', verifyToken, async (req, res) => {
     }
 });
 
+// PUT /:email/work-history/:id - Update work history record
+router.put('/:email/work-history/:id', verifyToken, async (req, res) => {
+    try {
+        const { email, id } = req.params;
+
+        // Check authorization - only profile owner can modify
+        if (!canModifyProfile(req, email)) {
+            return res.status(403).json({ error: 'You can only edit your own profile' });
+        }
+
+        const { employer, job_title, start_date, end_date, description, is_current } = req.body;
+
+        // Date format validation
+        const startDateErr = validateDateFormat(start_date, 'Start date');
+        if (startDateErr) return res.status(400).json({ error: startDateErr });
+        const endDateErr = validateDateFormat(end_date, 'End date');
+        if (endDateErr) return res.status(400).json({ error: endDateErr });
+
+        // Date range validation
+        const dateRangeErr = validateDateRange(start_date, end_date);
+        if (dateRangeErr) return res.status(400).json({ error: dateRangeErr });
+
+        const db = await getDb();
+        await db.query(
+            `UPDATE work_history SET employer = ?, job_title = ?, start_date = ?, end_date = ?, description = ?, is_current = ?
+             WHERE id = ? AND LOWER(staff_email) = ?`,
+            [employer || null, job_title || null, start_date || null, end_date || null, description || null, is_current || 0, id, email.toLowerCase()]
+        );
+
+        res.json({ success: true });
+    } catch (err) {
+        console.error('Error updating work history:', err);
+        res.status(500).json({ error: 'Failed to update work history' });
+    }
+});
+
+// DELETE /:email/work-history/:id - Delete work history record
+router.delete('/:email/work-history/:id', verifyToken, async (req, res) => {
+    try {
+        const { email, id } = req.params;
+
+        // Check authorization - only profile owner can modify
+        if (!canModifyProfile(req, email)) {
+            return res.status(403).json({ error: 'You can only edit your own profile' });
+        }
+
+        const db = await getDb();
+        await db.query('DELETE FROM work_history WHERE id = ? AND LOWER(staff_email) = ?', [id, email.toLowerCase()]);
+        res.json({ success: true });
+    } catch (err) {
+        console.error('Error deleting work history:', err);
+        res.status(500).json({ error: 'Failed to delete work history' });
+    }
+});
+
 // POST /:email/past-projects - Add past project record
 router.post('/:email/past-projects', verifyToken, async (req, res) => {
     try {
         const { email } = req.params;
+
+        // Check authorization - only profile owner can modify
+        if (!canModifyProfile(req, email)) {
+            return res.status(403).json({ error: 'You can only edit your own profile' });
+        }
+
         const { project_name, work_history_id, role, start_date, end_date, description, technologies } = req.body;
+
+        // Date format validation
+        const startDateErr = validateDateFormat(start_date, 'Start date');
+        if (startDateErr) return res.status(400).json({ error: startDateErr });
+        const endDateErr = validateDateFormat(end_date, 'End date');
+        if (endDateErr) return res.status(400).json({ error: endDateErr });
+
+        // Date range validation
+        const dateRangeErr = validateDateRange(start_date, end_date);
+        if (dateRangeErr) return res.status(400).json({ error: dateRangeErr });
+
         const db = await getDb();
 
         // Create table if it doesn't exist
@@ -922,6 +1407,212 @@ router.post('/:email/past-projects', verifyToken, async (req, res) => {
     } catch (err) {
         console.error('Error adding past project:', err);
         res.status(500).json({ error: 'Failed to add past project' });
+    }
+});
+
+// PUT /:email/past-projects/:id - Update past project record
+router.put('/:email/past-projects/:id', verifyToken, async (req, res) => {
+    try {
+        const { email, id } = req.params;
+
+        // Check authorization - only profile owner can modify
+        if (!canModifyProfile(req, email)) {
+            return res.status(403).json({ error: 'You can only edit your own profile' });
+        }
+
+        const { project_name, work_history_id, role, start_date, end_date, description, technologies } = req.body;
+
+        // Date format validation
+        const startDateErr = validateDateFormat(start_date, 'Start date');
+        if (startDateErr) return res.status(400).json({ error: startDateErr });
+        const endDateErr = validateDateFormat(end_date, 'End date');
+        if (endDateErr) return res.status(400).json({ error: endDateErr });
+
+        // Date range validation
+        const dateRangeErr = validateDateRange(start_date, end_date);
+        if (dateRangeErr) return res.status(400).json({ error: dateRangeErr });
+
+        const db = await getDb();
+        await db.query(
+            `UPDATE cv_past_projects SET project_name = ?, work_history_id = ?, role = ?, start_date = ?, end_date = ?, description = ?, technologies = ?
+             WHERE id = ? AND LOWER(staff_email) = ?`,
+            [project_name || null, work_history_id || null, role || null, start_date || null, end_date || null, description || null, technologies || null, id, email.toLowerCase()]
+        );
+
+        res.json({ success: true });
+    } catch (err) {
+        console.error('Error updating past project:', err);
+        res.status(500).json({ error: 'Failed to update past project' });
+    }
+});
+
+// DELETE /:email/past-projects/:id - Delete past project record
+router.delete('/:email/past-projects/:id', verifyToken, async (req, res) => {
+    try {
+        const { email, id } = req.params;
+
+        // Check authorization - only profile owner can modify
+        if (!canModifyProfile(req, email)) {
+            return res.status(403).json({ error: 'You can only edit your own profile' });
+        }
+
+        const db = await getDb();
+        await db.query('DELETE FROM cv_past_projects WHERE id = ? AND LOWER(staff_email) = ?', [id, email.toLowerCase()]);
+        res.json({ success: true });
+    } catch (err) {
+        console.error('Error deleting past project:', err);
+        res.status(500).json({ error: 'Failed to delete past project' });
+    }
+});
+
+// ── Proof upload for education & certifications ───────────────────────────────
+const proofStorage = multer.diskStorage({
+    destination: (req, file, cb) => {
+        fs.mkdirSync(PROOF_DIR, { recursive: true });
+        cb(null, PROOF_DIR);
+    },
+    filename: (req, file, cb) => {
+        const ext = path.extname(file.originalname);
+        const table = req.path.includes('/education/') ? 'edu' : 'cert';
+        cb(null, `${req.params.email}_${table}_${Date.now()}${ext}`);
+    }
+});
+const proofUpload = multer({
+    storage: proofStorage,
+    limits: { fileSize: 10 * 1024 * 1024 }, // 10MB
+    fileFilter: (_req, file, cb) => {
+        const allowed = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.pdf'];
+        const ext = path.extname(file.originalname).toLowerCase();
+        if (allowed.includes(ext)) cb(null, true);
+        else cb(new Error('Only image or PDF files are allowed'));
+    }
+});
+
+// POST /:email/education/:id/proof - Upload education proof
+router.post('/:email/education/:id/proof', verifyToken, proofUpload.single('proof'), async (req, res) => {
+    try {
+        const { email, id } = req.params;
+
+        // Check authorization - only profile owner can modify
+        if (!canModifyProfile(req, email)) {
+            return res.status(403).json({ error: 'You can only edit your own profile' });
+        }
+
+        if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+
+        const proofPath = `/uploads/proofs/${req.file.filename}`;
+        const db = await getDb();
+
+        const [existing] = await db.query(
+            'SELECT id FROM education WHERE id = ? AND LOWER(staff_email) = ?',
+            [id, email.toLowerCase()]
+        );
+        if (!existing || existing.length === 0)
+            return res.status(404).json({ error: 'Education record not found' });
+
+        await db.query('UPDATE education SET proof_path = ? WHERE id = ?', [proofPath, id]);
+        console.log(`Education proof uploaded: ${proofPath} for ${email}`);
+        res.json({ proof_path: proofPath });
+    } catch (err) {
+        console.error('Error uploading education proof:', err);
+        res.status(500).json({ error: 'Failed to upload proof: ' + err.message });
+    }
+});
+
+// DELETE /:email/education/:id/proof - Remove education proof
+router.delete('/:email/education/:id/proof', verifyToken, async (req, res) => {
+    try {
+        const { email, id } = req.params;
+
+        // Check authorization - only profile owner can modify
+        if (!canModifyProfile(req, email)) {
+            return res.status(403).json({ error: 'You can only edit your own profile' });
+        }
+
+        const db = await getDb();
+
+        const [rows] = await db.query(
+            'SELECT proof_path FROM education WHERE id = ? AND LOWER(staff_email) = ?',
+            [id, email.toLowerCase()]
+        );
+        if (!rows || rows.length === 0)
+            return res.status(404).json({ error: 'Education record not found' });
+
+        const proofPath = rows[0].proof_path;
+        if (proofPath) {
+            const fullPath = path.join('/data/uploads', proofPath.replace(/^\/uploads\//, ''));
+            if (fs.existsSync(fullPath)) fs.unlinkSync(fullPath);
+        }
+
+        await db.query('UPDATE education SET proof_path = NULL WHERE id = ?', [id]);
+        res.json({ deleted: true });
+    } catch (err) {
+        console.error('Error deleting education proof:', err);
+        res.status(500).json({ error: 'Failed to delete proof' });
+    }
+});
+
+// POST /:email/certifications/:id/proof - Upload certification proof
+router.post('/:email/certifications/:id/proof', verifyToken, proofUpload.single('proof'), async (req, res) => {
+    try {
+        const { email, id } = req.params;
+
+        // Check authorization - only profile owner can modify
+        if (!canModifyProfile(req, email)) {
+            return res.status(403).json({ error: 'You can only edit your own profile' });
+        }
+
+        if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+
+        const proofPath = `/uploads/proofs/${req.file.filename}`;
+        const db = await getDb();
+
+        const [existing] = await db.query(
+            'SELECT id FROM certifications WHERE id = ? AND LOWER(staff_email) = ?',
+            [id, email.toLowerCase()]
+        );
+        if (!existing || existing.length === 0)
+            return res.status(404).json({ error: 'Certification record not found' });
+
+        await db.query('UPDATE certifications SET proof_path = ? WHERE id = ?', [proofPath, id]);
+        console.log(`Certification proof uploaded: ${proofPath} for ${email}`);
+        res.json({ proof_path: proofPath });
+    } catch (err) {
+        console.error('Error uploading certification proof:', err);
+        res.status(500).json({ error: 'Failed to upload proof: ' + err.message });
+    }
+});
+
+// DELETE /:email/certifications/:id/proof - Remove certification proof
+router.delete('/:email/certifications/:id/proof', verifyToken, async (req, res) => {
+    try {
+        const { email, id } = req.params;
+
+        // Check authorization - only profile owner can modify
+        if (!canModifyProfile(req, email)) {
+            return res.status(403).json({ error: 'You can only edit your own profile' });
+        }
+
+        const db = await getDb();
+
+        const [rows] = await db.query(
+            'SELECT proof_path FROM certifications WHERE id = ? AND LOWER(staff_email) = ?',
+            [id, email.toLowerCase()]
+        );
+        if (!rows || rows.length === 0)
+            return res.status(404).json({ error: 'Certification record not found' });
+
+        const proofPath = rows[0].proof_path;
+        if (proofPath) {
+            const fullPath = path.join('/data/uploads', proofPath.replace(/^\/uploads\//, ''));
+            if (fs.existsSync(fullPath)) fs.unlinkSync(fullPath);
+        }
+
+        await db.query('UPDATE certifications SET proof_path = NULL WHERE id = ?', [id]);
+        res.json({ deleted: true });
+    } catch (err) {
+        console.error('Error deleting certification proof:', err);
+        res.status(500).json({ error: 'Failed to delete proof' });
     }
 });
 

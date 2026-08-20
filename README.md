@@ -19,7 +19,8 @@ docker compose up -d
 
 - **Frontend**: Vanilla JS + HTML5 + CSS3 (Premium Dark Theme)
 - **Backend**: Node.js 20 (Express)
-- **Database**: SQLite (Relational Schema)
+- **Database**: MySQL 8.0 (Relational Schema)
+- **Auth Provider**: BeeSuite AppCore (external authentication)
 - **Proxy**: Nginx (Handles static files & reverse proxy)
 - **Orchestration**: Docker Compose
 
@@ -34,13 +35,17 @@ docker compose up -d
 
 ## 🛠️ Key Features
 
-- **Relational Backend**: Fully normalized SQLite schema with SQL Transactions.
+- **Relational Backend**: Fully normalized MySQL schema with SQL Transactions.
+- **Auto-Sync on Login**: When a valid BeeSuite user signs in but their profile doesn't exist locally yet, the app automatically syncs their staff and role data from BeeSuite — no manual import needed.
 - **Auto-Sync Catalog**: Submissions automatically pull Title/Department/Manager data from the company catalog.
 - **Smart Autocomplete**: Dynamic search for Staff and Projects.
 - **Modern UI**: Segmented tab designs, smooth transitions, and a premium dark aesthetic.
 - **Mobile Responsive**: Optimized for various screen sizes with responsive grids and scrollable table containers.
  - **Self-Service Administration**: Dedicated pages for permission management, catalog maintenance, and bulk data imports.
 - **CV Profiles**: Individual staff CV management with sections for personal info, education, certifications, work history, and past projects.
+  - **Certification Proof Attachments**: Upload and attach PDF/image proof documents to certifications and education entries.
+  - **Certificate Bundle Download**: Download all certification proofs as a ZIP file with a manifest.
+  - **Clickable Certificate Links**: Generated CVs include clickable links to view attached certification proofs.
 - **Gantt Chart Optimization**: High-performance rendering using canvas virtualization, supporting thousands of task bars with smooth 60fps scrolling and zooming.
 - **CV Editor Enhancements**: Distraction-free editing with toggleable Markdown and CSS columns for the CV Template Editor.
 - **Project coordination**: Enhanced project management for coordinators, including filtered Gantt views and project assignment tools.
@@ -50,7 +55,7 @@ docker compose up -d
 ## 📁 Repository Structure
 
 - `/backend`: Node.js API source code.
-- `/data`: SQLite database persistence.
+- `/data`: MySQL data persistence (via Docker volume).
 - `/nginx`: Proxy configuration.
 - `/files`: Location for CSV import templates.
 - **Management Pages**:

@@ -6,6 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>CV Template Editor | StaffTrack</title>
     <link rel="stylesheet" href="style.css">
+    <script src="theme.js"></script>
     <style>
         .editor-layout {
             display: grid;
@@ -252,9 +253,9 @@
                                     <span class="var-chip"
                                         data-var="{{#pastProjects}}&#10;### {{project_name}}&#10;*{{role}} | {{start_date}} – {{end_date}}*&#10;{{description}}&#10;_Stack: {{technologies}}_&#10;&#10;{{/pastProjects}}">{{#pastProjects}}…{{/pastProjects}}</span>
                                     <span class="var-chip"
-                                        data-var="{{#education}}&#10;**{{institution}}** — {{degree}}&#10;{{start_year}}–{{end_year}}&#10;{{description}}&#10;&#10;{{/education}}">{{#education}}…{{/education}}</span>
+                                        data-var="{{#education}}&#10;**{{institution}}** — {{degree}}&#10;{{start_year}}–{{end_year}}&#10;{{description}}{{#proof_path}}&#10;📎 [View Proof]({{proof_path}}){{/proof_path}}&#10;&#10;{{/education}}">{{#education}}…{{/education}}</span>
                                     <span class="var-chip"
-                                        data-var="{{#certifications}}&#10;**{{name}}** · {{issuer}}&#10;Obtained: {{date_obtained}}&#10;{{/certifications}}">{{#certifications}}…{{/certifications}}</span>
+                                        data-var="{{#certifications}}&#10;**{{name}}** · {{issuer}}&#10;Obtained: {{date_obtained}}&#10;{{#proof_path}}📎 [View Certificate]({{proof_path}}){{/proof_path}}&#10;{{/certifications}}">{{#certifications}}…{{/certifications}}</span>
                                 </div>
 
                                 <div

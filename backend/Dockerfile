@@ -2,7 +2,7 @@
 FROM node:20-alpine AS builder
 WORKDIR /build
 COPY package.json package-lock.json* ./
-RUN npm install --omit=dev
+RUN npm install
 
 # ---- Production stage ----
 FROM node:20-alpine AS production
