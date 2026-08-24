@@ -5,8 +5,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>StaffTrack — Gantt Charts</title>
-    <link rel="stylesheet" href="/css/main.css">
-    <script src="/theme.js"></script>
+    <link rel="stylesheet" href="/css/main.css?v=20260824d">
+    <script src="/theme.js?v=20260824d"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
         /* Gantt-specific styles */
@@ -291,6 +291,14 @@
             color: var(--color-primary-hover);
         }
 
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
         @media (max-width: 768px) {
             .gantt-bar {
                 height: 24px;
@@ -356,8 +364,8 @@
 
                 <!-- Tabs -->
                 <div class="view-toggle" style="margin-bottom: var(--space-6);">
-                    <button class="active" data-tab="projects">Project Timelines</button>
-                    <button data-tab="resources">Resource Utilization</button>
+                    <button class="tab-btn active" data-tab="projects">Project Timelines</button>
+                    <button class="tab-btn" data-tab="resources">Resource Utilization</button>
                 </div>
 
                 <!-- Projects Tab -->
@@ -403,7 +411,7 @@
                 </div>
 
                 <!-- Resources Tab -->
-                <div id="resources-tab" class="tab-content" style="display: none;">
+                <div id="resources-tab" class="tab-content">
                     <div class="card" id="resources-selection-card">
                         <div class="card-header">
                             <div>
@@ -450,10 +458,11 @@
     <!-- Toast Container -->
     <div id="toast-container" class="toast-container"></div>
 
-    <script src="/auth.js"></script>
-    <script src="/sidebar.js"></script>
-    <script src="/toast.js"></script>
-    <script src="/gantt.js"></script>
+    <script src="/auth.js?v=20260824d"></script>
+    <script src="/menu.js?v=20260824d"></script>
+    <script src="/sidebar.js?v=20260824d"></script>
+    <script src="/toast.js?v=20260824d"></script>
+    <script src="/gantt.js?v=20260824d"></script>
 </body>
 
 </html>

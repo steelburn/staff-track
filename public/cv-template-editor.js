@@ -1,7 +1,6 @@
 'use strict';
 
 const authUser = requireAuth();
-requireAdmin(authUser);
 
 
 function showToast(msg, isError = false) {

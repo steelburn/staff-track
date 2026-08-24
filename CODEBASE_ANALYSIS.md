@@ -142,11 +142,11 @@
   3. Additional templates extensible via API
 
 ### Database Configuration
-- **Path**: `/data/submissions.db` (Docker volume: `db_data`)
-- **Pragma**: `journal_mode = WAL` (Write-Ahead Logging for concurrency)
-- **Foreign Keys**: Enabled (`PRAGMA foreign_keys = ON`)
-- **Migration System**: Basic `runMigrations()` function in `db.js` (currently minimal)
-- **Seed System**: CSV-based seeding via `/home/steelburn/staff-track/backend/src/seed.js`
+- **Host**: MySQL 8.0 (Docker service: `db`)
+- **Database**: `stafftrack`
+- **Driver**: `mysql2/promise` with connection pooling
+- **Migration System**: File-based migrations in `backend/migrations/`
+- **Seed System**: Auto-seeded CV templates via `db.js`
 
 ---
 
@@ -161,10 +161,10 @@
 ### Authentication Routes (`/auth`)
 - **POST** `/auth/login` — User login (JWT + refresh token)
   - **Params**: `email`, `password` (base64 encoded for non-admin)
-  - **Returns**: `{ accessToken, refreshToken, user, expiresIn }`
-  - **Auth Service**: Delegates to external `${AUTH_SERVICE_URL}/api/auth/login`
+  - **Returns**: `{ access_token, isAdmin, is_hr, is_coordinator, name }`
+  - **Auth Service**: Delegates to external BeeSuite AppCore `/api/auth/login`
   - **Fallback**: Admin-only fallback login if external service unavailable
-  - **Behavior**: Auto-creates `user_roles` and `cv_profiles` on first admin login
+  - **Auto-Sync**: If user authenticates successfully but doesn't exist in `user_roles`, automatically fetches profile from BeeSuite and creates `staff` + `user_roles` records
   
 - **POST** `/auth/refresh` — Refresh expired JWT token
   - **Headers**: `Authorization: Bearer <refreshToken>`
@@ -534,7 +534,7 @@ const AppState = {
 ### State Persistence
 - **Session Storage**: Submission ID stored in `sessionStorage.stafftrack_id`
 - **Local Storage**: JWT tokens stored
-- **Backend Storage**: Full submission data persisted to SQLite via auto-save
+- **Backend Storage**: Full submission data persisted to MySQL via auto-save
 
 ### Frontend Styling
 
@@ -575,11 +575,10 @@ const AppState = {
 #### Database Module (`backend/src/db.js`)
 - **Exports**: `getDb()` — Singleton connection
 - **Features**:
-  - Lazy initialization of SQLite database
-  - Schema creation with `initSchema(db)`
-  - Seed execution with `runSeed(db)` (CSV-based)
-  - Pragma configuration (WAL, foreign keys)
-  - Migration function `runMigrations(db)` (stub or minimal)
+  - Lazy initialization of MySQL connection pool
+  - Schema creation via migration files
+  - Seed execution for CV templates
+  - Migration function `runMigrations(connection)`
 
 #### Seed Module (`backend/src/seed.js`)
 - **Purpose**: Load initial data from CSV files
@@ -622,7 +621,7 @@ const AppState = {
 | Package | Version | Purpose |
 |---------|---------|---------|
 | **express** | ^4.18.3 | Web framework, routing, middleware |
-| **better-sqlite3** | ^12.8.0 | High-performance SQLite driver, synchronous |
+| **mysql2** | ^3.x | MySQL driver with promise support |
 | **helmet** | ^7.1.0 | Security HTTP headers middleware |
 | **jsonwebtoken** | ^9.0.2 | JWT creation/verification |
 | **bcryptjs** | ^2.4.3 | Password hashing (not yet used in auth) |
@@ -636,7 +635,7 @@ const AppState = {
 
 ### Runtime Environment
 - **Node.js**: v20+ required (per `engines.node`)
-- **Docker**: Multi-container setup (nginx, backend, SQLite)
+- **Docker**: Multi-container setup (nginx, backend, MySQL)
 - **Nginx**: Alpine-based, reverse proxy, static file serving
 
 ### Missing Packages
@@ -646,7 +645,7 @@ const AppState = {
 - ❌ **Validation**: No joi, yup, zod (manual validation)
 - ❌ **Logging**: No Winston, Pino, Bunyan
 - ❌ **Environment variables**: No dotenv (uses `process.env` directly)
-- ❌ **ORM/Query builder**: Direct better-sqlite3 SQL (no sequelize, typeorm, knex)
+- ❌ **ORM/Query builder**: Direct mysql2 SQL (no sequelize, typeorm, knex)
 
 ---
 
@@ -659,7 +658,10 @@ const AppState = {
 | Variable | Default | Purpose |
 |----------|---------|---------|
 | `NODE_ENV` | `development` | App environment |
-| `DB_PATH` | `/data/submissions.db` | SQLite database file path |
+| `MYSQL_HOST` | `localhost` | MySQL host |
+| `MYSQL_USER` | `root` | MySQL user |
+| `MYSQL_PASSWORD` | (empty) | MySQL password |
+| `MYSQL_DATABASE` | `stafftrack` | MySQL database name |
 | `PORT` | `3000` | Express server port |
 | `JWT_SECRET` | `dev_secret_change_me_in_prod` | JWT signing key (⚠️ CHANGE IN PROD) |
 | `JWT_EXPIRY` | `8h` | Access token TTL (8 hours) |
@@ -692,13 +694,13 @@ const AppState = {
 - **Restart**: `unless-stopped`
 - **User**: `root` (runs as root in container)
 
-#### db (SQLite)
-- **Image**: `alpine/sqlite:latest` (utility-only, no service)
-- **Volume**: `db_data:/data` (persistent storage)
-- **Purpose**: Provides SQLite CLI (not a running service)
+#### db (MySQL)
+- **Image**: `mysql:8.0`
+- **Volume**: `db_data:/var/lib/mysql` (persistent storage)
+- **Purpose**: MySQL database server with health checks
 
 ### Docker Volumes
-- **db_data**: Persistent database storage (SQLite file, backups)
+- **db_data**: Persistent database storage (MySQL data files)
 - **node_modules** (anonymous): Backend dependencies (no host mount)
 
 ### Dockerfile (backend)
@@ -745,7 +747,7 @@ const AppState = {
 - **No rate limiting**: Vulnerable to brute-force & DoS
 - **No request validation**: Schema validation missing
 - **Logging**: Console-only, no persistent logs
-- **Database**: SQLite (single-file, not suitable for multi-server)
+- **Database**: MySQL 8.0 (production-grade, supports multi-server)
 - **No backup strategy**: Data relies on Docker volume (manual backup needed)
 - **No monitoring**: No health checks, metrics, APM
 - **No secrets management**: Env vars in compose.yaml (plaintext)
@@ -759,19 +761,21 @@ const AppState = {
 1. **User submits login form** → `POST /auth/login` with email & password
 2. **Backend validates**:
    - Admin special case: accepts token-only login
-   - Other users: delegates to external `AUTH_SERVICE_URL`
+   - Other users: delegates to BeeSuite AppCore `/api/auth/login`
 3. **On success**:
+   - Checks `user_roles` table for the email
+   - **If not found**: Auto-syncs user from BeeSuite:
+     - Fetches staff list using the BeeSuite login token
+     - Finds user by email, fetches employment detail (manager name)
+     - Creates `staff` record (name, title, department, manager)
+     - Creates `user_roles` record with default `staff` role
    - Creates JWT (signed with `JWT_SECRET`, expires in 8 hours)
-   - Creates refresh token (64-byte hex)
-   - Stores both as hashes in `auth_tokens` table
-   - Auto-creates user in `user_roles` if missing
-   - Returns tokens + user info to frontend
+   - Returns `{ access_token, isAdmin, is_hr, is_coordinator, name }` to frontend
 4. **Frontend stores tokens**:
-   - `localStorage` for persistence across sessions
-   - `sessionStorage` for submission ID
+   - `sessionStorage` for token and user data (email, name, role flags)
 5. **Subsequent requests**:
    - Include `Authorization: Bearer <token>` header
-   - `verifyToken` middleware validates token hash and JWT signature
+   - `verifyToken` middleware validates JWT signature
 
 ### Authorization Model
 

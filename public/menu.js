@@ -91,28 +91,7 @@ function renderNav(activeTab) {
     });
 }
 
-/**
- * Check authentication and redirect if not logged in.
- * Call this at the start of each page's JS file.
- * 
- * @returns {Object|null} The authenticated user object, or null if not authenticated
- */
-function requireAuth() {
-    const token = sessionStorage.getItem('st_token');
-    const userStr = sessionStorage.getItem('st_user');
 
-    if (!token || !userStr) {
-        location.href = '/login.html';
-        return null;
-    }
-
-    try {
-        return JSON.parse(userStr);
-    } catch {
-        location.href = '/login.html';
-        return null;
-    }
-}
 
 /**
  * Fetch and cache the user's subordinate count in session storage.
@@ -135,54 +114,8 @@ async function fetchSubordinateCount() {
     return 0;
 }
 
-/**
- * Check if user has admin role and redirect if not.
- * 
- * @param {Object} authUser - The authenticated user object
- * @returns {boolean} True if user is admin, false otherwise
- */
-function requireAdmin(authUser) {
-    if (!authUser || !authUser.isAdmin) {
-        location.href = '/';
-        return false;
-    }
-    return true;
-}
 
-/**
- * Check if user has required permissions (admin, HR, or coordinator).
- * Redirects if user doesn't have any of the specified roles.
- * 
- * @param {Object} authUser - The authenticated user object
- * @param {string[]} requiredRoles - Array of roles to check ('admin', 'hr', 'coordinator')
- * @returns {boolean} True if user has required permission, false otherwise
- */
-function requirePermission(authUser, requiredRoles = []) {
-    if (!authUser) {
-        location.href = '/login.html';
-        return false;
-    }
 
-    const hasRole = requiredRoles.some(role => {
-        switch (role) {
-            case 'admin':
-                return authUser.isAdmin === true;
-            case 'hr':
-                return authUser.is_hr === true || authUser.is_hr === 1;
-            case 'coordinator':
-                return authUser.is_coordinator === true || authUser.is_coordinator === 1;
-            default:
-                return false;
-        }
-    });
-
-    if (!hasRole && requiredRoles.length > 0) {
-        location.href = '/';
-        return false;
-    }
-
-    return true;
-}
 
 /**
  * Render sidebar navigation for new layout

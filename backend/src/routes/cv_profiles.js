@@ -228,31 +228,7 @@ router.delete('/templates/:id', verifyToken, requireRole('admin'), async (req, r
     }
 });
 
-// ── Admin Routes ───────────────────────────────────────────────────────────────
-
-// GET /admin - Fetch admin profile data
-router.get('/admin', verifyToken, requireRole('admin'), async (_req, res) => {
-    try {
-        const db = await getDb();
-        const [adminData] = await db.query('SELECT * FROM admin_profiles');
-        res.json(adminData);
-    } catch (err) {
-        console.error('Error fetching admin data:', err);
-        res.status(500).json({ error: 'Failed to fetch admin data' });
-    }
-});
-
-// GET /admin/snapshots - Fetch admin snapshots
-router.get('/admin/snapshots', verifyToken, requireRole('admin'), async (_req, res) => {
-    try {
-        const db = await getDb();
-        const [snapshots] = await db.query('SELECT * FROM admin_snapshots');
-        res.json(snapshots);
-    } catch (err) {
-        console.error('Error fetching admin snapshots:', err);
-        res.status(500).json({ error: 'Failed to fetch admin snapshots' });
-    }
-});
+// ── CV Profile Routes ─────────────────────────────────────────────────────────
 
 // POST / - Create new CV profile
 router.post('/', verifyToken, async (req, res) => {
@@ -391,9 +367,9 @@ router.get('/:email', verifyToken, async (req, res) => {
         res.json({
             profile,
             education,
-            certifications,
-            workHistory,
-            pastProjects
+            certifications: formatDatesInArray(certifications, ['date_obtained', 'expiry_date']),
+            workHistory: formatDatesInArray(workHistory, ['start_date', 'end_date']),
+            pastProjects: formatDatesInArray(pastProjects, ['start_date', 'end_date'])
         });
     } catch (err) {
         console.error('Error fetching CV profile:', err);

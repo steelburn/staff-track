@@ -5,6 +5,36 @@ import { verifyToken, requireRole } from './auth.js';
 
 const router = express.Router();
 
+// ── Date formatting helper ──────────────────────────────────────────────────
+/**
+ * Format a date value to YYYY-MM-DD string.
+ * Handles Date objects, strings, and null/undefined.
+ */
+function formatDate(dateVal) {
+    if (!dateVal) return null;
+    if (typeof dateVal === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(dateVal)) {
+        return dateVal;
+    }
+    // Handle datetime strings like "2023-01-01 00:00:00" or "2023-01-01T00:00:00.000Z"
+    if (typeof dateVal === 'string') {
+        const dateMatch = dateVal.match(/^(\d{4}-\d{2}-\d{2})/);
+        if (dateMatch) {
+            return dateMatch[1];
+        }
+    }
+    try {
+        const d = dateVal instanceof Date ? dateVal : new Date(dateVal);
+        if (isNaN(d.getTime())) return null;
+        // Use UTC to avoid timezone issues with MySQL DATE columns
+        const year = d.getUTCFullYear();
+        const month = String(d.getUTCMonth() + 1).padStart(2, '0');
+        const day = String(d.getUTCDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+    } catch {
+        return null;
+    }
+}
+
 // ── GET /submissions — list all ──────────────────────────────────────────────
 router.get('/', async (req, res) => {
     try {
@@ -32,8 +62,15 @@ router.get('/me', verifyToken, async (req, res) => {
         const sub = rows[0];
         if (!sub) return res.status(404).json({ error: 'No submission found' });
 
-        const [skillRows] = await db.query('SELECT skill, rating FROM submission_skills WHERE submission_id = ?', [sub.id]);
-        const [projectRows] = await db.query('SELECT soc, project_name AS projectName, customer, role, start_date AS startDate, end_date AS endDate, description, technologies_used AS technologies FROM submission_projects WHERE submission_id = ?', [sub.id]);
+        const [skillRows] = await db.query('SELECT id, skill, rating FROM submission_skills WHERE submission_id = ?', [sub.id]);
+        const [projectRows] = await db.query('SELECT id, soc, project_name AS projectName, customer, role, start_date AS startDate, end_date AS endDate, description, technologies_used AS technologies FROM submission_projects WHERE submission_id = ?', [sub.id]);
+
+        // Format dates in project rows
+        const formattedProjects = projectRows.map(p => ({
+            ...p,
+            startDate: formatDate(p.startDate),
+            endDate: formatDate(p.endDate)
+        }));
 
         res.json({
             id: sub.id,
@@ -42,7 +79,7 @@ router.get('/me', verifyToken, async (req, res) => {
             staffEmail: sub.staff_email,
             staffName: sub.staff_name,
             skills: skillRows,
-            projects: projectRows
+            projects: formattedProjects
         });
     } catch (err) {
         console.error('GET /submissions/me error:', err);
@@ -51,10 +88,12 @@ router.get('/me', verifyToken, async (req, res) => {
 });
 
 // ── GET /email/admin — fetch submissions for admin ───────────────────────────
-router.get('/email/admin', verifyToken, requireRole('admin'), async (_req, res) => {
+router.get('/email/admin', verifyToken, requireRole('admin'), async (req, res) => {
     try {
         const db = await getDb();
-        const [rows] = await db.query('SELECT * FROM submissions ORDER BY updated_at DESC');
+        // Only the admin account's OWN submissions — never the whole table (that
+        // leaked every staff's data into the admin CV page).
+        const [rows] = await db.query('SELECT * FROM submissions WHERE LOWER(staff_email) = ? ORDER BY updated_at DESC', [req.user.email.toLowerCase()]);
         res.json(rows);
     } catch (err) {
         console.error('GET /email/admin error:', err);
@@ -92,15 +131,22 @@ router.get('/:id', verifyToken, async (req, res) => {
 
         // Fetch skills
         const [skillRows] = await db.query(
-            'SELECT skill, rating FROM submission_skills WHERE submission_id = ?',
+            'SELECT id, skill, rating FROM submission_skills WHERE submission_id = ?',
             [id]
         );
 
         // Fetch projects
         const [projectRows] = await db.query(
-            'SELECT soc, project_name AS projectName, customer, role, start_date AS startDate, end_date AS endDate, description, technologies_used AS technologies FROM submission_projects WHERE submission_id = ?',
+            'SELECT id, soc, project_name AS projectName, customer, role, start_date AS startDate, end_date AS endDate, description, technologies_used AS technologies FROM submission_projects WHERE submission_id = ?',
             [id]
         );
+
+        // Format dates in project rows
+        const formattedProjects = projectRows.map(p => ({
+            ...p,
+            startDate: formatDate(p.startDate),
+            endDate: formatDate(p.endDate)
+        }));
 
         // Parse edited_fields JSON safely
         let editedFields = [];
@@ -125,7 +171,7 @@ router.get('/:id', verifyToken, async (req, res) => {
             },
             editedFields: editedFields,
             skills: skillRows,
-            projects: projectRows,
+            projects: formattedProjects,
             createdAt: sub.created_at,
             updatedAt: sub.updated_at
         });
@@ -147,12 +193,27 @@ router.post('/', verifyToken, async (req, res) => {
             projects = []
         } = req.body;
 
-        const staffEmail = staffData.email;
+        // Ownership: a submission always belongs to the caller. Never trust the
+        // client-supplied email — the frontend historically forced authUser.email
+        // into the payload, and a mismatched load could write rows under the wrong
+        // email (this is how another staff's CV data ended up on KN's page).
+        const staffEmail = (req.user.email || staffData.email || '').toLowerCase();
+
+        // Guard: never persist an email address as the display name. The frontend
+        // falls back to the identity email when its catalog lookup misses (and the
+        // catalog itself once held email-as-name), so an empty name or a name that
+        // equals the email is always an artifact — substitute the catalog name.
+        let finalStaffName = (staffName || '').trim();
+        if (!finalStaffName || finalStaffName.toLowerCase() === staffEmail) {
+            const [catalogRow] = await db.query('SELECT name FROM staff WHERE LOWER(email) = ?', [staffEmail]);
+            if (catalogRow.length && catalogRow[0].name) finalStaffName = catalogRow[0].name;
+        }
+
         const title = staffData.title;
         const department = staffData.department;
         const managerName = staffData.managerName;
 
-        if (!staffEmail || !staffName) {
+        if (!staffEmail || !finalStaffName) {
             return res.status(400).json({ error: 'staffEmail and staffName are required' });
         }
 
@@ -164,35 +225,37 @@ router.post('/', verifyToken, async (req, res) => {
         await db.query(
             `INSERT INTO submissions (id, staff_email, staff_name, title, department, manager_name, edited_fields, created_at, updated_at)
              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-            [id, staffEmail.toLowerCase(), staffName, title || null, department || null, managerName || null, editedFieldsJson, now, now]
+            [id, staffEmail.toLowerCase(), finalStaffName, title || null, department || null, managerName || null, editedFieldsJson, now, now]
         );
 
         // Insert skills
         for (const skill of skills) {
             if (skill.skill && skill.rating !== undefined) {
                 await db.query(
-                    'INSERT INTO submission_skills (submission_id, skill, rating) VALUES (?, ?, ?)',
-                    [id, skill.skill, skill.rating]
+                    'INSERT INTO submission_skills (id, submission_id, skill, rating) VALUES (?, ?, ?, ?)',
+                    [uuidv4(), id, skill.skill, skill.rating]
                 );
             }
         }
 
         // Insert projects
         for (const project of projects) {
-            if (project.project_name) {
+            const projectName = project.projectName || project.project_name;
+            if (projectName) {
                 await db.query(
-                    `INSERT INTO submission_projects (submission_id, soc, project_name, customer, role, start_date, end_date, description, technologies_used)
-                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                    `INSERT INTO submission_projects (id, submission_id, soc, project_name, customer, role, start_date, end_date, description, technologies_used)
+                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
                     [
+                        uuidv4(),
                         id,
                         project.soc || null,
-                        project.project_name,
+                        projectName,
                         project.customer || null,
                         project.role || null,
-                        project.startDate || null,
-                        project.endDate || null,
+                        project.startDate || project.start_date || null,
+                        project.endDate || project.end_date || null,
                         project.description || null,
-                        project.technologies || null
+                        project.technologies || project.technologies_used || null
                     ]
                 );
             }
@@ -204,6 +267,114 @@ router.post('/', verifyToken, async (req, res) => {
         res.status(500).json({ error: 'Failed to create submission' });
     }
 });
+
+// ── Incremental merge helpers (PUT must never rewrite untouched rows) ─────
+/**
+ * Normalize a project payload into { name, soc, customer, role, startDate, endDate, description, technologies }.
+ * Returns null when the project has no name (skip empty rows).
+ */
+function normalizeProject(p) {
+    const name = String(p.projectName || p.project_name || '').trim();
+    if (!name) return null;
+    return {
+        name,
+        soc: p.soc || null,
+        customer: p.customer || null,
+        role: p.role || null,
+        startDate: p.startDate || p.start_date || null,
+        endDate: p.endDate || p.end_date || null,
+        description: p.description || null,
+        technologies: p.technologies || p.technologies_used || null,
+    };
+}
+
+/**
+ * Merge the submitted skills into the DB.
+ * Only INSERTS new rows and UPDATES changed ratings. NEVER deletes — a stale or
+ * partial client state must never be allowed to remove rows from the DB.
+ * Row removal is an explicit DELETE (see DELETE /:id/skills/:skillId).
+ * Matching is case-insensitive on trimmed names, and each payload row consumes at most one DB row,
+ * so duplicate names in the payload map one-to-one to duplicate DB rows (no spurious churn).
+ */
+async function mergeSkills(db, submissionId, skills) {
+    const [existing] = await db.query(
+        'SELECT id, skill, rating FROM submission_skills WHERE submission_id = ?',
+        [submissionId]
+    );
+    const used = new Set();
+
+    for (const sk of skills) {
+        const skillName = String(sk.skill || '').trim();
+        if (!skillName || sk.rating === undefined) continue;
+
+        const match = existing.find(e =>
+            !used.has(e.id) && String(e.skill || '').trim().toLowerCase() === skillName.toLowerCase()
+        );
+
+        if (match) {
+            used.add(match.id);
+            if (Number(match.rating) !== Number(sk.rating)) {
+                await db.query('UPDATE submission_skills SET rating = ? WHERE id = ?', [sk.rating, match.id]);
+            }
+        } else {
+            await db.query(
+                'INSERT INTO submission_skills (id, submission_id, skill, rating) VALUES (?, ?, ?, ?)',
+                [uuidv4(), submissionId, skillName, sk.rating]
+            );
+        }
+    }
+}
+
+/**
+ * Merge the submitted projects into the DB.
+ * Only INSERTS new rows and UPDATES changed fields. NEVER deletes — a stale or
+ * partial client state must never be allowed to remove rows from the DB.
+ * Row removal is an explicit DELETE (see DELETE /:id/projects/:projectId).
+ * Projects are matched by project name (the frontend already prevents duplicate names per submission).
+ */
+async function mergeProjects(db, submissionId, projects) {
+    const [existing] = await db.query(
+        `SELECT id, soc, project_name, customer, role, start_date, end_date, description, technologies_used
+         FROM submission_projects WHERE submission_id = ?`,
+        [submissionId]
+    );
+    const used = new Set();
+
+    for (const p of projects) {
+        const np = normalizeProject(p);
+        if (!np) continue;
+
+        const match = existing.find(e =>
+            !used.has(e.id) && String(e.project_name || '').trim().toLowerCase() === np.name.toLowerCase()
+        );
+
+        if (match) {
+            used.add(match.id);
+            const changed =
+                (match.soc || null) !== np.soc ||
+                (match.customer || null) !== np.customer ||
+                (match.role || null) !== np.role ||
+                (formatDate(match.start_date) || null) !== np.startDate ||
+                (formatDate(match.end_date) || null) !== np.endDate ||
+                (match.description || null) !== np.description ||
+                (match.technologies_used || null) !== np.technologies;
+            if (changed) {
+                await db.query(
+                    `UPDATE submission_projects
+                     SET soc = ?, customer = ?, role = ?, start_date = ?, end_date = ?, description = ?, technologies_used = ?
+                     WHERE id = ?`,
+                    [np.soc, np.customer, np.role, np.startDate, np.endDate, np.description, np.technologies, match.id]
+                );
+            }
+        } else {
+            await db.query(
+                `INSERT INTO submission_projects (id, submission_id, soc, project_name, customer, role, start_date, end_date, description, technologies_used)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                [uuidv4(), submissionId, np.soc, np.name, np.customer, np.role, np.startDate, np.endDate, np.description, np.technologies]
+            );
+        }
+    }
+}
 
 // ── PUT /:id — Update an existing submission ──────────────────────────────────
 router.put('/:id', verifyToken, async (req, res) => {
@@ -218,15 +389,31 @@ router.put('/:id', verifyToken, async (req, res) => {
             projects = []
         } = req.body;
 
-        const staffEmail = staffData.email;
+        // Ownership: a submission always belongs to the caller. Never trust the
+        // client-supplied email — the frontend historically forced authUser.email
+        // into the payload, and a mismatched load could write rows under the wrong
+        // email (this is how another staff's CV data ended up on KN's page).
+        const staffEmail = (req.user.email || staffData.email || '').toLowerCase();
+
+        // Guard: never persist an email address as the display name (see POST).
+        let finalStaffName = (staffName || '').trim();
+        if (!finalStaffName || finalStaffName.toLowerCase() === staffEmail) {
+            const [catalogRow] = await db.query('SELECT name FROM staff WHERE LOWER(email) = ?', [staffEmail]);
+            if (catalogRow.length && catalogRow[0].name) finalStaffName = catalogRow[0].name;
+        }
+
         const title = staffData.title;
         const department = staffData.department;
         const managerName = staffData.managerName;
 
-        // Verify submission exists
-        const [existing] = await db.query('SELECT id FROM submissions WHERE id = ?', [id]);
+        // Verify submission exists and belongs to the caller. Without this guard a
+        // user could rewrite another staff's submission (payload email is client-controlled).
+        const [existing] = await db.query('SELECT id, staff_email FROM submissions WHERE id = ?', [id]);
         if (!existing.length) {
             return res.status(404).json({ error: 'Submission not found' });
+        }
+        if ((existing[0].staff_email || '').toLowerCase() !== (req.user.email || '').toLowerCase()) {
+            return res.status(403).json({ error: 'You can only edit your own submission' });
         }
 
         const now = new Date().toISOString().slice(0, 19) + 'Z';
@@ -236,46 +423,55 @@ router.put('/:id', verifyToken, async (req, res) => {
         await db.query(
             `UPDATE submissions SET staff_email = ?, staff_name = ?, title = ?, department = ?, manager_name = ?, edited_fields = ?, updated_at = ?
              WHERE id = ?`,
-            [staffEmail.toLowerCase(), staffName, title || null, department || null, managerName || null, editedFieldsJson, now, id]
+            [staffEmail.toLowerCase(), finalStaffName, title || null, department || null, managerName || null, editedFieldsJson, now, id]
         );
 
-        // Clear and re-insert skills
-        await db.query('DELETE FROM submission_skills WHERE submission_id = ?', [id]);
-        for (const skill of skills) {
-            if (skill.skill && skill.rating !== undefined) {
-                await db.query(
-                    'INSERT INTO submission_skills (submission_id, skill, rating) VALUES (?, ?, ?)',
-                    [id, skill.skill, skill.rating]
-                );
-            }
-        }
-
-        // Clear and re-insert projects
-        await db.query('DELETE FROM submission_projects WHERE submission_id = ?', [id]);
-        for (const project of projects) {
-            if (project.project_name) {
-                await db.query(
-                    `INSERT INTO submission_projects (submission_id, soc, project_name, customer, role, start_date, end_date, description, technologies_used)
-                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-                    [
-                        id,
-                        project.soc || null,
-                        project.project_name,
-                        project.customer || null,
-                        project.role || null,
-                        project.startDate || null,
-                        project.endDate || null,
-                        project.description || null,
-                        project.technologies || null
-                    ]
-                );
-            }
-        }
+        // Merge skills & projects incrementally — untouched rows are never rewritten
+        await mergeSkills(db, id, skills);
+        await mergeProjects(db, id, projects);
 
         res.json({ success: true });
     } catch (err) {
         console.error('PUT /:id error:', err);
         res.status(500).json({ error: 'Failed to update submission' });
+    }
+});
+
+// ── DELETE /:id/skills/:skillId — Remove one skill row (explicit) ────────────
+router.delete('/:id/skills/:skillId', verifyToken, async (req, res) => {
+    try {
+        const db = await getDb();
+        const { id, skillId } = req.params;
+        const [result] = await db.query(
+            'DELETE FROM submission_skills WHERE id = ? AND submission_id = ?',
+            [skillId, id]
+        );
+        if (result.affectedRows === 0) {
+            return res.status(404).json({ error: 'Skill row not found' });
+        }
+        res.json({ success: true });
+    } catch (err) {
+        console.error('DELETE skill error:', err);
+        res.status(500).json({ error: 'Failed to remove skill' });
+    }
+});
+
+// ── DELETE /:id/projects/:projectId — Remove one project row (explicit) ──────
+router.delete('/:id/projects/:projectId', verifyToken, async (req, res) => {
+    try {
+        const db = await getDb();
+        const { id, projectId } = req.params;
+        const [result] = await db.query(
+            'DELETE FROM submission_projects WHERE id = ? AND submission_id = ?',
+            [projectId, id]
+        );
+        if (result.affectedRows === 0) {
+            return res.status(404).json({ error: 'Project row not found' });
+        }
+        res.json({ success: true });
+    } catch (err) {
+        console.error('DELETE project error:', err);
+        res.status(500).json({ error: 'Failed to remove project' });
     }
 });
 

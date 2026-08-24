@@ -148,7 +148,6 @@ const Sidebar = {
             <div class="nav-section">
                 <div class="nav-section-label">Main</div>
                 ${this.renderNavItem('📄', 'My CV', '/cv-profile.html', activeTab === 'cv-profile')}
-                ${this.renderNavItem('📋', 'My Projects', '/index.html', activeTab === 'index')}
                 ${this.renderNavItem('🗂', 'Projects', '/projects.html', activeTab === 'projects', 12)}
                 ${this.renderNavItem('📊', 'Skills', '/skills.html', activeTab === 'skills')}
                 ${this.renderNavItem('🌳', 'Org Chart', '/orgchart.html', activeTab === 'orgchart')}
@@ -164,6 +163,7 @@ const Sidebar = {
                     <div class="nav-section-label">Management</div>
                     ${showStaff ? this.renderNavItem('👥', 'All Staff', '/staff-view.html', activeTab === 'staff', 48) : ''}
                     ${isAdmin ? this.renderNavItem('⚙️', 'Catalog', '/catalog.html', activeTab === 'catalog') : ''}
+                    ${isAdmin ? this.renderNavItem('📋', 'CV Templates', '/cv-template-editor.html', activeTab === 'cv-template-editor') : ''}
                     ${isAdmin ? this.renderNavItem('💻', 'System', '/system.html', activeTab === 'system') : ''}
                     ${isAdmin ? this.renderNavItem('🛡️', 'Admin', '/admin.html', activeTab === 'admin') : ''}
                 </div>
@@ -225,7 +225,21 @@ const Sidebar = {
                 <div class="user-name">${user.name || user.email}</div>
                 <div class="user-role">${role}</div>
             </div>
+            <button class="btn-logout-sidebar" id="btn-logout-sidebar" title="Logout">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+                    <polyline points="16 17 21 12 16 7"></polyline>
+                    <line x1="21" y1="12" x2="9" y2="12"></line>
+                </svg>
+            </button>
         `;
+
+        // Bind logout handler
+        document.getElementById('btn-logout-sidebar')?.addEventListener('click', (e) => {
+            e.stopPropagation();
+            sessionStorage.clear();
+            location.href = '/login.html';
+        });
     },
 
     /**

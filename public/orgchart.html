@@ -5,8 +5,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>StaffTrack — Org Chart</title>
-    <link rel="stylesheet" href="/css/main.css">
-    <script src="/theme.js"></script>
+    <link rel="stylesheet" href="/css/main.css?v=20260824e">
+    <script src="/theme.js?v=20260824e"></script>
     <style>
         .orgchart-wrapper {
             position: relative;
@@ -56,9 +56,102 @@
             transform: scale(0.95);
         }
 
-        /* BALKAN OrgChart overrides */
-        .bjs-orgchart {
-            background: transparent !important;
+        /* Org chart toolbar */
+        .orgchart-toolbar {
+            display: flex;
+            align-items: center;
+            gap: var(--space-2);
+            flex-wrap: wrap;
+        }
+
+        .orgchart-search {
+            position: relative;
+            display: flex;
+            align-items: center;
+        }
+
+        .orgchart-search input {
+            width: 220px;
+            padding: 8px 72px 8px 12px;
+            border-radius: var(--radius-md);
+            border: 1px solid var(--color-border);
+            background: var(--color-bg-surface);
+            color: var(--color-text-primary);
+            font-size: var(--font-size-sm);
+            outline: none;
+            transition: border-color var(--transition-fast);
+        }
+
+        .orgchart-search input:focus {
+            border-color: var(--color-primary);
+        }
+
+        .search-status {
+            position: absolute;
+            right: 8px;
+            font-size: var(--font-size-xs);
+            color: var(--color-text-secondary);
+            pointer-events: none;
+        }
+
+        /* d3-org-chart node cards */
+        .oc-card {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            background: var(--color-bg-surface);
+            border: 1px solid var(--color-border);
+            border-radius: 12px;
+            padding: 10px 12px;
+            width: 230px;
+            box-sizing: border-box;
+            box-shadow: var(--shadow-sm);
+            text-align: left;
+            font-family: inherit;
+        }
+
+        .oc-avatar {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            background: var(--color-primary);
+            color: var(--color-text-inverse);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: var(--font-weight-semibold);
+            font-size: 14px;
+            flex-shrink: 0;
+        }
+
+        .oc-meta {
+            min-width: 0;
+            line-height: 1.3;
+        }
+
+        .oc-name {
+            font-weight: var(--font-weight-semibold);
+            font-size: 13px;
+            color: var(--color-text-primary);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .oc-title {
+            font-size: 11px;
+            color: var(--color-text-secondary);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .oc-dept {
+            font-size: 10px;
+            color: var(--color-text-muted, var(--color-text-secondary));
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
         }
     </style>
 </head>
@@ -99,7 +192,14 @@
                             <p class="page-subtitle">Visual representation of the reporting structure</p>
                         </div>
                     </div>
-                    <div class="page-actions">
+                    <div class="page-actions orgchart-toolbar">
+                        <div class="orgchart-search">
+                            <input type="search" id="chart-search" placeholder="Search staff..." autocomplete="off">
+                            <span class="search-status" id="search-status"></span>
+                        </div>
+                        <button class="btn btn-secondary" id="btn-fit" title="Fit chart to screen">⤢ Fit</button>
+                        <button class="btn btn-secondary" id="btn-expand-all" title="Expand all nodes">⊕ Expand all</button>
+                        <button class="btn btn-secondary" id="btn-collapse-all" title="Collapse to root">⊖ Collapse all</button>
                         <button class="btn btn-secondary" id="theme-toggle" data-theme-toggle>
                             <span class="theme-icon">🌙</span>
                             <span class="theme-label">Dark</span>
@@ -116,11 +216,11 @@
                         <div class="spinner"></div>
                         <p>Loading org chart...</p>
                     </div>
-                </div>
 
-                <div class="zoom-controls">
-                    <button id="btn-zoom-in" class="zoom-btn" title="Zoom In">+</button>
-                    <button id="btn-zoom-out" class="zoom-btn" title="Zoom Out">−</button>
+                    <div class="zoom-controls">
+                        <button id="btn-zoom-in" class="zoom-btn" title="Zoom In">+</button>
+                        <button id="btn-zoom-out" class="zoom-btn" title="Zoom Out">−</button>
+                    </div>
                 </div>
             </main>
         </div>
@@ -129,11 +229,15 @@
     <!-- Toast Container -->
     <div id="toast-container" class="toast-container"></div>
 
-    <script src="https://balkan.app/js/orgchart.js?v=10"></script>
-    <script src="/auth.js"></script>
-    <script src="/sidebar.js"></script>
-    <script src="/toast.js"></script>
-    <script src="/orgchart.js"></script>
+    <!-- d3-org-chart (fork: https://github.com/steelburn/org-chart) -->
+    <script src="/vendor/d3.v7.min.js?v=20260824e"></script>
+    <script src="/vendor/d3-flextree.min.js?v=20260824e"></script>
+    <script src="/vendor/d3-org-chart.min.js?v=20260824e"></script>
+    <script src="/auth.js?v=20260824e"></script>
+    <script src="/menu.js?v=20260824e"></script>
+    <script src="/sidebar.js?v=20260824e"></script>
+    <script src="/toast.js?v=20260824e"></script>
+    <script src="/orgchart.js?v=20260824e"></script>
 </body>
 
 </html>

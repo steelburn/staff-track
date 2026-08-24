@@ -5,8 +5,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>StaffTrack — My CV Profile</title>
-    <link rel="stylesheet" href="/css/main.css">
-    <script src="/theme.js"></script>
+    <link rel="stylesheet" href="/css/main.css?v=20260824d">
+    <script src="/theme.js?v=20260824d"></script>
     <style>
         .profile-layout {
             display: grid;
@@ -46,6 +46,15 @@
             font-size: 36px;
             font-weight: 700;
             margin: 0 auto var(--space-4);
+            overflow: hidden;
+        }
+        .profile-avatar.has-photo {
+            background: none;
+        }
+        .profile-avatar img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
         }
 
         .profile-name {
@@ -281,6 +290,10 @@
                             <div class="profile-avatar" id="profile-avatar">?</div>
                             <div class="profile-name" id="profile-name">Loading...</div>
                             <div class="profile-title" id="profile-title">—</div>
+                            <div id="photo-upload-section" style="margin-top: var(--space-4); padding-top: var(--space-4); border-top: 1px solid var(--color-border);">
+                                <input type="file" id="cv-photo" accept="image/*" style="display:none;">
+                                <label for="cv-photo" class="btn btn-secondary btn-sm" id="btn-upload-photo" style="width:100%; display:inline-block; text-align:center; cursor:pointer;">📷 Upload Photo</label>
+                            </div>
                             <div class="profile-stats">
                                 <div class="profile-stat">
                                     <div class="profile-stat-value" id="stat-skills">0</div>
@@ -327,6 +340,12 @@
                             </button>
                             <button class="tab-btn" data-tab="work-history">
                                 <span>🏢</span> Work History
+                            </button>
+                            <button class="tab-btn" data-tab="skills">
+                                <span>🛠</span> Skills
+                            </button>
+                            <button class="tab-btn" data-tab="active-projects">
+                                <span>🗂</span> Active Projects
                             </button>
                             <button class="tab-btn" data-tab="past-projects">
                                 <span>📁</span> Past Projects
@@ -388,77 +407,6 @@
                                 </div>
                             </section>
 
-                            <!-- Skills Section -->
-                            <section class="card" style="margin-bottom: var(--space-6);">
-                                <div class="card-header">
-                                    <div>
-                                        <div class="card-title">🛠 Core Capabilities</div>
-                                        <div class="card-subtitle">List your key skills and rate your proficiency (1–5 stars).</div>
-                                    </div>
-                                    <button class="btn btn-success btn-sm" id="btn-add-skill">
-                                        <span>+</span>
-                                        Add Skill
-                                    </button>
-                                </div>
-                                <div class="card-body" style="padding: 0;">
-                                    <div class="table-container" style="border: none; border-radius: 0;">
-                                        <table class="table">
-                                            <thead>
-                                                <tr>
-                                                    <th>Skill Name</th>
-                                                    <th style="width: 160px;">Proficiency</th>
-                                                    <th style="width: 60px;"></th>
-                                                </tr>
-                                            </thead>
-                                            <tbody id="skills-tbody"></tbody>
-                                        </table>
-                                    </div>
-                                    <div id="skills-empty" class="empty-state" style="padding: var(--space-8);">
-                                        <div class="empty-state-icon">🛠</div>
-                                        <div class="empty-state-title">No skills added</div>
-                                        <div class="empty-state-text">Click "Add Skill" to begin.</div>
-                                    </div>
-                                </div>
-                            </section>
-
-                            <!-- Projects Section -->
-                            <section class="card" style="margin-bottom: var(--space-6);">
-                                <div class="card-header">
-                                    <div>
-                                        <div class="card-title">🗂 Active Projects</div>
-                                        <div class="card-subtitle">List your current project assignments.</div>
-                                    </div>
-                                    <button class="btn btn-success btn-sm" id="btn-add-project">
-                                        <span>+</span>
-                                        Add Project
-                                    </button>
-                                </div>
-                                <div class="card-body" style="padding: 0;">
-                                    <div class="table-container" style="border: none; border-radius: 0;">
-                                        <table class="table" style="table-layout: fixed;">
-                                            <thead>
-                                                <tr>
-                                                    <th>Project Name</th>
-                                                    <th>SOC Ref</th>
-                                                    <th>Customer</th>
-                                                    <th>Your Role</th>
-                                                    <th style="width: 100px;">Start</th>
-                                                    <th style="width: 100px;">End</th>
-                                                    <th>Description</th>
-                                                    <th style="width: 60px;"></th>
-                                                </tr>
-                                            </thead>
-                                            <tbody id="projects-tbody-sub"></tbody>
-                                        </table>
-                                    </div>
-                                    <div id="projects-empty" class="empty-state" style="padding: var(--space-8);">
-                                        <div class="empty-state-icon">🗂</div>
-                                        <div class="empty-state-title">No projects assigned</div>
-                                        <div class="empty-state-text">Click "Add Project" to begin.</div>
-                                    </div>
-                                </div>
-                            </section>
-
                             <!-- Save Actions -->
                             <div style="display: flex; justify-content: flex-end; gap: var(--space-3); flex-wrap: wrap; padding: var(--space-4) 0;">
                                 <span id="save-status" style="align-self: center; font-size: var(--font-size-sm); color: var(--color-success);"></span>
@@ -491,6 +439,55 @@
                                     <div id="education-list" class="grid grid-2" style="display: none;"></div>
                                 </div>
                             </section>
+
+                            <!-- Education Form (hidden by default) -->
+                            <section class="card" id="education-form" style="display: none; margin-top: var(--space-4);">
+                                <div class="card-header">
+                                    <div class="card-title" id="education-form-title">➕ Add Education</div>
+                                </div>
+                                <div class="card-body">
+                                    <input type="hidden" id="education-id">
+                                    <div class="grid grid-2">
+                                        <div class="form-group">
+                                            <label class="form-label" for="edu-institution">Institution *</label>
+                                            <input type="text" id="edu-institution" class="input" placeholder="e.g., University of Technology" required>
+                                        </div>
+                                        <div class="form-group">
+                                            <label class="form-label" for="edu-degree">Degree</label>
+                                            <input type="text" id="edu-degree" class="input" placeholder="e.g., Bachelor of Science">
+                                        </div>
+                                        <div class="form-group">
+                                            <label class="form-label" for="edu-field">Field of Study</label>
+                                            <input type="text" id="edu-field" class="input" placeholder="e.g., Computer Science">
+                                        </div>
+                                        <div class="form-group">
+                                            <label class="form-label" for="edu-start-year">Start Year</label>
+                                            <input type="number" id="edu-start-year" class="input" placeholder="e.g., 2018" min="1900" max="2099">
+                                        </div>
+                                        <div class="form-group">
+                                            <label class="form-label" for="edu-end-year">End Year</label>
+                                            <input type="number" id="edu-end-year" class="input" placeholder="e.g., 2022" min="1900" max="2099">
+                                        </div>
+                                    </div>
+                                    <div class="form-group">
+                                        <label class="form-label" for="edu-description">Description</label>
+                                        <textarea id="edu-description" class="input textarea" rows="3" placeholder="Additional details about your studies..."></textarea>
+                                    </div>
+                                    <p id="edu-proof-hint" style="font-size: var(--font-size-xs); color: var(--color-text-muted); margin-top: var(--space-3);">💡 Tip: You can attach a proof document (PDF, image) now or later via Edit.</p>
+                                    <div id="edu-proof-section" style="display: none; margin-top: var(--space-4); padding: var(--space-4); background: var(--color-bg-muted); border: 1px dashed var(--color-border); border-radius: var(--radius-md);">
+                                        <div style="font-size: var(--font-size-sm); font-weight: 600; color: var(--color-text-secondary); margin-bottom: var(--space-2);">📎 Proof Document (optional)</div>
+                                        <div id="edu-proof-existing" style="display: none; margin-bottom: var(--space-2);"></div>
+                                        <div style="display: flex; gap: var(--space-2); align-items: center; flex-wrap: wrap;">
+                                            <input type="file" id="edu-proof" accept=".pdf,.jpg,.jpeg,.png,.gif,.webp" style="flex: 1; min-width: 0;">
+                                            <button class="btn btn-secondary btn-sm" id="btn-upload-edu-proof">⬆ Upload</button>
+                                        </div>
+                                    </div>
+                                    <div style="display: flex; justify-content: flex-end; gap: var(--space-3); margin-top: var(--space-6);">
+                                        <button class="btn btn-primary" id="btn-save-education">💾 Save Education</button>
+                                        <button class="btn btn-secondary" id="btn-cancel-education">Cancel</button>
+                                    </div>
+                                </div>
+                            </section>
                         </div>
 
                         <!-- Tab Content: Certifications -->
@@ -513,6 +510,55 @@
                                         <div class="empty-state-text">Click "Add Certification" to get started.</div>
                                     </div>
                                     <div id="certifications-list" class="grid grid-2" style="display: none;"></div>
+                                </div>
+                            </section>
+
+                            <!-- Certification Form (hidden by default) -->
+                            <section class="card" id="certification-form" style="display: none; margin-top: var(--space-4);">
+                                <div class="card-header">
+                                    <div class="card-title" id="certification-form-title">➕ Add Certification</div>
+                                </div>
+                                <div class="card-body">
+                                    <input type="hidden" id="certification-id">
+                                    <div class="grid grid-2">
+                                        <div class="form-group">
+                                            <label class="form-label" for="cert-name">Certification Name *</label>
+                                            <input type="text" id="cert-name" class="input" placeholder="e.g., AWS Certified Developer" required>
+                                        </div>
+                                        <div class="form-group">
+                                            <label class="form-label" for="cert-issuer">Issuer</label>
+                                            <input type="text" id="cert-issuer" class="input" placeholder="e.g., Amazon Web Services">
+                                        </div>
+                                        <div class="form-group">
+                                            <label class="form-label" for="cert-date-obtained">Date Obtained</label>
+                                            <input type="date" id="cert-date-obtained" class="input">
+                                        </div>
+                                        <div class="form-group">
+                                            <label class="form-label" for="cert-expiry-date">Expiry Date</label>
+                                            <input type="date" id="cert-expiry-date" class="input">
+                                        </div>
+                                        <div class="form-group">
+                                            <label class="form-label" for="cert-credential-id">Credential ID</label>
+                                            <input type="text" id="cert-credential-id" class="input" placeholder="e.g., ABC123456">
+                                        </div>
+                                    </div>
+                                    <div class="form-group">
+                                        <label class="form-label" for="cert-description">Description</label>
+                                        <textarea id="cert-description" class="input textarea" rows="3" placeholder="Additional details about your certification..."></textarea>
+                                    </div>
+                                    <p id="cert-proof-hint" style="font-size: var(--font-size-xs); color: var(--color-text-muted); margin-top: var(--space-3);">💡 Tip: You can attach a proof document (PDF, image) now or later via Edit.</p>
+                                    <div id="cert-proof-section" style="display: none; margin-top: var(--space-4); padding: var(--space-4); background: var(--color-bg-muted); border: 1px dashed var(--color-border); border-radius: var(--radius-md);">
+                                        <div style="font-size: var(--font-size-sm); font-weight: 600; color: var(--color-text-secondary); margin-bottom: var(--space-2);">📎 Proof Document (optional)</div>
+                                        <div id="cert-proof-existing" style="display: none; margin-bottom: var(--space-2);"></div>
+                                        <div style="display: flex; gap: var(--space-2); align-items: center; flex-wrap: wrap;">
+                                            <input type="file" id="cert-proof" accept=".pdf,.jpg,.jpeg,.png,.gif,.webp" style="flex: 1; min-width: 0;">
+                                            <button class="btn btn-secondary btn-sm" id="btn-upload-cert-proof">⬆ Upload</button>
+                                        </div>
+                                    </div>
+                                    <div style="display: flex; justify-content: flex-end; gap: var(--space-3); margin-top: var(--space-6);">
+                                        <button class="btn btn-primary" id="btn-save-certification">💾 Save Certification</button>
+                                        <button class="btn btn-secondary" id="btn-cancel-certification">Cancel</button>
+                                    </div>
                                 </div>
                             </section>
                         </div>
@@ -539,6 +585,154 @@
                                     <div id="work-history-list" class="grid grid-2" style="display: none;"></div>
                                 </div>
                             </section>
+
+                            <!-- Work History Form (hidden by default) -->
+                            <section class="card" id="work-history-form" style="display: none; margin-top: var(--space-4);">
+                                <div class="card-header">
+                                    <div class="card-title" id="work-history-form-title">➕ Add Work History</div>
+                                </div>
+                                <div class="card-body">
+                                    <input type="hidden" id="work-history-id">
+                                    <div class="grid grid-2">
+                                        <div class="form-group">
+                                            <label class="form-label" for="wh-employer">Employer *</label>
+                                            <input type="text" id="wh-employer" class="input" placeholder="e.g., Tech Corp Inc." required>
+                                        </div>
+                                        <div class="form-group">
+                                            <label class="form-label" for="wh-job-title">Job Title</label>
+                                            <input type="text" id="wh-job-title" class="input" placeholder="e.g., Senior Software Engineer">
+                                        </div>
+                                        <div class="form-group">
+                                            <label class="form-label" for="wh-start-date">Start Date</label>
+                                            <input type="date" id="wh-start-date" class="input">
+                                        </div>
+                                        <div class="form-group">
+                                            <label class="form-label" for="wh-end-date">End Date</label>
+                                            <input type="date" id="wh-end-date" class="input">
+                                        </div>
+                                        <div class="form-group" style="display: flex; align-items: center; gap: var(--space-2);">
+                                            <input type="checkbox" id="wh-is-current" style="width: auto; margin: 0;">
+                                            <label for="wh-is-current" style="margin: 0; cursor: pointer;">Current Employer</label>
+                                        </div>
+                                    </div>
+                                    <div class="form-group">
+                                        <label class="form-label" for="wh-description">Description</label>
+                                        <textarea id="wh-description" class="input textarea" rows="3" placeholder="Key responsibilities and achievements..."></textarea>
+                                    </div>
+                                    <div style="display: flex; justify-content: flex-end; gap: var(--space-3); margin-top: var(--space-6);">
+                                        <button class="btn btn-primary" id="btn-save-work-history">💾 Save Work History</button>
+                                        <button class="btn btn-secondary" id="btn-cancel-work-history">Cancel</button>
+                                    </div>
+                                </div>
+                            </section>
+                        </div>
+
+                        <!-- Tab Content: Skills -->
+                        <div class="tab-content" id="skills-tab">
+                            <section class="card">
+                                <div class="card-header">
+                                    <div>
+                                        <div class="card-title">🛠 Core Capabilities</div>
+                                        <div class="card-subtitle">List your key skills and rate your proficiency (1–5 stars).</div>
+                                    </div>
+                                    <button class="btn btn-success btn-sm" id="btn-add-skill">
+                                        <span>+</span>
+                                        Add Skill
+                                    </button>
+                                </div>
+                                <div class="card-body" style="padding: 0;">
+                                    <div class="table-container" style="border: none; border-radius: 0;">
+                                        <table class="table">
+                                            <thead>
+                                                <tr>
+                                                    <th>Skill Name</th>
+                                                    <th style="width: 160px;">Proficiency</th>
+                                                    <th style="width: 60px;"></th>
+                                                </tr>
+                                            </thead>
+                                            <tbody id="skills-tbody"></tbody>
+                                        </table>
+                                    </div>
+                                    <div id="skills-empty" class="empty-state" style="padding: var(--space-8);">
+                                        <div class="empty-state-icon">🛠</div>
+                                        <div class="empty-state-title">No skills added</div>
+                                        <div class="empty-state-text">Click "Add Skill" to begin.</div>
+                                    </div>
+                                </div>
+                            </section>
+                        </div>
+
+                        <!-- Tab Content: Active Projects -->
+                        <div class="tab-content" id="active-projects-tab">
+                            <section class="card">
+                                <div class="card-header">
+                                    <div>
+                                        <div class="card-title">🗂 Active Projects</div>
+                                        <div class="card-subtitle">List your current project assignments.</div>
+                                    </div>
+                                    <button class="btn btn-success btn-sm" id="btn-add-project">
+                                        <span>+</span>
+                                        Add Project
+                                    </button>
+                                </div>
+                                <div class="card-body">
+                                    <div id="projects-empty" class="empty-state">
+                                        <div class="empty-state-icon">🗂</div>
+                                        <div class="empty-state-title">No projects assigned</div>
+                                        <div class="empty-state-text">Click "Add Project" to begin.</div>
+                                    </div>
+                                    <div id="projects-list" class="grid grid-2" style="display: none;"></div>
+                                </div>
+                            </section>
+
+                            <!-- Active Project Form (hidden by default) -->
+                            <section class="card" id="project-form" style="display: none; margin-top: var(--space-4);">
+                                <div class="card-header">
+                                    <div class="card-title" id="project-form-title">➕ Add Project</div>
+                                </div>
+                                <div class="card-body">
+                                    <input type="hidden" id="project-id">
+                                    <div class="grid grid-2">
+                                        <div class="form-group project-ac-wrap" style="grid-column: 1 / -1;">
+                                            <label class="form-label" for="ap-project-name">Project Name *</label>
+                                            <input type="text" id="ap-project-name" class="input" placeholder="Search project name…" required>
+                                            <p style="margin-top: var(--space-1); font-size: var(--font-size-xs); color: var(--color-text-muted);">Start typing to search the Project Catalog — SOC ref, customer and dates auto-fill.</p>
+                                        </div>
+                                        <div class="form-group">
+                                            <label class="form-label" for="ap-soc">SOC Ref</label>
+                                            <input type="text" id="ap-soc" class="input" placeholder="Auto-filled" readonly style="background: var(--bg-elevated);">
+                                        </div>
+                                        <div class="form-group">
+                                            <label class="form-label" for="ap-customer">Customer</label>
+                                            <input type="text" id="ap-customer" class="input" placeholder="Auto-filled" readonly style="background: var(--bg-elevated);">
+                                        </div>
+                                        <div class="form-group">
+                                            <label class="form-label" for="ap-role">Role</label>
+                                            <input type="text" id="ap-role" class="input" placeholder="e.g., Lead Developer">
+                                        </div>
+                                        <div class="form-group">
+                                            <label class="form-label" for="ap-start-date">Start Date</label>
+                                            <input type="date" id="ap-start-date" class="input">
+                                        </div>
+                                        <div class="form-group">
+                                            <label class="form-label" for="ap-end-date">End Date</label>
+                                            <input type="date" id="ap-end-date" class="input">
+                                        </div>
+                                        <div class="form-group" style="grid-column: 1 / -1;">
+                                            <label class="form-label" for="ap-technologies">Technologies</label>
+                                            <input type="text" id="ap-technologies" class="input" placeholder="e.g., React, Node.js, PostgreSQL (comma separated)">
+                                        </div>
+                                    </div>
+                                    <div class="form-group">
+                                        <label class="form-label" for="ap-description">Description</label>
+                                        <textarea id="ap-description" class="input textarea" rows="4" placeholder="Describe the project, your responsibilities, and achievements..."></textarea>
+                                    </div>
+                                    <div style="display: flex; justify-content: flex-end; gap: var(--space-3); margin-top: var(--space-6);">
+                                        <button class="btn btn-primary" id="btn-save-project">💾 Save Project</button>
+                                        <button class="btn btn-secondary" id="btn-cancel-project">Cancel</button>
+                                    </div>
+                                </div>
+                            </section>
                         </div>
 
                         <!-- Tab Content: Past Projects -->
@@ -561,6 +755,54 @@
                                         <div class="empty-state-text">Click "Add Past Project" to get started.</div>
                                     </div>
                                     <div id="past-projects-list" class="grid grid-2" style="display: none;"></div>
+                                </div>
+                            </section>
+
+                            <!-- Past Project Form (hidden by default) -->
+                            <section class="card" id="past-project-form" style="display: none; margin-top: var(--space-4);">
+                                <div class="card-header">
+                                    <div class="card-title" id="past-project-form-title">➕ Add Past Project</div>
+                                </div>
+                                <div class="card-body">
+                                    <input type="hidden" id="past-project-id">
+                                    <div class="grid grid-2">
+                                        <div class="form-group" style="grid-column: 1 / -1;">
+                                            <label class="form-label" for="pp-work-history-id">Associated Employer (optional)</label>
+                                            <select id="pp-work-history-id" class="input">
+                                                <option value="">— No Association —</option>
+                                            </select>
+                                            <p style="margin-top: var(--space-1); font-size: var(--font-size-xs); color: var(--color-text-muted);">If this is for your current company, select it to get suggestions from the Project Catalog.</p>
+                                        </div>
+                                        <div class="form-group">
+                                            <label class="form-label" for="pp-project-name">Project Name *</label>
+                                            <input type="text" id="pp-project-name" class="input" placeholder="e.g., E-Commerce Platform Redesign" required list="project-catalog-list">
+                                            <datalist id="project-catalog-list"></datalist>
+                                        </div>
+                                        <div class="form-group">
+                                            <label class="form-label" for="pp-role">Role</label>
+                                            <input type="text" id="pp-role" class="input" placeholder="e.g., Lead Developer">
+                                        </div>
+                                        <div class="form-group">
+                                            <label class="form-label" for="pp-start-date">Start Date</label>
+                                            <input type="date" id="pp-start-date" class="input">
+                                        </div>
+                                        <div class="form-group">
+                                            <label class="form-label" for="pp-end-date">End Date</label>
+                                            <input type="date" id="pp-end-date" class="input">
+                                        </div>
+                                        <div class="form-group" style="grid-column: 1 / -1;">
+                                            <label class="form-label" for="pp-technologies">Technologies</label>
+                                            <input type="text" id="pp-technologies" class="input" placeholder="e.g., React, Node.js, PostgreSQL (comma separated)">
+                                        </div>
+                                    </div>
+                                    <div class="form-group">
+                                        <label class="form-label" for="pp-description">Description</label>
+                                        <textarea id="pp-description" class="input textarea" rows="4" placeholder="Describe the project, your responsibilities, and achievements..."></textarea>
+                                    </div>
+                                    <div style="display: flex; justify-content: flex-end; gap: var(--space-3); margin-top: var(--space-6);">
+                                        <button class="btn btn-primary" id="btn-save-past-project">💾 Save Past Project</button>
+                                        <button class="btn btn-secondary" id="btn-cancel-past-project">Cancel</button>
+                                    </div>
                                 </div>
                             </section>
                         </div>
@@ -642,10 +884,11 @@
     <!-- Toast Container -->
     <div id="toast-container" class="toast-container"></div>
 
-    <script src="/auth.js"></script>
-    <script src="/sidebar.js"></script>
-    <script src="/toast.js"></script>
-    <script src="/cv-profile.js"></script>
+    <script src="/auth.js?v=20260824d"></script>
+    <script src="/menu.js?v=20260824d"></script>
+    <script src="/sidebar.js?v=20260824d"></script>
+    <script src="/toast.js?v=20260824d"></script>
+    <script src="/cv-profile.js?v=20260824d"></script>
 </body>
 
 </html>

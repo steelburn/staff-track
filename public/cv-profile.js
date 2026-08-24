@@ -87,7 +87,8 @@ function applyViewOnlyMode() {
     // Disable all input fields in the main form sections
     const readOnlySections = [
         '#my-submission-tab', '#education-tab', '#certifications-tab',
-        '#work-history-tab', '#past-projects-tab'
+        '#work-history-tab', '#skills-tab', '#active-projects-tab',
+        '#past-projects-tab'
     ];
     readOnlySections.forEach(sel => {
         const section = document.querySelector(sel);
@@ -106,6 +107,7 @@ function applyViewOnlyMode() {
         .btn-edit-certification, .btn-delete-certification,
         .btn-edit-work-history, .btn-delete-work-history,
         .btn-edit-past-project, .btn-delete-past-project,
+        .btn-edit-project, .btn-delete-project,
         .btn-remove`).forEach(btn => {
         btn.disabled = true;
         btn.style.opacity = '0.5';
@@ -165,13 +167,16 @@ function wireUpTabSwitching() {
 }
 
 // ── Persistence for My Submission ──────────────────────────────────────────
+let saveInFlight = false;
+let saveQueued = false;
+
 function scheduleAutoSave() {
     clearTimeout(saveTimer);
     saveTimer = setTimeout(saveToBackend, 1500);
 }
 
-async function saveToBackend() {
-    const payload = {
+function buildSubmissionPayload() {
+    return {
         staffName: AppState.staff.name,
         staffData: { ...AppState.staff, email: authUser.email },
         editedFields: [...AppState.editedFields],
@@ -179,8 +184,17 @@ async function saveToBackend() {
         projects: AppState.projects.map(({ soc, project_name, customer, role, startDate, endDate, description, technologies }) =>
             ({ soc, project_name, customer, role, startDate, endDate, description, technologies })),
     };
+}
 
+async function saveToBackend() {
+    // Never persist in view-only mode — edits to another staff's profile must not
+    // create/rewrite submission rows under the viewer's email.
+    if (isViewOnly) return;
+    // Serialize saves: never let two PUTs race (each one deletes + reinserts rows)
+    if (saveInFlight) { saveQueued = true; return; }
+    saveInFlight = true;
     try {
+        const payload = buildSubmissionPayload();
         if (!AppState.submissionId) {
             const res = await window.StaffTrackAuth.apiFetch('/api/submissions', {
                 method: 'POST',
@@ -204,14 +218,50 @@ async function saveToBackend() {
     } catch (e) {
         setSaveStatus('Save error ✗', true);
         console.error(e);
+    } finally {
+        saveInFlight = false;
+        if (saveQueued) { saveQueued = false; saveToBackend(); }
     }
 }
+
+// Flush pending edits when the user reloads, navigates, or closes the tab.
+// keepalive lets the request survive the page teardown.
+function flushPendingSave() {
+    if (saveTimer) {
+        clearTimeout(saveTimer);
+        saveTimer = null;
+    }
+    if (isViewOnly) return; // view-only (another staff's profile): never write
+    if (saveInFlight || saveQueued) return; // a save is already on the wire
+    const token = sessionStorage.getItem('st_token');
+    if (!token) return;
+    const payload = buildSubmissionPayload();
+    const headers = { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token };
+    if (AppState.submissionId) {
+        fetch(`/api/submissions/${AppState.submissionId}`, {
+            method: 'PUT', headers, body: JSON.stringify(payload), keepalive: true,
+        }).catch(() => {});
+    } else if (payload.staffName && payload.staffData && payload.staffData.email) {
+        fetch('/api/submissions', {
+            method: 'POST', headers, body: JSON.stringify(payload), keepalive: true,
+        }).then(r => {
+            if (r.ok) r.json().then(d => { AppState.submissionId = d.id; sessionStorage.setItem('stafftrack_id', d.id); }).catch(() => {});
+        }).catch(() => {});
+    }
+}
+window.addEventListener('beforeunload', flushPendingSave);
 
 async function loadFromBackend(id) {
     try {
         const res = await window.StaffTrackAuth.apiFetch(`/api/submissions/${id}`);
         if (!res.ok) return false;
         const data = await res.json();
+        // Ownership guard: never adopt a submission that belongs to another staff
+        // member (prevents cross-profile corruption via Load Previous).
+        if (data.staffEmail && data.staffEmail.toLowerCase() !== targetProfileEmail.toLowerCase()) {
+            console.warn('Refusing to load submission owned by another staff:', data.staffEmail);
+            return false;
+        }
         AppState.submissionId = id;
         AppState.staff = {
             name: data.staffName || '',
@@ -220,20 +270,28 @@ async function loadFromBackend(id) {
         // Backfill missing info from catalog
         const dbEntry = STAFF_DATA.find(s => (s.email || '').toLowerCase() === (AppState.staff.email || '').toLowerCase());
         if (dbEntry) {
+            // A stored name equal to the email is a fallback artifact (identity
+            // name defaulted to email when the catalog lookup missed at draft
+            // creation). Heal it from the catalog so it never surfaces as
+            // "name = email address"; the next autosave persists the fix.
+            const storedName = (AppState.staff.name || '').trim();
+            if (!storedName || storedName.toLowerCase() === (AppState.staff.email || '').toLowerCase()) {
+                if (dbEntry.name) AppState.staff.name = dbEntry.name;
+            }
             if (!AppState.staff.title) AppState.staff.title = dbEntry.title || '';
             if (!AppState.staff.department) AppState.staff.department = dbEntry.department || '';
             if (!AppState.staff.managerName) AppState.staff.managerName = dbEntry.manager_name || '';
         }
         AppState.editedFields = new Set(data.editedFields || []);
-        AppState.skills = (data.skills || []).map(s => ({ ...s, id: uid() }));
-        AppState.projects = (data.projects || []).map(p => ({ ...p, id: uid() }));
+        AppState.skills = (data.skills || []).map(s => ({ ...s, id: s.id || uid(), _persisted: !!s.id }));
+        AppState.projects = (data.projects || []).map(p => ({ ...p, id: p.id || uid(), _persisted: !!p.id }));
         return true;
     } catch { return false; }
 }
 
 function showLoadModal(submissions) {
     const backdrop = document.createElement('div');
-    backdrop.className = 'modal-backdrop';
+    backdrop.className = 'modal-backdrop active';
     const rows = submissions.map((s, i) => `
         <div class="load-row" data-idx="${i}">
           <div class="load-row-info">
@@ -272,9 +330,9 @@ function showLoadModal(submissions) {
             btn.disabled = true;
             // Clear current grid rows from DOM
             document.getElementById('skills-tbody').innerHTML = '';
-            document.getElementById('projects-tbody-sub').innerHTML = '';
             AppState.skills = [];
             AppState.projects = [];
+            renderProjectsSub();
             const ok = await loadFromBackend(sub.id);
             if (ok) {
                 sessionStorage.setItem('stafftrack_id', sub.id);
@@ -492,7 +550,7 @@ async function loadSubmissionData() {
             document.getElementById('staff-email').value = snap.email;
 
             showSkillsEmpty(true);
-            showProjectsEmptySub(true);
+            renderProjectsSub();
         }
     } catch (e) { console.error('Failed to init identity', e); }
 }
@@ -509,6 +567,62 @@ function updateEditNote() {
     }
 }
 
+// ── Summary Modal ─────────────────────────────────────────────────────────────
+function buildSummaryText() {
+    const s = AppState.staff;
+    const edits = AppState.editedFields.size
+        ? `  ⚠ Manually edited fields: ${[...AppState.editedFields].join(', ')}\n` : '';
+    const skills = AppState.skills.length
+        ? AppState.skills.map(sk => `  • ${sk.skill || '(unnamed)'} — Level ${sk.rating}/5`).join('\n')
+        : '  (none)';
+    const projects = AppState.projects.length
+        ? AppState.projects.map(p =>
+            `  • [${p.soc || '—'}] ${p.project_name || p.projectName || '(unnamed)'}\n    Role: ${p.role || '—'}  |  Start: ${p.startDate || '—'}  |  End: ${p.endDate || '—'}\n    Customer: ${p.customer || '—'}\n    Technologies: ${p.technologies || '—'}\n    Description: ${p.description || '—'}`
+        ).join('\n')
+        : '  (none)';
+
+    return `STAFFTRACK CV SUBMISSION\n${'═'.repeat(40)}\nStaff Details\n  Name:       ${s.name || '—'}\n  Title:      ${s.title || '—'}\n  Department: ${s.department || '—'}\n  Manager:    ${s.managerName || '—'}\n  Email:      ${s.email || '—'}\n${edits}\nSkills\n${skills}\n\nActive Projects\n${projects}\n${'═'.repeat(40)}\nSubmitted: ${new Date().toLocaleString()}\nID: ${AppState.submissionId || 'not yet saved'}`;
+}
+
+function showSummaryModal() {
+    const backdrop = document.createElement('div');
+    backdrop.className = 'modal-backdrop active';
+    backdrop.innerHTML = `
+    <div class="modal" role="dialog" aria-modal="true">
+      <div class="modal-header">
+        <h2>📋 Submission Summary</h2>
+        <button class="modal-close" title="Close">✕</button>
+      </div>
+      <div class="modal-body">
+        <pre class="summary-pre" id="summary-text"></pre>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-secondary" id="btn-copy-json">Copy JSON</button>
+        <button class="btn-primary" id="btn-copy-text">Copy Summary</button>
+      </div>
+    </div>`;
+
+    document.body.appendChild(backdrop);
+    document.getElementById('summary-text').textContent = buildSummaryText();
+
+    backdrop.querySelector('.modal-close').addEventListener('click', () => backdrop.remove());
+    backdrop.addEventListener('click', e => { if (e.target === backdrop) backdrop.remove(); });
+
+    document.getElementById('btn-copy-text').addEventListener('click', () => {
+        navigator.clipboard.writeText(buildSummaryText()).then(() => showToast('Summary copied!'));
+    });
+    document.getElementById('btn-copy-json').addEventListener('click', () => {
+        const json = JSON.stringify({
+            staffName: AppState.staff.name,
+            staffData: AppState.staff,
+            editedFields: [...AppState.editedFields],
+            skills: AppState.skills,
+            projects: AppState.projects,
+        }, null, 2);
+        navigator.clipboard.writeText(json).then(() => showToast('JSON copied!'));
+    });
+}
+
 function addSkillRow(row) {
     if (!AppState.skills.find(s => s.id === row.id)) {
         AppState.skills.push(row);
@@ -519,10 +633,11 @@ function addSkillRow(row) {
     tr.innerHTML = `
     <td><input type="text" placeholder="e.g. Azure, Project Management" value="${row.skill}"></td>
     <td>
-      <div class="star-rating">
+      <div class="star-rating" role="radiogroup" aria-label="Proficiency level">
         ${[1, 2, 3, 4, 5].map(n =>
-        `<button type="button" class="${n <= row.rating ? 'on' : ''}" data-val="${n}" title="${n} star${n > 1 ? 's' : ''}">★</button>`
+        `<button type="button" role="radio" class="${n === row.rating ? 'on' : ''}" data-val="${n}" title="Proficiency level ${n}" aria-checked="${n === row.rating}">${n}</button>`
     ).join('')}
+        <span class="rating-level">${row.rating ? `Level ${row.rating}/5` : '—'}</span>
       </div>
     </td>
     <td class="col-remove"><button class="btn-remove" title="Remove">✕</button></td>`;
@@ -540,13 +655,22 @@ function addSkillRow(row) {
             const s = AppState.skills.find(s => s.id === row.id);
             if (s) s.rating = val;
             tr.querySelectorAll('.star-rating button').forEach(b => {
-                b.classList.toggle('on', +b.dataset.val <= val);
+                b.classList.toggle('on', +b.dataset.val === val);
+                b.setAttribute('aria-checked', String(+b.dataset.val === val));
             });
+            const lvl = tr.querySelector('.rating-level');
+            if (lvl) lvl.textContent = `Level ${val}/5`;
             scheduleAutoSave();
         });
     });
 
     tr.querySelector('.btn-remove').addEventListener('click', () => {
+        if (!confirm(`Delete skill${row.skill ? ` "${row.skill}"` : ''}?`)) return;
+        const skill = AppState.skills.find(s => s.id === row.id);
+        // Explicitly delete persisted rows; unsaved rows are just dropped locally
+        if (skill?._persisted && AppState.submissionId) {
+            window.StaffTrackAuth.apiFetch(`/api/submissions/${AppState.submissionId}/skills/${skill.id}`, { method: 'DELETE' }).catch(() => {});
+        }
         AppState.skills = AppState.skills.filter(s => s.id !== row.id);
         tr.remove();
         updateSkillsCount();
@@ -570,56 +694,168 @@ function updateSkillsCount() {
     refreshSidebarCompletion();
 }
 
-function addProjectRowSub(data = {}) {
-    const tbody = document.getElementById('projects-tbody-sub');
-    const tr = document.createElement('tr');
-    const rowId = data.id || uid();
-    tr.dataset.id = rowId;
+function renderProjectsSub() {
+    const empty = document.getElementById('projects-empty');
+    const list = document.getElementById('projects-list');
+    if (!list) return;
 
-    tr.innerHTML = `
-    <td>
-      <div class="project-ac-wrap">
-        <input type="text" class="p-name" placeholder="Search project name…" value="${data.project_name || data.projectName || ''}">
-      </div>
-    </td>
-    <td><input type="text" class="p-soc" placeholder="Auto-filled" value="${data.soc || ''}" readonly style="background:var(--bg-elevated)" title="${data.soc || 'Auto-filled'}"></td>
-    <td><input type="text" class="p-customer" placeholder="Auto-filled" value="${data.customer || ''}" readonly style="background:var(--bg-elevated)"></td>
-    <td><input type="text" class="p-role" placeholder="e.g. Lead Dev, PM" value="${data.role || ''}"></td>
-    <td><input type="date" class="p-start" value="${data.startDate || ''}"></td>
-    <td><input type="date" class="p-end" value="${data.endDate || ''}"></td>
-    <td>
-        <textarea class="p-desc" placeholder="Brief description..." rows="2" style="width:100%;font-size:0.8rem">${data.description || ''}</textarea>
-        <input type="text" class="p-tech" placeholder="Technologies (comma separated)" value="${data.technologies || ''}" style="margin-top:4px;font-size:0.8rem">
-    </td>
-    <td class="col-actions">
-      <button class="btn-icon btn-del-row" title="Remove row">✖</button>
-    </td>
-  `;
-    tbody.appendChild(tr);
+    if (!AppState.projects.length) {
+        if (empty) empty.style.display = 'block';
+        list.style.display = 'none';
+        list.innerHTML = '';
+    } else {
+        if (empty) empty.style.display = 'none';
+        list.style.display = 'grid';
 
-    const nameInput = tr.querySelector('.p-name');
-    const socInput = tr.querySelector('.p-soc');
-    const custInput = tr.querySelector('.p-customer');
-    const roleInput = tr.querySelector('.p-role');
-    const startInput = tr.querySelector('.p-start');
-    const endInput = tr.querySelector('.p-end');
-    const descInput = tr.querySelector('.p-desc');
-    const techInput = tr.querySelector('.p-tech');
+        // Sort by start date descending (most recent first), entries without a start date go last
+        const sorted = [...AppState.projects].sort((a, b) => {
+            if (!a.startDate && !b.startDate) return 0;
+            if (!a.startDate) return 1;
+            if (!b.startDate) return -1;
+            return b.startDate.localeCompare(a.startDate);
+        });
 
-    const saveProjects = () => {
-        const proj = AppState.projects.find(x => x.id === rowId);
+        list.innerHTML = sorted.map(proj => {
+            const name = proj.project_name || proj.projectName || '—';
+            const role = proj.role || '—';
+            const startDate = proj.startDate || '?';
+            const endDate = proj.endDate ? proj.endDate : 'Present';
+            const technologies = proj.technologies || '';
+            const description = proj.description || '';
+            const meta = [proj.soc ? `🔢 ${proj.soc}` : '', proj.customer ? `🏢 ${proj.customer}` : ''].filter(Boolean).join(' · ');
+
+            return `
+                <div class="section-card" style="padding:1.25rem; position:relative;" data-id="${proj.id}">
+                    <div style="font-weight:700; font-size:1rem; margin-bottom:0.25rem;">${name}</div>
+                    ${meta ? `<div style="font-size:0.82rem; color:var(--text-muted); margin-bottom:0.25rem;">${meta}</div>` : ''}
+                    <div style="color:var(--accent-blue); font-size:0.9rem; margin-bottom:0.25rem;">${role}</div>
+                    <div style="color:var(--text-secondary); font-size:0.82rem; margin-bottom:0.5rem;">${startDate} – ${endDate}</div>
+                    ${technologies ? '<div style="font-size:0.78rem; color:var(--accent-amber); margin-bottom:0.5rem;">' + technologies + '</div>' : ''}
+                    ${description ? '<div class="preserve-newlines" style="font-size:0.85rem; color:var(--text-secondary);">' + description + '</div>' : ''}
+                    ${isViewOnly ? '' : `<div style="display:flex; gap:0.5rem; margin-top:1rem;">
+                        <button class="btn-secondary btn-edit-project" data-id="${proj.id}" style="padding:0.35rem 0.75rem; font-size:0.8rem;">✏️ Edit</button>
+                        <button class="btn-remove btn-delete-project" data-id="${proj.id}" style="width:auto; padding:0.35rem 0.75rem; font-size:0.8rem;">🗑 Delete</button>
+                    </div>`}
+                </div>
+            `;
+        }).join('');
+
+        list.querySelectorAll('.btn-edit-project').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const entry = AppState.projects.find(p => p.id == btn.dataset.id);
+                if (entry) showProjectForm(entry);
+            });
+        });
+
+        list.querySelectorAll('.btn-delete-project').forEach(btn => {
+            btn.addEventListener('click', () => deleteProject(btn.dataset.id));
+        });
+    }
+    updateProjectsCountSub();
+}
+
+function showProjectForm(data = null) {
+    const form = document.getElementById('project-form');
+    const title = document.getElementById('project-form-title');
+    const idInput = document.getElementById('project-id');
+    const nameInput = document.getElementById('ap-project-name');
+    const socInput = document.getElementById('ap-soc');
+    const custInput = document.getElementById('ap-customer');
+    const roleInput = document.getElementById('ap-role');
+    const startInput = document.getElementById('ap-start-date');
+    const endInput = document.getElementById('ap-end-date');
+    const techInput = document.getElementById('ap-technologies');
+    const descInput = document.getElementById('ap-description');
+    if (!form || !nameInput) return;
+
+    if (data) {
+        if (title) title.textContent = '✏️ Edit Project';
+        if (idInput) idInput.value = data.id;
+        if (nameInput) nameInput.value = data.project_name || data.projectName || '';
+        if (socInput) socInput.value = data.soc || '';
+        if (custInput) custInput.value = data.customer || '';
+        if (roleInput) roleInput.value = data.role || '';
+        if (startInput) startInput.value = data.startDate || '';
+        if (endInput) endInput.value = data.endDate || '';
+        if (techInput) techInput.value = data.technologies || '';
+        if (descInput) descInput.value = data.description || '';
+    } else {
+        if (title) title.textContent = '➕ Add Project';
+        if (idInput) idInput.value = '';
+        if (nameInput) nameInput.value = '';
+        if (socInput) socInput.value = '';
+        if (custInput) custInput.value = '';
+        if (roleInput) roleInput.value = '';
+        if (startInput) startInput.value = '';
+        if (endInput) endInput.value = '';
+        if (techInput) techInput.value = '';
+        if (descInput) descInput.value = '';
+    }
+
+    form.style.display = '';
+    form.scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
+function hideProjectForm() {
+    const form = document.getElementById('project-form');
+    if (form) form.style.display = 'none';
+    ['project-id', 'ap-project-name', 'ap-soc', 'ap-customer', 'ap-role', 'ap-start-date', 'ap-end-date', 'ap-technologies', 'ap-description'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.value = '';
+    });
+}
+
+function saveProject() {
+    const name = document.getElementById('ap-project-name')?.value?.trim() || '';
+    const soc = document.getElementById('ap-soc')?.value?.trim() || '';
+    const customer = document.getElementById('ap-customer')?.value?.trim() || '';
+    const role = document.getElementById('ap-role')?.value?.trim() || '';
+    const startDate = document.getElementById('ap-start-date')?.value?.trim() || '';
+    const endDate = document.getElementById('ap-end-date')?.value?.trim() || '';
+    const technologies = document.getElementById('ap-technologies')?.value?.trim() || '';
+    const description = document.getElementById('ap-description')?.value?.trim() || '';
+    const id = document.getElementById('project-id')?.value?.trim() || '';
+
+    if (!name) {
+        showToast('Project name is required', true);
+        return;
+    }
+    if (startDate && endDate && startDate > endDate) {
+        showToast('End date must be on or after the start date', true);
+        return;
+    }
+
+    if (id) {
+        const proj = AppState.projects.find(p => p.id === id);
         if (proj) {
-            proj.project_name = nameInput.value;
-            proj.soc = socInput.value;
-            proj.customer = custInput.value;
-            proj.role = roleInput.value;
-            proj.startDate = startInput.value;
-            proj.endDate = endInput.value;
-            proj.description = descInput.value;
-            proj.technologies = techInput.value;
+            Object.assign(proj, { project_name: name, soc, customer, role, startDate, endDate, technologies, description });
         }
-        scheduleAutoSave();
-    };
+    } else {
+        AppState.projects.push({ id: uid(), project_name: name, soc, customer, role, startDate, endDate, technologies, description });
+    }
+
+    hideProjectForm();
+    renderProjectsSub();
+    scheduleAutoSave();
+    showToast('Project saved');
+}
+
+async function deleteProject(id) {
+    if (!confirm('Delete this project?')) return;
+    const proj = AppState.projects.find(p => p.id === id);
+    // Explicitly delete persisted rows from the backend; unsaved rows are just dropped locally
+    if (proj?._persisted && AppState.submissionId) {
+        await window.StaffTrackAuth.apiFetch(`/api/submissions/${AppState.submissionId}/projects/${proj.id}`, { method: 'DELETE' }).catch(() => {});
+    }
+    AppState.projects = AppState.projects.filter(p => p.id !== id);
+    renderProjectsSub();
+    scheduleAutoSave();
+    showToast('Project deleted');
+}
+
+function initProjectAutocomplete() {
+    const nameInput = document.getElementById('ap-project-name');
+    if (!nameInput) return;
 
     makeAutocomplete({
         inputEl: nameInput,
@@ -632,70 +868,39 @@ function addProjectRowSub(data = {}) {
       <div class="ac-sub">${p.soc ? `<span style="color:var(--accent-blue);font-weight:600">${highlightMatch(p.soc, q)}</span>` : 'No SOC'} · ${p.customer || '—'}</div>
     `,
         onSelect: p => {
+            const idInput = document.getElementById('project-id');
+            const socInput = document.getElementById('ap-soc');
+            const custInput = document.getElementById('ap-customer');
+            const startInput = document.getElementById('ap-start-date');
+            const endInput = document.getElementById('ap-end-date');
+            const descInput = document.getElementById('ap-description');
+            const techInput = document.getElementById('ap-technologies');
+
+            const editingId = idInput?.value || null;
             const isDup = AppState.projects.some(x =>
-                x.id !== rowId &&
+                x.id !== editingId &&
                 ((x.soc && p.soc && x.soc === p.soc) || (!x.soc && (x.project_name || x.projectName) && p.project_name && (x.project_name || x.projectName) === p.project_name))
             );
 
             if (isDup) {
                 showToast('Project already added', true);
                 nameInput.value = '';
-                socInput.value = '';
-                custInput.value = '';
+                if (socInput) socInput.value = '';
+                if (custInput) custInput.value = '';
                 return;
             }
 
             nameInput.value = p.project_name;
-            socInput.value = p.soc || '';
-            socInput.title = p.soc || 'Auto-filled';
-            custInput.value = p.customer || '';
-            
-            // Auto-fill new fields if it's a managed project and they are empty
-            if (p.start_date && !startInput.value) startInput.value = p.start_date;
-            if (p.end_date && !endInput.value) endInput.value = p.end_date;
-            if ((p.description || p.project_brief) && !descInput.value) descInput.value = p.description || p.project_brief;
-            if (p.technologies && !techInput.value) techInput.value = p.technologies;
+            if (socInput) socInput.value = p.soc || '';
+            if (custInput) custInput.value = p.customer || '';
 
-            saveProjects();
+            // Auto-fill new fields if it's a managed project and they are empty
+            if (p.start_date && startInput && !startInput.value) startInput.value = p.start_date;
+            if (p.end_date && endInput && !endInput.value) endInput.value = p.end_date;
+            if ((p.description || p.project_brief) && descInput && !descInput.value) descInput.value = p.description || p.project_brief;
+            if (p.technologies && techInput && !techInput.value) techInput.value = p.technologies;
         }
     });
-
-    if (!AppState.projects.find(p => p.id === rowId)) {
-        AppState.projects.push({
-            id: rowId,
-            project_name: data.project_name || data.projectName || '',
-            soc: data.soc || '',
-            customer: data.customer || '',
-            role: data.role || '',
-            startDate: data.startDate || '',
-            endDate: data.endDate || '',
-            description: data.description || '',
-            technologies: data.technologies || ''
-        });
-    }
-
-    nameInput.addEventListener('input', saveProjects);
-    roleInput.addEventListener('input', saveProjects);
-    startInput.addEventListener('change', saveProjects);
-    endInput.addEventListener('change', saveProjects);
-    descInput.addEventListener('input', saveProjects);
-    techInput.addEventListener('input', saveProjects);
-
-    tr.querySelector('.btn-del-row').addEventListener('click', () => {
-        AppState.projects = AppState.projects.filter(p => p.id !== rowId);
-        tr.remove();
-        updateProjectsCountSub();
-        scheduleAutoSave();
-        if (!AppState.projects.length) showProjectsEmptySub(true);
-    });
-
-    const empty = document.getElementById('projects-empty');
-    if (empty) empty.style.display = 'none';
-}
-
-function showProjectsEmptySub(show) {
-    const empty = document.getElementById('projects-empty');
-    if (empty) empty.style.display = show ? 'block' : 'none';
 }
 
 function updateProjectsCountSub() {
@@ -714,15 +919,12 @@ function restoreForm() {
     setVal('staff-email', s.email);
 
     document.querySelector('#skills-tbody').innerHTML = '';
-    document.querySelector('#projects-tbody-sub').innerHTML = '';
 
     AppState.skills.forEach(row => addSkillRow(row));
-    AppState.projects.forEach(row => addProjectRowSub(row));
     updateSkillsCount();
-    updateProjectsCountSub();
+    renderProjectsSub();
     updateEditNote();
     if (!AppState.skills.length) showSkillsEmpty(true);
-    if (!AppState.projects.length) showProjectsEmptySub(true);
 }
 
 // ── Profile Functions ───
@@ -921,6 +1123,8 @@ async function uploadPhoto() {
     const email = targetProfileEmail;
     const fileInput = document.getElementById('cv-photo');
     const file = fileInput.files[0];
+    // Reset so selecting the same file again still fires the change event
+    fileInput.value = '';
 
     if (!file) {
         showToast('Please select a photo file', true);
@@ -1093,10 +1297,8 @@ function showEducationForm(entry = null) {
         if (endYearInput) endYearInput.value = entry.end_year || '';
         if (descriptionInput) descriptionInput.value = entry.description || '';
 
-        // Show proof section for existing entries; hide hint
+        // Show proof section for existing entries
         if (proofSection) proofSection.style.display = '';
-        const eduHint = document.getElementById('edu-proof-hint');
-        if (eduHint) eduHint.style.display = 'none';
         if (proofFileInput) proofFileInput.value = '';
         if (proofExisting) {
             if (entry.proof_path) {
@@ -1119,10 +1321,11 @@ function showEducationForm(entry = null) {
         if (endYearInput) endYearInput.value = '';
         if (descriptionInput) descriptionInput.value = '';
 
-        // Hide proof section for new entries (no ID yet); show hint
-        if (proofSection) proofSection.style.display = 'none';
+        // Show proof section for new entries so user can attach proof immediately
+        if (proofSection) proofSection.style.display = '';
         const eduHint = document.getElementById('edu-proof-hint');
-        if (eduHint) eduHint.style.display = '';
+        if (eduHint) eduHint.style.display = 'none';
+        if (proofFileInput) proofFileInput.value = '';
         if (proofExisting) { proofExisting.style.display = 'none'; proofExisting.innerHTML = ''; }
     }
 
@@ -1203,6 +1406,22 @@ async function saveEducation() {
 
         if (res.ok) {
             showToast('Education saved successfully');
+            const savedData = await res.json().catch(() => ({}));
+            const savedId = id || savedData.id;
+            // Upload proof if a file was selected during add
+            if (!id) {
+                const proofFile = document.getElementById('edu-proof')?.files?.[0];
+                if (proofFile && savedId) {
+                    const proofFormData = new FormData();
+                    proofFormData.append('proof', proofFile);
+                    try {
+                        const proofRes = await window.StaffTrackAuth.apiFetch(`/api/cv-profiles/${email}/education/${savedId}/proof`, {
+                            method: 'POST', body: proofFormData
+                        });
+                        if (proofRes.ok) showToast('Proof uploaded successfully');
+                    } catch (e) { console.error('Error uploading proof:', e); }
+                }
+            }
             educationLoaded = false;
             loadEducation();
             hideEducationForm();
@@ -1412,10 +1631,8 @@ function showCertificationForm(entry = null) {
         if (credentialIdInput) credentialIdInput.value = entry.credential_id || '';
         if (descriptionInput) descriptionInput.value = entry.description || '';
 
-        // Show proof section for existing entries; hide hint
+        // Show proof section for existing entries
         if (proofSection) proofSection.style.display = '';
-        const certHint = document.getElementById('cert-proof-hint');
-        if (certHint) certHint.style.display = 'none';
         if (proofFileInput) proofFileInput.value = '';
         if (proofExisting) {
             if (entry.proof_path) {
@@ -1438,10 +1655,11 @@ function showCertificationForm(entry = null) {
         if (credentialIdInput) credentialIdInput.value = '';
         if (descriptionInput) descriptionInput.value = '';
 
-        // Hide proof section for new entries; show hint
-        if (proofSection) proofSection.style.display = 'none';
+        // Show proof section for new entries so user can attach proof immediately
+        if (proofSection) proofSection.style.display = '';
         const certHint = document.getElementById('cert-proof-hint');
-        if (certHint) certHint.style.display = '';
+        if (certHint) certHint.style.display = 'none';
+        if (proofFileInput) proofFileInput.value = '';
         if (proofExisting) { proofExisting.style.display = 'none'; proofExisting.innerHTML = ''; }
     }
 
@@ -1522,6 +1740,22 @@ async function saveCertification() {
 
         if (res.ok) {
             showToast('Certification saved successfully');
+            const savedData = await res.json().catch(() => ({}));
+            const savedId = id || savedData.id;
+            // Upload proof if a file was selected during add
+            if (!id) {
+                const proofFile = document.getElementById('cert-proof')?.files?.[0];
+                if (proofFile && savedId) {
+                    const proofFormData = new FormData();
+                    proofFormData.append('proof', proofFile);
+                    try {
+                        const proofRes = await window.StaffTrackAuth.apiFetch(`/api/cv-profiles/${email}/certifications/${savedId}/proof`, {
+                            method: 'POST', body: proofFormData
+                        });
+                        if (proofRes.ok) showToast('Proof uploaded successfully');
+                    } catch (e) { console.error('Error uploading proof:', e); }
+                }
+            }
             certificationsLoaded = false;
             loadCertifications();
             hideCertificationForm();
@@ -2629,6 +2863,7 @@ async function init() {
     // 2. Tab Infrastructure
     initSubmissionTab(); 
     initGenerateCvTab();
+    initProjectAutocomplete();
     wireUpTabSwitching();
 
     // 3. Global Event Listeners
@@ -2644,7 +2879,9 @@ async function init() {
         showToast('Saved to server ✓');
         loadProfile();
     });
-    document.getElementById('btn-upload-photo')?.addEventListener('click', uploadPhoto);
+    // Photo upload: the <label for="cv-photo"> opens the file picker natively;
+    // this handler runs once a file is chosen.
+    document.getElementById('cv-photo')?.addEventListener('change', uploadPhoto);
 
     // Proof upload buttons
     document.getElementById('btn-upload-edu-proof')?.addEventListener('click', () => {
@@ -2673,6 +2910,11 @@ async function init() {
     document.getElementById('btn-save-work-history')?.addEventListener('click', saveWorkHistory);
     document.getElementById('btn-cancel-work-history')?.addEventListener('click', hideWorkHistoryForm);
 
+    // Active Projects tab buttons
+    document.getElementById('btn-add-project')?.addEventListener('click', () => showProjectForm(null));
+    document.getElementById('btn-save-project')?.addEventListener('click', saveProject);
+    document.getElementById('btn-cancel-project')?.addEventListener('click', hideProjectForm);
+
     // Past Projects tab buttons
     document.getElementById('btn-add-past-project')?.addEventListener('click', () => showPastProjectForm(null));
     document.getElementById('btn-save-past-project')?.addEventListener('click', savePastProject);
@@ -2684,23 +2926,22 @@ async function init() {
         updateSkillsCount();
         scheduleAutoSave();
     });
-    document.getElementById('btn-add-project')?.addEventListener('click', () => {
-        addProjectRowSub({});
-        updateProjectsCountSub();
-        scheduleAutoSave();
-    });
     document.getElementById('btn-load-previous')?.addEventListener('click', async () => {
         const btn = document.getElementById('btn-load-previous');
         if (!btn) return;
         btn.textContent = '⏳ Loading…';
         btn.disabled = true;
         try {
-            const res = await window.StaffTrackAuth.apiFetch('/api/submissions');
+            // Scope the list to THIS profile's submissions only — listing all staff's
+            // submissions let a user load someone else's data into their own editor.
+            const res = await window.StaffTrackAuth.apiFetch(`/api/submissions/email/${encodeURIComponent(targetProfileEmail)}`);
             const all = res.ok ? await res.json() : [];
-            if (!all.length) {
-                showToast('No saved submissions found');
+            const subs = (Array.isArray(all) ? all : (all ? [all] : []))
+                .filter(s => (s.staff_email || '').toLowerCase() === targetProfileEmail.toLowerCase());
+            if (!subs.length) {
+                showToast('No saved submissions for this profile');
             } else {
-                showLoadModal(all);
+                showLoadModal(subs);
             }
         } catch { showToast('Could not reach server'); }
         btn.textContent = '📂 Load Previous';
@@ -2717,6 +2958,7 @@ async function init() {
         sessionStorage.removeItem('stafftrack_id');
         location.reload();
     });
+    document.getElementById('btn-summary')?.addEventListener('click', showSummaryModal);
 
     // Generate CV buttons
     document.getElementById('btn-generate-cv')?.addEventListener('click', generateCv);

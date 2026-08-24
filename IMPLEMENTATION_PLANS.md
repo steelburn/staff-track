@@ -202,21 +202,24 @@ describe('Auth Utilities', () => {
 
 ### 🟡 Phase 3: Database Migration (Week 3)
 
-#### 9. Prepare PostgreSQL Migration
+#### 9. Prepare PostgreSQL Migration — Future (Currently on MySQL)
 
-**Migration script:**
+**Note**: The project has migrated from SQLite to MySQL 8.0. A future MySQL-to-PostgreSQL migration can be planned if needed for scaling.
+
+**Migration script (conceptual):**
 ```javascript
-// scripts/migrate-to-postgres.js
-import sqlite3 from 'better-sqlite3';
+// scripts/migrate-mysql-to-postgres.js
+import mysql from 'mysql2/promise';
 import pg from 'pg';
 
-const sqlite = new sqlite3('data/submissions.db');
+const mysqlPool = mysql.createPool({ host: 'localhost', user: 'root', database: 'stafftrack' });
 const pgPool = new pg.Pool({ connectionString: process.env.POSTGRES_URL });
 
-const tables = sqlite.prepare("SELECT name FROM sqlite_master WHERE type='table'").all();
+const [tables] = await mysqlPool.query('SHOW TABLES');
 
-for (const { name } of tables) {
-  const rows = sqlite.prepare(`SELECT * FROM ${name}`).all();
+for (const row of tables) {
+  const tableName = Object.values(row)[0];
+  const [rows] = await mysqlPool.query(`SELECT * FROM ${tableName}`);
   // Insert to PostgreSQL
 }
 ```
@@ -350,7 +353,7 @@ app.use((req, res, next) => {
 | No rate limiting | 🟡 High | Fix needed |
 | No health endpoint | 🟡 High | Fix needed |
 | No automated testing | 🟡 High | Fix needed |
-| SQLite not scalable | 🟡 High | Migration needed |
+| ~~SQLite not scalable~~ | ~~🟡 High~~ | ✅ Migrated to MySQL 8.0 |
 
 ---
 

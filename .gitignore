@@ -34,3 +34,16 @@ Thumbs.db
 .agents/
 brain/
 .copilot-specs-cache/
+
+# Local tooling / editor state
+.kilo/
+.sisyphus/
+
+# Runtime data (never commit user uploads or backups)
+backend/files/
+backups/
+
+# Dev verification artifacts (local-only review harness)
+review-*.cjs
+review-*.png
+test-orgchart.js

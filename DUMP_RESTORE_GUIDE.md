@@ -112,7 +112,7 @@ curl http://localhost:3000/data-tools/status | jq
 ```json
 {
   "status": "ok",
-  "database": "/data/submissions.db",
+  "database": "stafftrack (MySQL)",
   "tables": 18,
   "statistics": {
     "staff": 243,

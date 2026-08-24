@@ -32,7 +32,7 @@ StaffTrack is a containerized Staff & Project Tracking application designed for 
 ### Current Status
 
 - **Production Ready**: Yes (v1.0)
-- **Database**: SQLite
+- **Database**: MySQL 8.0
 - **Deployment**: Docker Compose (local development)
 - **Kubernetes**: Pending implementation
 
@@ -44,7 +44,7 @@ StaffTrack is a containerized Staff & Project Tracking application designed for 
 
 ```
 ┌─────────────┐     ┌──────────┐     ┌──────────┐     ┌─────────┐
-│   Browser   │────▶│  Nginx   │────▶│ Backend  │────▶│  SQLite │
+│   Browser   │────▶│  Nginx   │────▶│ Backend  │────▶│  MySQL  │
 │   (SPA)     │     │  (Proxy) │     │  (API)   │     │  (DB)   │
 └─────────────┘     └──────────┘     └──────────┘     └─────────┘
 ```
@@ -80,7 +80,7 @@ StaffTrack is a containerized Staff & Project Tracking application designed for 
 │                                         │  │
 │                                         ▼  │
 │                                   ┌───────────┐  │
-│                                   │   SQLite  │  │
+│                                   │   MySQL   │  │
 │                                   │  Volume   │  │
 │                                   └───────────┘  │
 │                                             │
@@ -91,14 +91,20 @@ StaffTrack is a containerized Staff & Project Tracking application designed for 
 
 1. **User Authentication Flow**
    ```
-   Browser → /api/auth/login → Backend → External Auth Service → SQLite
-                                                   ↓
-                                        Response (JWT Token)
+   Browser → /api/auth/login → Backend → BeeSuite AppCore (auth)
+                                          ↓ (success)
+                                    Check user_roles table
+                                          ↓ (not found)
+                                    Auto-sync from BeeSuite
+                                    (fetch staff list + employment detail)
+                                    Create staff + user_roles records
+                                          ↓
+                                    Generate JWT → Response
    ```
 
 2. **Staff Submission Flow**
    ```
-   Browser → POST /submissions/me → Backend → SQLite (submissions, skills, projects)
+   Browser → POST /submissions/me → Backend → MySQL (submissions, skills, projects)
    ```
 
 3. **Report Generation Flow**
@@ -205,12 +211,21 @@ cv_templates ── 1─n ── cv_snapshots
 **Response (200):**
 ```json
 {
-  "accessToken": "jwt_token",
-  "refreshToken": "refresh_token",
-  "user": {"email": "user@example.com", "role": "staff"},
-  "expiresIn": 28800
+  "access_token": "jwt_token",
+  "isAdmin": false,
+  "is_hr": false,
+  "is_coordinator": false,
+  "name": "John Doe"
 }
 ```
+
+**Auto-Sync Behavior:**
+If the user authenticates successfully against BeeSuite but doesn't exist in the local `user_roles` table, the backend automatically:
+1. Fetches the staff list from BeeSuite using the login token
+2. Finds the user by email and retrieves employment details (manager name)
+3. Creates a `staff` record with name, title, department, and manager
+4. Creates a `user_roles` record with default `staff` role
+5. Re-queries roles and proceeds with login
 
 ### Submissions (`/submissions/*`)
 
@@ -259,7 +274,14 @@ Restores database from JSON dump.
 ### Authentication Flow
 
 ```
-Browser → POST /auth/login → Backend → Validate → Generate JWT → Store token → Response
+Browser → POST /auth/login → Backend → BeeSuite AppCore (authenticate)
+                                          ↓ (success)
+                                    Check user_roles → Not found?
+                                          ↓ (yes)
+                                    Auto-sync: fetch profile from BeeSuite
+                                    Create staff + user_roles records
+                                          ↓
+                                    Generate JWT → Store token → Response
 ```
 
 ### Role-Based Access Control
@@ -333,13 +355,21 @@ services:
       - ./backend:/app
       - db_data:/data
     environment:
-      DB_PATH: "/data/submissions.db"
+      MYSQL_HOST: "db"
+      MYSQL_USER: "stafftrack"
+      MYSQL_PASSWORD: "stafftrack_dev_password"
+      MYSQL_DATABASE: "stafftrack"
       JWT_SECRET: "dev_secret"
 
   db:
-    image: alpine/sqlite:latest
+    image: mysql:8.0
+    environment:
+      MYSQL_ROOT_PASSWORD: "root_password"
+      MYSQL_USER: "stafftrack"
+      MYSQL_PASSWORD: "stafftrack_dev_password"
+      MYSQL_DATABASE: "stafftrack"
     volumes:
-      - db_data:/data
+      - db_data:/var/lib/mysql
 ```
 
 ### Kubernetes Deployment
@@ -504,13 +534,13 @@ curl -X POST http://localhost:3000/data-tools/restore \
 
 ## Migration Roadmap
 
-### Phase 1: Database Migration
+### Phase 1: Database Migration — ✅ Completed
 
-1. Create MySQL migration script
-2. Update Docker Compose with MySQL
-3. Update backend database configuration
-4. Implement proper migration framework
-5. Migrate from SQLite to MySQL with data preservation
+1. ~~Create MySQL migration script~~
+2. ~~Update Docker Compose with MySQL~~
+3. ~~Update backend database configuration~~
+4. ~~Implement proper migration framework~~
+5. ~~Migrate from SQLite to MySQL with data preservation~~
 
 ### Phase 2: Frontend Improvements
 
@@ -564,7 +594,10 @@ curl -X POST http://localhost:3000/data-tools/restore \
 | Variable | Required | Default |
 |----------|----------|---------|
 | `PORT` | No | 3000 |
-| `DB_PATH` | No | /data/submissions.db |
+| `MYSQL_HOST` | No | localhost |
+| `MYSQL_USER` | No | root |
+| `MYSQL_PASSWORD` | No | (empty) |
+| `MYSQL_DATABASE` | No | stafftrack |
 | `JWT_SECRET` | Yes | (required) |
 | `JWT_EXPIRY` | No | 8h |
 | `AUTH_SERVICE_URL` | No | - |
@@ -572,6 +605,6 @@ curl -X POST http://localhost:3000/data-tools/restore \
 
 ---
 
-**Document Version:** 2.0.0  
-**Last Updated:** 2026-04-04  
-**Next Review:** 2026-05-04
+**Document Version:** 2.1.0  
+**Last Updated:** 2026-04-18  
+**Next Review:** 2026-05-18

@@ -1,11 +1,23 @@
 import express from 'express';
 import fs from 'fs';
 import path from 'path';
+import multer from 'multer';
 import { dumpDatabaseAsJson } from '../dump.js';
 import { restoreDatabaseFromJson } from '../restore.js';
 import { getDb } from '../db.js';
 
 const router = express.Router();
+
+// Multer for JSON file restore (memory storage, parse JSON)
+const jsonUpload = multer({
+    storage: multer.memoryStorage(),
+    limits: { fileSize: 50 * 1024 * 1024 }, // 50MB
+    fileFilter: (_req, file, cb) => {
+        if (file.mimetype === 'application/json' || path.extname(file.originalname) === '.json')
+            cb(null, true);
+        else cb(new Error('Only JSON files are allowed'));
+    }
+});
 
 /**
  * GET /data-tools/dump
@@ -56,16 +68,26 @@ router.post('/restore', (req, res) => {
  * Restore database from uploaded JSON file
  * Expects multipart/form-data with 'file' field
  */
-router.post('/restore-file', (req, res) => {
+router.post('/restore-file', jsonUpload.single('file'), (req, res) => {
   try {
-    // This endpoint would require multer middleware
-    // For now, just return an informational message
+    if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+
+    const jsonStr = req.file.buffer.toString('utf8');
+    const data = JSON.parse(jsonStr);
+
+    if (!data || typeof data !== 'object')
+      return res.status(400).json({ error: 'File must contain a valid JSON dump object' });
+
+    const results = restoreDatabaseFromJson(data);
+
     res.json({
-      message: 'File upload restore endpoint - requires multer middleware configuration',
-      alternative: 'Use POST /data-tools/restore with JSON body'
+      success: true,
+      message: `Database restored from ${req.file.originalname}`,
+      results
     });
   } catch (err) {
-    res.status(500).json({ error: 'Failed to restore from file', message: err.message });
+    console.error('Restore from file failed:', err);
+    res.status(500).json({ error: 'Failed to restore from file: ' + err.message });
   }
 });
 

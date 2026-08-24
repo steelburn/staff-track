@@ -10,7 +10,7 @@ A high-level assessment of proposed features based on Pre-Sales team feedback, e
 |:---|:---|:---|
 | Frontend | Vanilla JS, HTML5, CSS3 | SPA-like, no build step |
 | Backend | Node.js 20, Express | Single `backend` service |
-| Database | SQLite (better-sqlite3) | Single file, WAL mode |
+| Database | MySQL 8.0 (mysql2/promise) | Production-grade, Docker volume |
 | Auth | In-memory token map | Email-only login, no passwords |
 | Proxy | Nginx | Static files + reverse proxy |
 | Orchestration | Docker Compose | Two services + proxy |
@@ -159,6 +159,7 @@ Plus schema changes to `submission_projects`: add `start_date`, `description`, `
 | **Token refresh** | None | Add `/auth/refresh` endpoint with refresh tokens |
 | **Audit trail** | None | Log login events, permission changes |
 | **Entra ID SSO** | N/A | 🔮 Future wishlist |
+| **Auto-Sync on Login** | N/A | ✅ Implemented — new BeeSuite users are auto-synced on first login |
 
 ---
 
@@ -263,7 +264,7 @@ Plus schema changes to `submission_projects`: add `start_date`, `description`, `
 | **1** | 🔍 Skill Search/Sort + 🧩 Skill Consolidation | 🟢 Low | ✅ Completed |
 | **2** | 📄 CV Generation (MVP) | 🟢 Low | ✅ Completed (Profile Page + Preview + PDF Export) |
 | **3** | 📉 Gantt Chart Performance | 🟢 Low | ✅ Completed (Canvas Virtualization + Optimization) |
-| **4** | 🔐 Access Control | 🟢 Low | ✅ Completed (JWT, refresh tokens, audit log, 6 roles) |
+| **4** | 🔐 Access Control | 🟢 Low | ✅ Completed (JWT, refresh tokens, audit log, 6 roles, auto-sync) |
 | **5** | 📥 Exports (CV + Reports) | 🟡 Medium | Tied to CV Gen phase 1c, plus HR/mgmt reports |
 | **6** | 🔗 External Integration | 🟡 Medium | DreamFactory + REST API adapters |
 | — | 🏢 Org Chart Enhancement | — | ⏸️ On hold |
@@ -285,7 +286,7 @@ graph LR
 ## Architecture Considerations
 
 > [!NOTE]
-> Plan for migrating from **SQLite → PostgreSQL** early. SQLite works well for the prototype, but concurrent external syncs and multi-user enterprise deployments will require a robust database. **Important:** The production environment already has data, so a robust data migration strategy (exporting current SQLite data and importing to PostgreSQL) must be included.
+> **Note**: The project has migrated from SQLite to MySQL 8.0. Future scaling may consider PostgreSQL for multi-server deployments.
 
 ---
 

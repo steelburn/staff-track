@@ -108,7 +108,7 @@ async function handleLogin() {
             } else if (data.is_coordinator) {
                 location.href = '/projects.html';
             } else {
-                location.href = '/';
+                location.href = '/cv-profile.html';
             }
         }, 300);
 
@@ -142,6 +142,6 @@ if (sessionStorage.getItem('st_token')) {
         if (user.isAdmin) location.href = '/admin.html';
         else if (user.is_hr) location.href = '/staff-view.html';
         else if (user.is_coordinator) location.href = '/projects.html';
-        else location.href = '/';
+        else location.href = '/cv-profile.html';
     } catch { }
 }

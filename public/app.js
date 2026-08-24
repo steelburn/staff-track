@@ -19,14 +19,16 @@ let ALL_PROJECTS_CSV = [];
 
 // ── Persistence ───────────────────────────────────────────────────────────────
 let saveTimer = null;
+let saveInFlight = false;
+let saveQueued = false;
 
 function scheduleAutoSave() {
     clearTimeout(saveTimer);
     saveTimer = setTimeout(saveToBackend, 1500);
 }
 
-async function saveToBackend() {
-    const payload = {
+function buildSubmissionPayload() {
+    return {
         staffName: AppState.staff.name,
         staffData: { ...AppState.staff, email: authUser.email },
         editedFields: [...AppState.editedFields],
@@ -34,8 +36,14 @@ async function saveToBackend() {
         projects: AppState.projects.map(({ soc, projectName, customer, role, endDate }) =>
             ({ soc, projectName, customer, role, endDate })),
     };
+}
 
+async function saveToBackend() {
+    // Serialize saves: never let two PUTs race (each one deletes + reinserts rows)
+    if (saveInFlight) { saveQueued = true; return; }
+    saveInFlight = true;
     try {
+        const payload = buildSubmissionPayload();
         if (!AppState.submissionId) {
             const res = await window.StaffTrackAuth.apiFetch('/api/submissions', {
                 method: 'POST',
@@ -59,8 +67,37 @@ async function saveToBackend() {
     } catch (e) {
         setSaveStatus('Save error ✗', true);
         console.error(e);
+    } finally {
+        saveInFlight = false;
+        if (saveQueued) { saveQueued = false; saveToBackend(); }
     }
 }
+
+// Flush pending edits when the user reloads, navigates, or closes the tab.
+// keepalive lets the request survive the page teardown.
+function flushPendingSave() {
+    if (saveTimer) {
+        clearTimeout(saveTimer);
+        saveTimer = null;
+    }
+    if (saveInFlight || saveQueued) return; // a save is already on the wire
+    const token = sessionStorage.getItem('st_token');
+    if (!token) return;
+    const payload = buildSubmissionPayload();
+    const headers = { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token };
+    if (AppState.submissionId) {
+        fetch(`/api/submissions/${AppState.submissionId}`, {
+            method: 'PUT', headers, body: JSON.stringify(payload), keepalive: true,
+        }).catch(() => {});
+    } else if (payload.staffName && payload.staffData && payload.staffData.email) {
+        fetch('/api/submissions', {
+            method: 'POST', headers, body: JSON.stringify(payload), keepalive: true,
+        }).then(r => {
+            if (r.ok) r.json().then(d => { AppState.submissionId = d.id; sessionStorage.setItem('stafftrack_id', d.id); }).catch(() => {});
+        }).catch(() => {});
+    }
+}
+window.addEventListener('beforeunload', flushPendingSave);
 
 async function loadFromBackend(id) {
     try {
@@ -80,8 +117,8 @@ async function loadFromBackend(id) {
             if (!AppState.staff.managerName) AppState.staff.managerName = dbEntry.manager_name || '';
         }
         AppState.editedFields = new Set(data.editedFields || []);
-        AppState.skills = (data.skills || []).map(s => ({ ...s, id: uid() }));
-        AppState.projects = (data.projects || []).map(p => ({ ...p, id: uid() }));
+        AppState.skills = (data.skills || []).map(s => ({ ...s, id: s.id || uid(), _persisted: !!s.id }));
+        AppState.projects = (data.projects || []).map(p => ({ ...p, id: p.id || uid(), _persisted: !!p.id }));
         return true;
     } catch { return false; }
 }
@@ -105,7 +142,7 @@ function formatDate(iso) {
 
 function showLoadModal(submissions) {
     const backdrop = document.createElement('div');
-    backdrop.className = 'modal-backdrop';
+    backdrop.className = 'modal-backdrop active';
     const rows = submissions.map((s, i) => `
         <div class="load-row" data-idx="${i}">
           <div class="load-row-info">
@@ -335,10 +372,11 @@ function addSkillRow(row) {
     tr.innerHTML = `
     <td><input type="text" placeholder="e.g. Azure, Project Management" value="${row.skill}"></td>
     <td>
-      <div class="star-rating">
+      <div class="star-rating" role="radiogroup" aria-label="Proficiency level">
         ${[1, 2, 3, 4, 5].map(n =>
-        `<button type="button" class="${n <= row.rating ? 'on' : ''}" data-val="${n}" title="${n} star${n > 1 ? 's' : ''}">★</button>`
+        `<button type="button" role="radio" class="${n === row.rating ? 'on' : ''}" data-val="${n}" title="Proficiency level ${n}" aria-checked="${n === row.rating}">${n}</button>`
     ).join('')}
+        <span class="rating-level">${row.rating ? `Level ${row.rating}/5` : '—'}</span>
       </div>
     </td>
     <td class="col-remove"><button class="btn-remove" title="Remove">✕</button></td>`;
@@ -356,13 +394,21 @@ function addSkillRow(row) {
             const s = AppState.skills.find(s => s.id === row.id);
             if (s) s.rating = val;
             tr.querySelectorAll('.star-rating button').forEach(b => {
-                b.classList.toggle('on', +b.dataset.val <= val);
+                b.classList.toggle('on', +b.dataset.val === val);
+                b.setAttribute('aria-checked', String(+b.dataset.val === val));
             });
+            const lvl = tr.querySelector('.rating-level');
+            if (lvl) lvl.textContent = `Level ${val}/5`;
             scheduleAutoSave();
         });
     });
 
     tr.querySelector('.btn-remove').addEventListener('click', () => {
+        const row = AppState.skills.find(s => s.id === row.id);
+        // Explicitly delete persisted rows; unsaved rows are just dropped locally
+        if (row?._persisted && AppState.submissionId) {
+            window.StaffTrackAuth.apiFetch(`/api/submissions/${AppState.submissionId}/skills/${row.id}`, { method: 'DELETE' }).catch(() => {});
+        }
         AppState.skills = AppState.skills.filter(s => s.id !== row.id);
         tr.remove();
         updateSkillsCount();
@@ -381,8 +427,8 @@ function showSkillsEmpty(show) {
 }
 
 function updateSkillsCount() {
-    const el = document.getElementById('skills-count');
-    if (el) el.textContent = `${AppState.skills.length} skill${AppState.skills.length !== 1 ? 's' : ''}`;
+    const el = document.getElementById('stat-skills');
+    if (el) el.textContent = AppState.skills.length;
 }
 
 // ── Section 3: Projects Grid ──────────────────────────────────────────────────
@@ -483,6 +529,11 @@ function addProjectRow(data = {}) {
     dateInput.addEventListener('change', saveProjects);
 
     tr.querySelector('.btn-del-row').addEventListener('click', () => {
+        const proj = AppState.projects.find(p => p.id === rowId);
+        // Explicitly delete persisted rows; unsaved rows are just dropped locally
+        if (proj?._persisted && AppState.submissionId) {
+            window.StaffTrackAuth.apiFetch(`/api/submissions/${AppState.submissionId}/projects/${proj.id}`, { method: 'DELETE' }).catch(() => {});
+        }
         AppState.projects = AppState.projects.filter(p => p.id !== rowId);
         tr.remove();
         updateProjectsCount();
@@ -500,8 +551,8 @@ function showProjectsEmpty(show) {
 }
 
 function updateProjectsCount() {
-    const el = document.getElementById('projects-count');
-    if (el) el.textContent = `${AppState.projects.length} project${AppState.projects.length !== 1 ? 's' : ''}`;
+    const el = document.getElementById('stat-projects');
+    if (el) el.textContent = AppState.projects.length;
 }
 
 // ── Summary Modal ─────────────────────────────────────────────────────────────
@@ -510,7 +561,7 @@ function buildSummaryText() {
     const edits = AppState.editedFields.size
         ? `  ⚠ Manually edited fields: ${[...AppState.editedFields].join(', ')}\n` : '';
     const skills = AppState.skills.length
-        ? AppState.skills.map(sk => `  • ${sk.skill || '(unnamed)'} — ${'★'.repeat(sk.rating)}${'☆'.repeat(5 - sk.rating)}`).join('\n')
+        ? AppState.skills.map(sk => `  • ${sk.skill || '(unnamed)'} — Level ${sk.rating}/5`).join('\n')
         : '  (none)';
     const projects = AppState.projects.length
         ? AppState.projects.map(p =>
@@ -539,7 +590,7 @@ ID: ${AppState.submissionId || 'not yet saved'}`;
 
 function showSummaryModal() {
     const backdrop = document.createElement('div');
-    backdrop.className = 'modal-backdrop';
+    backdrop.className = 'modal-backdrop active';
     backdrop.innerHTML = `
     <div class="modal" role="dialog" aria-modal="true">
       <div class="modal-header">
@@ -617,7 +668,8 @@ async function init() {
     }
     if (authUser.isAdmin) {
         // Admins shouldn't be making submissions
-        document.querySelector('.submit-area').style.display = 'none';
+        const submitArea = document.querySelector('.submit-area');
+        if (submitArea) submitArea.style.display = 'none';
     }
 
     // Ensure STAFF_DATA and authUser.email are defined
@@ -691,49 +743,48 @@ async function init() {
     });
 
     // Auto-load or initialize user identity
-    if (!authUser.isAdmin) {
-        const dbUser = STAFF_DATA.find(s => (s.email || '').toLowerCase() === authUser.email.toLowerCase());
-        const identityName = dbUser ? dbUser.name : authUser.email;
+    try {
+        const res = await window.StaffTrackAuth.apiFetch(!authUser.isAdmin && !authUser.is_hr ? '/api/submissions/me' : '/api/submissions');
+        let all = [];
+        if (res.ok) {
+            const data = await res.json();
+            all = Array.isArray(data) ? data : [data];
+        }
+        const mySubs = all.filter(s => {
+            const nameMatch = s.staffName.toLowerCase() === identityName.toLowerCase();
+            const emailMatch = (s.staffEmail || '').toLowerCase() === authUser.email.toLowerCase();
+            return nameMatch || emailMatch;
+        });
 
-        try {
-            const res = await window.StaffTrackAuth.apiFetch(!authUser.isAdmin && !authUser.is_hr ? '/api/submissions/me' : '/api/submissions');
-            let all = [];
-            if (res.ok) {
-                const data = await res.json();
-                all = Array.isArray(data) ? data : [data];
-            }
-            const mySubs = all.filter(s => s.staffName.toLowerCase() === identityName.toLowerCase());
+        if (mySubs.length > 0) {
+            // Restore most recent
+            const latestId = mySubs[0].id;
+            sessionStorage.setItem('stafftrack_id', latestId);
+            const ok = await loadFromBackend(latestId);
+            if (ok) { restoreForm(); setSaveStatus('Restored from server'); }
+        } else {
+            // Initialize fresh form constraints
+            AppState.submissionId = null;
+            const snap = {
+                name: dbUser ? (dbUser.name || identityName) : identityName,
+                title: dbUser ? (dbUser.title || '') : '',
+                department: dbUser ? (dbUser.department || '') : '',
+                managerName: dbUser ? (dbUser.manager_name || '') : '',
+                email: dbUser ? (dbUser.email || authUser.email) : authUser.email,
+            };
+            AppState.originalStaff = { ...snap };
+            AppState.staff = { ...snap };
 
-            if (mySubs.length > 0) {
-                // Restore most recent
-                const latestId = mySubs[0].id;
-                sessionStorage.setItem('stafftrack_id', latestId);
-                const ok = await loadFromBackend(latestId);
-                if (ok) { restoreForm(); setSaveStatus('Restored from server'); }
-            } else {
-                // Initialize fresh form constraints
-                AppState.submissionId = null;
-                const snap = {
-                    name: dbUser ? (dbUser.name || identityName) : identityName,
-                    title: dbUser ? (dbUser.title || '') : '',
-                    department: dbUser ? (dbUser.department || '') : '',
-                    managerName: dbUser ? (dbUser.manager_name || '') : '',
-                    email: dbUser ? (dbUser.email || authUser.email) : authUser.email,
-                };
-                AppState.originalStaff = { ...snap };
-                AppState.staff = { ...snap };
+            document.getElementById('staff-name').value = snap.name;
+            document.getElementById('staff-title').value = snap.title;
+            document.getElementById('staff-department').value = snap.department;
+            document.getElementById('staff-manager').value = snap.managerName;
+            document.getElementById('staff-email').value = snap.email;
 
-                document.getElementById('staff-name').value = snap.name;
-                document.getElementById('staff-title').value = snap.title;
-                document.getElementById('staff-department').value = snap.department;
-                document.getElementById('staff-manager').value = snap.managerName;
-                document.getElementById('staff-email').value = snap.email;
-
-                showSkillsEmpty(true);
-                showProjectsEmpty(true);
-            }
-        } catch (e) { console.error('Failed to init identity', e); }
-    }
+            showSkillsEmpty(true);
+            showProjectsEmpty(true);
+        }
+    } catch (e) { console.error('Failed to init identity', e); }
 }
 
 // ── Sync across tabs ──────────────────────────────────────────────────────────
@@ -748,7 +799,7 @@ window.addEventListener('focus', async () => {
         // Sync skills
         (data.skills || []).forEach(bs => {
             if (bs.skill && !AppState.skills.find(s => s.skill.toLowerCase() === bs.skill.toLowerCase())) {
-                const sRow = { ...bs, id: uid() };
+                const sRow = { ...bs, id: bs.id || uid(), _persisted: !!bs.id };
                 addSkillRow(sRow);
                 changed = true;
             }
@@ -762,7 +813,7 @@ window.addEventListener('focus', async () => {
                 (!p.soc && p.projectName && p.projectName === bp.projectName)
             );
             if (!dup) {
-                const pRow = { ...bp, id: uid() };
+                const pRow = { ...bp, id: bp.id || uid(), _persisted: !!bp.id };
                 addProjectRow(pRow);
                 changed = true;
             }

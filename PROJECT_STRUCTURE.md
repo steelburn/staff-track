@@ -85,7 +85,7 @@ staff-track/
 
 ## Key Files Reference
 
-### Backend Routes (2,935 total lines)
+### Backend Routes (~3,000 total lines)
 
 | File | Lines | Purpose |
 |------|-------|---------|
@@ -138,7 +138,7 @@ staff-track/
 ## API Endpoints Overview
 
 ### Authentication (`/auth/*`)
-- `POST /auth/login` - Login with email/password
+- `POST /auth/login` - Login with email/password (auto-syncs user from BeeSuite if not in DB)
 - `POST /auth/refresh` - Refresh access token
 - `POST /auth/logout` - Logout (revoke token)
 - `GET /auth/audit` - Get audit logs (admin/HR)
@@ -198,8 +198,8 @@ staff-track/
 | Frontend | Vanilla JS | ES2020 |
 | Backend | Node.js | 20 LTS |
 | Framework | Express | 4.x |
-| Database | SQLite | 3.45 |
-| ORM/DB Layer | better-sqlite3 | 9.x |
+| Database | MySQL | 8.0 |
+| DB Driver | mysql2/promise | 2.x |
 | Authentication | JWT | 9.x |
 | Templates | Mustache | 4.x |
 | Markdown | marked | 12.x |
@@ -211,7 +211,7 @@ staff-track/
 
 ```
 /data/
-├── submissions.db           # SQLite database
+├── stafftrack.db            # MySQL database (named for reference)
 ├── uploads/
 │   ├── photos/              # Staff photos
 │   └── proofs/              # Proof files

@@ -5,6 +5,84 @@ import { v4 as uuidv4 } from 'uuid';
 import crypto from 'crypto';
 import axios from 'axios';
 
+const BEESUITE_API_BASE = process.env.BEESUITE_API_URL || 'https://appcore.beesuite.app';
+
+// ── Auto-sync user from BeeSuite if not in local DB ────────────────────────
+async function syncUserFromBeeSuite(db, email, beesuiteToken) {
+    try {
+        // Fetch staff list from BeeSuite to find this user
+        const staffResponse = await axios.get(`${BEESUITE_API_BASE}/api/users/staff`, {
+            headers: { 'Authorization': `JWT ${beesuiteToken}` }
+        });
+
+        let staffList = staffResponse.data;
+        if (!Array.isArray(staffList)) return null;
+
+        // Find the matching user by email
+        const beesuiteUser = staffList.find(s => s.email?.toLowerCase() === email.toLowerCase());
+        if (!beesuiteUser) {
+            console.log(`Auto-sync: user ${email} not found in BeeSuite staff list`);
+            return null;
+        }
+
+        const name = beesuiteUser.employeeName;
+        const title = beesuiteUser.designation;
+        const department = beesuiteUser.department;
+        const staffId = beesuiteUser.id;
+
+        if (!name) {
+            console.log(`Auto-sync: user ${email} has no name in BeeSuite`);
+            return null;
+        }
+
+        // Fetch employment detail for manager info
+        let managerName = null;
+        try {
+            const empRes = await axios.get(
+                `${BEESUITE_API_BASE}/api/admin/user-info-details/employment-detail/${staffId}`,
+                { headers: { 'Authorization': `JWT ${beesuiteToken}` } }
+            );
+            if (empRes.data?.employmentDetail) {
+                managerName = empRes.data.employmentDetail.reportingToName;
+            }
+        } catch (empErr) {
+            console.log(`Auto-sync: could not fetch employment detail for ${email}:`, empErr.message);
+        }
+
+        const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
+
+        // Insert or update staff record
+        const [existingStaff] = await db.query('SELECT email FROM staff WHERE email = ?', [email]);
+        if (existingStaff.length === 0) {
+            await db.query(
+                'INSERT INTO staff (email, name, title, department, manager_name) VALUES (?, ?, ?, ?, ?)',
+                [email, name, title, department, managerName]
+            );
+            console.log(`Auto-sync: created staff record for ${email}`);
+        } else {
+            await db.query(
+                'UPDATE staff SET name = ?, title = ?, department = ?, manager_name = ? WHERE email = ?',
+                [name, title, department, managerName, email]
+            );
+        }
+
+        // Insert default user_roles if not exists
+        const [existingRole] = await db.query('SELECT email FROM user_roles WHERE email = ?', [email]);
+        if (existingRole.length === 0) {
+            await db.query(
+                'INSERT INTO user_roles (email, role, is_hr, is_coordinator, is_active, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
+                [email, 'staff', 0, 0, 1, now, now]
+            );
+            console.log(`Auto-sync: created user_roles for ${email}`);
+        }
+
+        return { email, name, title, department, role: 'staff', is_hr: 0, is_coordinator: 0 };
+    } catch (err) {
+        console.error(`Auto-sync error for ${email}:`, err.message);
+        return null;
+    }
+}
+
 // Utility functions for tokens
 function generateAccessToken(payload) {
     const token = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '8h' });
@@ -120,7 +198,7 @@ router.post('/login', async (req, res) => {
 
         // Query user_roles table
         const db = await getDb();
-        const [roles] = await db.query(
+        let [roles] = await db.query(
             'SELECT role, is_hr, is_coordinator FROM user_roles WHERE email = ?',
             [email]
         );
@@ -128,8 +206,29 @@ router.post('/login', async (req, res) => {
         // Debugging user_roles query
         console.log('Roles query result:', roles);
 
+        // If user not in roles table, auto-sync from BeeSuite
         if (roles.length === 0) {
-            return res.status(401).json({ error: 'User not found in roles table' });
+            console.log(`User ${email} not in roles table, attempting auto-sync from BeeSuite...`);
+            const beesuiteToken = user.access_token || user.token;
+            
+            if (!beesuiteToken) {
+                return res.status(401).json({ error: 'User not found in roles table' });
+            }
+
+            const synced = await syncUserFromBeeSuite(db, email, beesuiteToken);
+            if (!synced) {
+                return res.status(401).json({ error: 'User not found in roles table' });
+            }
+
+            // Re-query roles after sync
+            [roles] = await db.query(
+                'SELECT role, is_hr, is_coordinator FROM user_roles WHERE email = ?',
+                [email]
+            );
+
+            if (roles.length === 0) {
+                return res.status(401).json({ error: 'User not found in roles table' });
+            }
         }
 
         const { role, is_hr, is_coordinator } = roles[0];
@@ -137,6 +236,13 @@ router.post('/login', async (req, res) => {
 
         // Generate token
         const token = generateAccessToken({ email, isAdmin, is_hr, is_coordinator });
+
+        // Fetch staff name for the response
+        let staffName = null;
+        try {
+            const [staffRows] = await db.query('SELECT name FROM staff WHERE email = ?', [email]);
+            if (staffRows.length > 0) staffName = staffRows[0].name;
+        } catch (_) { /* ignore */ }
 
         // Debugging token generation
         console.log('Generated token:', token);
@@ -146,7 +252,8 @@ router.post('/login', async (req, res) => {
             access_token: token,
             isAdmin,
             is_hr,
-            is_coordinator
+            is_coordinator,
+            name: staffName
         });
     } catch (err) {
         console.error('Login error:', err.message);

@@ -1,9 +1,11 @@
 # StaffTrack - Technical Specification Document
 
-**Version:** 2.0.0  
-**Date:** 2026-04-04  
+**Version:** 2.1.0  
+**Date:** 2026-04-18  
 **Maintainer:** StaffTrack Team  
 **License:** Proprietary  
+
+> ⚠️ **Migration Notice**: This document contains references to SQLite from an earlier architecture. The project has migrated to **MySQL 8.0** (see `compose.yaml` for current configuration). Code examples using `better-sqlite3` or `sqlite3` are outdated — use `mysql2/promise` instead. Key environment variables are now `MYSQL_HOST`, `MYSQL_USER`, `MYSQL_PASSWORD`, `MYSQL_DATABASE`.
 
 ---
 
@@ -40,7 +42,7 @@ StaffTrack is a containerized Staff & Project Tracking application designed for 
 ### Current Status
 
 - **Production Ready**: Yes (v1.0)
-- **Database**: SQLite
+- **Database**: MySQL 8.0
 - **Deployment**: Docker Compose (local development)
 - **Kubernetes**: Pending implementation
 
@@ -90,12 +92,12 @@ StaffTrack is a containerized Staff & Project Tracking application designed for 
 ┌───────────────────────────────────────────────────────────────────────────────────┐
 │                            DATA LAYER                                            │
 │  ┌──────────────────┬──────────────────┬──────────────────┬───────────────────┐ │
-│  │   SQLite DB      │  File Storage    │  Cache (Future)  │   External APIs   │ │
+│  │   MySQL DB       │  File Storage    │  Cache (Future)  │   External APIs   │ │
 │  │  (Primary)       │  (Files/Photos)  │  (Redis)         │   (Future)        │ │
 │  │                  │                  │                  │                   │ │
 │  │ • Tables         │ • Photos         │ • Sessions       │ • AD Directory    │ │
 │  │ • Transactions   │ • Proofs         │ • Rate limiting  │ • Project Systems │ │
-│  │ • WAL mode       │ • CV templates   │ • Caching        │ • HR Systems      │ │
+│  │ • InnoDB engine  │ • CV templates   │ • Caching        │ • HR Systems      │ │
 │  └──────────────────┴──────────────────┴──────────────────┴───────────────────┘ │
 └───────────────────────────────────────────────────────────────────────────────────┘
 ```
@@ -106,7 +108,7 @@ StaffTrack is a containerized Staff & Project Tracking application designed for 
 |-------|-------|---------|---|
 | **Frontend** | Vanilla JS | ES2020 | No build step, SPA patterns |
 | **Backend** | Node.js | 20 LTS | Express framework |
-| **Database** | SQLite | 3.45 | better-sqlite3, WAL mode |
+| **Database** | MySQL | 8.0 | mysql2/promise, InnoDB |
 | **Authentication** | JWT | 9.x | HS256 signing |
 | **Proxy** | Nginx | Alpine | Reverse proxy + static files |
 | **Containerization** | Docker | 24.x | Multi-stage builds |
@@ -133,7 +135,7 @@ StaffTrack is a containerized Staff & Project Tracking application designed for 
 │                                        ▼                                │
 │                              ┌──────────────────┐                      │
 │                              │      db          │                      │
-│                              │   SQLite Volume  │                      │
+│                              │   MySQL Volume   │                      │
 │                              └──────────────────┘                      │
 │                                                                        │
 └────────────────────────────────────────────────────────────────────────┘
@@ -145,7 +147,7 @@ StaffTrack is a containerized Staff & Project Tracking application designed for 
    ```
    Browser → /api/auth/login → Backend → External Auth Service
                                                ↓
-                                        SQLite (jwt_tokens)
+                                        MySQL (jwt_tokens)
                                                ↓
                                        Signed JWT → Response
    ```
@@ -154,9 +156,9 @@ StaffTrack is a containerized Staff & Project Tracking application designed for 
    ```
    Browser → POST /submissions/me → Backend → Validate JWT
                                                    ↓
-                                            SQLite (submissions)
+                                            MySQL (submissions)
                                                    ↓
-                                            SQLite (skills, projects)
+                                            MySQL (skills, projects)
                                                    ↓
                                              Response (201)
    ```
@@ -198,7 +200,7 @@ StaffTrack is a containerized Staff & Project Tracking application designed for 
 | File | Purpose | Lines | Security Focus |
 |------|---------|-------|---|
 | `index.js` | Express app entry, middleware, routing | 60 | Helmet, JSON parsing |
-| `db.js` | Database initialization, migrations | 783 | WAL mode, foreign keys |
+| `db.js` | Database initialization, migrations | ~300 | MySQL pool, migration files |
 | `utils.js` | CSV parsing utilities | 40 | Input validation |
 
 #### Route Handlers (8 files, 2,935 lines total)
@@ -347,8 +349,8 @@ Template System:
 
 ### Schema Design Decisions
 
-**1. SQLite vs PostgreSQL**
-- **Current**: SQLite (single file, WAL mode)
+**1. MySQL vs PostgreSQL**
+- **Current**: MySQL 8.0 (production-grade, multi-user)
 - **Trade-offs**: Simplicity, zero config, file-based
 - **Limitations**: Concurrency, scalability
 - **Migration**: Ready (see Migration Roadmap)
@@ -358,7 +360,7 @@ Template System:
 - Protected: `ON DELETE SET NULL` for optional relationships
 
 **3. Data Integrity**
-- `PRAGMA foreign_keys = ON`
+- `FOREIGN KEY` constraints enforced by InnoDB engine
 - Transactions for all mutations
 - UPSERT (`ON CONFLICT`) for idempotency
 
@@ -786,7 +788,7 @@ audit_log.insert({
    - **Recommendation**: Always use external auth service in production
 
 3. **Database Credentials**
-   - Current: No explicit credentials (SQLite file)
+   - Current: MySQL credentials via environment variables
    - **Risk**: File-based storage, no password protection
    - **Fix for migration to PostgreSQL**: 
      ```yaml
@@ -884,7 +886,7 @@ audit_log.insert({
 
 ### Performance Bottlenecks
 
-#### 🔴 1. Database Queries (SQLite)
+#### 🔴 1. Database Queries (MySQL)
 
 **Issue**: Sequential disk I/O, no connection pooling
 
@@ -894,9 +896,10 @@ audit_log.insert({
 
 **Mitigation Strategies**:
 
-**Option A: SQLite Optimization**
-- Enable `PRAGMA journal_mode = WAL` (already done)
-- Increase `PRAGMA cache_size = -10000` (10MB cache)
+**Option A: MySQL Optimization**
+- InnoDB buffer pool sizing
+- Query index optimization
+- Connection pool tuning
 - Add indexes on frequently queried columns
 
 ```sql
@@ -987,7 +990,7 @@ function getCached(key, fetchFn, ttl = CACHE_TTL) {
 
 **Phase 1 - Immediate (Week 1)**
 1. Add database indexes
-2. Enable SQLite cache
+2. Enable MySQL query cache
 3. Implement caching layer (memory → Redis)
 
 **Phase 2 - Short-term (Month 1)**
@@ -1034,20 +1037,28 @@ services:
       - ./backend:/app
       - db_data:/data
     environment:
-      DB_PATH: "/data/submissions.db"
+      MYSQL_HOST: "db"
+      MYSQL_USER: "stafftrack"
+      MYSQL_PASSWORD: "stafftrack_dev_password"
+      MYSQL_DATABASE: "stafftrack"
       JWT_SECRET: "dev_secret"
 
   db:
-    image: alpine/sqlite:latest
+    image: mysql:8.0
+    environment:
+      MYSQL_ROOT_PASSWORD: "root_password"
+      MYSQL_USER: "stafftrack"
+      MYSQL_PASSWORD: "stafftrack_dev_password"
+      MYSQL_DATABASE: "stafftrack"
     volumes:
-      - db_data:/data
+      - db_data:/var/lib/mysql
 
 volumes:
   db_data:
 ```
 
 **Issues:**
-- SQLite not designed for multi-container
+- ~~SQLite not designed for multi-container~~ ✅ Migrated to MySQL
 - No health checks
 - No restart policies
 - No logging configuration
@@ -1151,11 +1162,11 @@ spec:
 
 ### Database Deployment
 
-#### SQLite → PostgreSQL Migration
+#### ~~SQLite → PostgreSQL Migration~~ ✅ Migrated to MySQL
 
-**Current**: SQLite file in Docker volume
+**Current**: MySQL 8.0 in Docker volume
 
-**Target**: PostgreSQL deployment
+**Target**: MySQL 8.0 (completed)
 
 ```yaml
 # k8s/postgres-deployment.yaml
@@ -1211,10 +1222,10 @@ spec:
 #### Data Migration Procedure
 
 ```bash
-# 1. Create dump from SQLite
+# 1. Create dump from MySQL
 docker compose exec backend npm run dump
 
-# 2. Convert SQLite dump to PostgreSQL format
+# 2. Convert MySQL dump to PostgreSQL format
 # Using custom script (see Migration Roadmap)
 
 # 3. Load to PostgreSQL
@@ -1704,7 +1715,10 @@ src/
 ```javascript
 module.exports = {
   port: process.env.PORT || 3000,
-  dbPath: process.env.DB_PATH || '/data/submissions.db',
+  mysqlHost: process.env.MYSQL_HOST || 'localhost',
+  mysqlUser: process.env.MYSQL_USER || 'root',
+  mysqlPassword: process.env.MYSQL_PASSWORD || '',
+  mysqlDatabase: process.env.MYSQL_DATABASE || 'stafftrack',
   jwtSecret: process.env.JWT_SECRET,
   jwtExpiry: process.env.JWT_EXPIRY || '8h',
   authServiceUrl: process.env.AUTH_SERVICE_URL,
@@ -1800,28 +1814,35 @@ app.use((req, res, next) => {
 
 ## Migration Roadmap
 
-### Phase 1: Database Migration (Week 3)
+### Phase 1: Database Migration (Week 3) — ✅ Completed (SQLite → MySQL)
+
+> **Note**: The project has migrated from SQLite to MySQL 8.0. The following is retained for reference if a future MySQL → PostgreSQL migration is needed.
 
 #### Step 1: Prepare Migration Script
 
-**Create `scripts/migrate-to-postgres.js`:**
+**Create `scripts/migrate-mysql-to-postgres.js`:**
 ```javascript
-import sqlite3 from 'better-sqlite3';
+import mysql from 'mysql2/promise';
 import pg from 'pg';
 
-const sqlite = new sqlite3(process.env.SQLITE_PATH);
+const mysqlPool = mysql.createPool({
+  host: process.env.MYSQL_HOST,
+  user: process.env.MYSQL_USER,
+  password: process.env.MYSQL_PASSWORD,
+  database: process.env.MYSQL_DATABASE
+});
 const pgPool = new pg.Pool({
   connectionString: process.env.POSTGRES_URL
 });
 
-// Export SQLite dumps
+// Export MySQL data
 const dump = {};
-const tables = sqlite.prepare(
-  "SELECT name FROM sqlite_master WHERE type='table'"
-).all();
+const [tables] = await mysqlPool.query('SHOW TABLES');
 
-for (const { name } of tables) {
-  dump[name] = sqlite.prepare(`SELECT * FROM ${name}`).all();
+for (const row of tables) {
+  const tableName = Object.values(row)[0];
+  const [rows] = await mysqlPool.query(`SELECT * FROM \`${tableName}\`);
+  dump[tableName] = rows;
 }
 
 // Import to PostgreSQL
@@ -1881,9 +1902,14 @@ services:
 **Modify `backend/src/db.js`:**
 ```javascript
 // Current
-const Database = require('better-sqlite3');
-const DB_PATH = process.env.DB_PATH || '/data/submissions.db';
-let db = new Database(DB_PATH);
+import mysql from 'mysql2/promise';
+
+const pool = mysql.createPool({
+  host: process.env.MYSQL_HOST || 'localhost',
+  user: process.env.MYSQL_USER || 'root',
+  password: process.env.MYSQL_PASSWORD || '',
+  database: process.env.MYSQL_DATABASE || 'stafftrack'
+});
 
 // Updated
 const { Pool } = require('pg');
@@ -2157,7 +2183,7 @@ curl -X POST http://localhost:3000/data-tools/restore \
   -d @backup.json
 
 # Database inspection
-docker compose exec db sqlite3 /data/submissions.db
+docker compose exec db mysql -u stafftrack -pstafftrack_dev_password stafftrack
 ```
 
 ### B. Environment Variables
@@ -2165,7 +2191,10 @@ docker compose exec db sqlite3 /data/submissions.db
 | Variable | Required | Default | Description |
 |------|------|---------|---|
 | `PORT` | No | 3000 | Backend server port |
-| `DB_PATH` | No | /data/submissions.db | SQLite database path |
+| `MYSQL_HOST` | No | localhost | MySQL host |
+| `MYSQL_USER` | No | root | MySQL user |
+| `MYSQL_PASSWORD` | No | (empty) | MySQL password |
+| `MYSQL_DATABASE` | No | stafftrack | MySQL database name |
 | `JWT_SECRET` | Yes | (required) | Secret for JWT signing |
 | `JWT_EXPIRY` | No | 8h | JWT token expiration |
 | `AUTH_SERVICE_URL` | No | https://appcore.beesuite.app | External auth service |

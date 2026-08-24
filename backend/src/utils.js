@@ -1,36 +1,57 @@
 /**
- * Basic CSV parser that handles quoted strings and headers.
+ * Utility functions for StaffTrack backend
  */
-export function parseCSV(text) {
-    const lines = text.trim().split('\n');
-    if (lines.length < 2) return [];
-    const headers = splitLine(lines[0]);
-    return lines.slice(1).filter(l => l.trim()).map(line => {
-        const vals = splitLine(line);
-        const obj = {};
-        headers.forEach((h, i) => {
-            let key = h.trim();
-            // handle BOM or weird chars occasionally found in headers
-            key = key.replace(/^\uFEFF/, '').replace(/^"/, '').replace(/"$/, '');
-            let val = (vals[i] || '').trim();
-            // Strip quotes from values if they exist
-            if (val.startsWith('"') && val.endsWith('"')) {
-                val = val.substring(1, val.length - 1);
-            }
-            obj[key] = val;
-        });
-        return obj;
-    });
+
+/**
+ * Format a date to YYYY-MM-DD
+ */
+export function formatDate(date) {
+    if (!date) return null;
+    const d = new Date(date);
+    if (isNaN(d.getTime())) return null;
+    return d.toISOString().split('T')[0];
 }
 
-function splitLine(line) {
-    const res = [];
-    let cur = '', inQ = false;
-    for (const c of line) {
-        if (c === '"') { inQ = !inQ; continue; }
-        if (c === ',' && !inQ) { res.push(cur); cur = ''; continue; }
-        cur += c;
+// ── Date validation helpers ──────────────────────────────────────────────────
+const DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;
+
+/**
+ * Validate a date string is in YYYY-MM-DD format
+ * @param {string} dateStr - The date string to validate
+ * @param {string} fieldName - Field name for error messages
+ * @returns {string|null} - Error message or null if valid
+ */
+export function validateDateFormat(dateStr, fieldName) {
+    if (!dateStr) return null; // null/empty is valid (optional field)
+    if (!DATE_REGEX.test(dateStr)) {
+        return `${fieldName} must be in YYYY-MM-DD format`;
     }
-    res.push(cur);
-    return res;
+    // Additional check: ensure it's a valid date
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) {
+        return `${fieldName} is not a valid date`;
+    }
+    return null;
+}
+
+/**
+ * Validate date range (end >= start)
+ * @param {string} startDate - Start date string
+ * @param {string} endDate - End date string
+ * @param {string} startFieldName - Start field name for error
+ * @param {string} endFieldName - End field name for error
+ * @returns {string|null} - Error message or null if valid
+ */
+export function validateDateRange(startDate, endDate, startFieldName = 'Start date', endFieldName = 'End date') {
+    if (startDate && endDate && startDate > endDate) {
+        return `${endFieldName} must be on or after ${startFieldName.toLowerCase()}`;
+    }
+    return null;
+}
+
+/**
+ * Sleep for ms milliseconds
+ */
+export function sleep(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
 }

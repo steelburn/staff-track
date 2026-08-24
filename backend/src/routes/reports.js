@@ -4,16 +4,119 @@ import { verifyToken, requireRole } from './auth.js';
 
 const router = express.Router();
 
-// All report routes require authentication and a reporting role
-const requireReporter = [verifyToken, requireRole('admin', 'hr', 'coordinator')];
+// ── Date formatting helper ──────────────────────────────────────────────────
+/**
+ * Format a date value to YYYY-MM-DD string.
+ * Handles Date objects, strings, and null/undefined.
+ */
+function formatDate(dateVal) {
+    if (!dateVal) return null;
+    if (typeof dateVal === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(dateVal)) {
+        return dateVal;
+    }
+    // Handle datetime strings like "2023-01-01 00:00:00" or "2023-01-01T00:00:00.000Z"
+    if (typeof dateVal === 'string') {
+        const dateMatch = dateVal.match(/^(\d{4}-\d{2}-\d{2})/);
+        if (dateMatch) {
+            return dateMatch[1];
+        }
+    }
+    try {
+        const d = dateVal instanceof Date ? dateVal : new Date(dateVal);
+        if (isNaN(d.getTime())) return null;
+        // Use UTC to avoid timezone issues with MySQL DATE columns
+        const year = d.getUTCFullYear();
+        const month = String(d.getUTCMonth() + 1).padStart(2, '0');
+        const day = String(d.getUTCDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+    } catch {
+        return null;
+    }
+}
 
-// ── GET /reports/staff ────────────────────────────────────────────────────────
-router.get('/staff', requireReporter, async (req, res) => {
+// All report routes require authentication and a reporting role
+// Also allow users who have subordinates (manager role)
+const requireReporterOrManager = [verifyToken]; // We'll check roles manually for flexibility
+
+// ── Helper: Check if user has any subordinates ─────────────────────────────
+async function getUserSubordinates(db, userEmail) {
+    // Get the user's name from staff table
+    const [userRows] = await db.query('SELECT name FROM staff WHERE email = ?', [userEmail]);
+    if (userRows.length === 0) return [];
+    
+    const userName = userRows[0].name;
+    if (!userName) return [];
+
+    // Recursive CTE to find all subordinates (direct and indirect)
+    const query = `
+        WITH RECURSIVE subordinates AS (
+            -- Base case: direct subordinates
+            SELECT email, name, manager_name
+            FROM staff
+            WHERE manager_name = ?
+            
+            UNION ALL
+            
+            -- Recursive case: subordinates of subordinates
+            SELECT s.email, s.name, s.manager_name
+            FROM staff s
+            INNER JOIN subordinates sub ON s.manager_name = sub.name
+        )
+        SELECT email FROM subordinates
+    `;
+    
+    const [rows] = await db.query(query, [userName]);
+    return rows.map(r => r.email.toLowerCase());
+}
+
+// ── Helper: Check if user has required access ──────────────────────────────
+function hasReportAccess(user) {
+    if (!user) return false;
+    const isAdmin = user.isAdmin === true;
+    const isHR = user.is_hr === 1 || user.is_hr === true;
+    const isCoordinator = user.is_coordinator === 1 || user.is_coordinator === true;
+    return isAdmin || isHR || isCoordinator;
+}
+
+// ── GET /reports/my-subordinates ─────────────────────────────────────────────
+// Returns list of subordinate emails for the current user
+router.get('/my-subordinates', verifyToken, async (req, res) => {
     try {
         const db = await getDb();
+        const email = req.user.email.toLowerCase();
+        
+        const subordinates = await getUserSubordinates(db, email);
+        res.json({ subordinates, count: subordinates.length });
+    } catch (err) {
+        console.error('GET /reports/my-subordinates error:', err);
+        res.status(500).json({ error: 'Failed to fetch subordinates' });
+    }
+});
 
+// ── GET /reports/staff ────────────────────────────────────────────────────────
+router.get('/staff', requireReporterOrManager, async (req, res) => {
+    try {
+        const db = await getDb();
+        const includeInactive = req.query.include_inactive === 'true';
+        const subordinatesOnly = req.query.subordinates_only === 'true';
+        
+        // Check access: admin/hr/coordinator can see all, managers can only see subordinates
+        const userHasFullAccess = hasReportAccess(req.user);
+        
+        let subordinateEmails = [];
+        if (subordinatesOnly && !userHasFullAccess) {
+            subordinateEmails = await getUserSubordinates(db, req.user.email.toLowerCase());
+            if (subordinateEmails.length === 0) {
+                return res.json([]);
+            }
+        }
+        
         // Get all staff with their projects and skills
-        const query = `
+        const joinClause = includeInactive 
+            ? 'LEFT JOIN user_roles ur ON s.staff_email = ur.email' 
+            : 'INNER JOIN user_roles ur ON s.staff_email = ur.email AND ur.is_active = 1';
+        
+        let query = `
             SELECT 
                 s.id,
                 s.staff_name,
@@ -28,6 +131,7 @@ router.get('/staff', requireReporter, async (req, res) => {
                 p.project_name,
                 p.customer,
                 p.role,
+                p.start_date,
                 p.end_date,
                 mp.type_infra,
                 mp.type_software,
@@ -36,19 +140,28 @@ router.get('/staff', requireReporter, async (req, res) => {
                 sk.skill,
                 sk.rating
             FROM submissions s
+            ${joinClause}
             LEFT JOIN submission_projects p ON s.id = p.submission_id
             LEFT JOIN managed_projects mp ON (mp.soc = p.soc OR (p.soc IS NULL AND mp.project_name = p.project_name))
             LEFT JOIN submission_skills sk ON s.id = sk.submission_id
-            ORDER BY s.staff_name ASC, p.soc ASC, sk.skill ASC
         `;
+        
+        const params = [];
+        if (subordinatesOnly && !userHasFullAccess && subordinateEmails.length > 0) {
+            query += ` WHERE LOWER(s.staff_email) IN (${subordinateEmails.map(() => '?').join(',')})`;
+            params.push(...subordinateEmails);
+        }
+        
+        query += ` ORDER BY s.staff_name ASC, p.soc ASC, sk.skill ASC`;
 
-        const [rows] = await db.query(query);
+        const [rows] = await db.query(query, params);
 
         // Group by staff
         const staffMap = new Map();
         rows.forEach(row => {
             if (!staffMap.has(row.id)) {
                 staffMap.set(row.id, {
+                    id: row.id,
                     staffName: row.staff_name,
                     email: row.staff_email,
                     title: row.title,
@@ -71,7 +184,8 @@ router.get('/staff', requireReporter, async (req, res) => {
                     projectName: row.project_name,
                     customer: row.customer,
                     role: row.role,
-                    endDate: row.end_date,
+                    startDate: formatDate(row.start_date),
+                    endDate: formatDate(row.end_date),
                     type_infra: row.type_infra,
                     type_software: row.type_software,
                     type_infra_support: row.type_infra_support,
@@ -96,7 +210,7 @@ router.get('/staff', requireReporter, async (req, res) => {
 });
 
 // ── GET /reports/projects ─────────────────────────────────────────────────────
-router.get('/projects', requireReporter, async (req, res) => {
+router.get('/projects', requireReporterOrManager, async (req, res) => {
     try {
         const db = await getDb();
 
@@ -104,8 +218,8 @@ router.get('/projects', requireReporter, async (req, res) => {
         const email = req.user.email.toLowerCase();
 
         let query = `
-      SELECT 
-        p.id as assignment_id, p.soc, p.project_name, p.customer, p.role, p.end_date as staff_end_date,
+      SELECT
+        p.id as assignment_id, p.id as id, p.soc, p.project_name, p.customer, p.role, p.start_date, p.end_date as staff_end_date,
         s.staff_name, s.staff_email, s.id as submission_id,
         mp.type_infra, mp.type_software, mp.type_infra_support, mp.type_software_support,
         mp.coordinator_email
@@ -130,10 +244,18 @@ router.get('/projects', requireReporter, async (req, res) => {
             if (!projectMap.has(key)) {
                 projectMap.set(key, {
                     ...row,
+                    start_date: formatDate(row.start_date),
+                    staff_end_date: formatDate(row.staff_end_date),
                     submissions: []
                 });
             }
-            projectMap.get(key).submissions.push(row);
+            // Format dates for each submission
+            const formattedRow = {
+                ...row,
+                start_date: formatDate(row.start_date),
+                staff_end_date: formatDate(row.staff_end_date)
+            };
+            projectMap.get(key).submissions.push(formattedRow);
         });
 
         res.json(Array.from(projectMap.values()));
@@ -144,12 +266,24 @@ router.get('/projects', requireReporter, async (req, res) => {
 });
 
 // ── GET /reports/skills ───────────────────────────────────────────────────────
-router.get('/skills', requireReporter, async (req, res) => {
+router.get('/skills', requireReporterOrManager, async (req, res) => {
     try {
         const db = await getDb();
+        const subordinatesOnly = req.query.subordinates_only === 'true';
+        
+        // Check access: admin/hr/coordinator can see all, managers can only see subordinates
+        const userHasFullAccess = hasReportAccess(req.user);
+        
+        let subordinateEmails = [];
+        if (subordinatesOnly && !userHasFullAccess) {
+            subordinateEmails = await getUserSubordinates(db, req.user.email.toLowerCase());
+            if (subordinateEmails.length === 0) {
+                return res.json([]);
+            }
+        }
 
         // Get all unique skills with staff members who have them
-        const query = `
+        let query = `
             SELECT 
                 sk.skill,
                 sk.rating,
@@ -160,10 +294,17 @@ router.get('/skills', requireReporter, async (req, res) => {
                 s.id as submission_id
             FROM submission_skills sk
             JOIN submissions s ON sk.submission_id = s.id
-            ORDER BY sk.skill ASC, sk.rating DESC
         `;
+        
+        const params = [];
+        if (subordinatesOnly && !userHasFullAccess && subordinateEmails.length > 0) {
+            query += ` WHERE LOWER(s.staff_email) IN (${subordinateEmails.map(() => '?').join(',')})`;
+            params.push(...subordinateEmails);
+        }
+        
+        query += ` ORDER BY sk.skill ASC, sk.rating DESC`;
 
-        const [rows] = await db.query(query);
+        const [rows] = await db.query(query, params);
 
         // Group by skill
         const skillMap = new Map();
@@ -195,16 +336,33 @@ router.get('/skills', requireReporter, async (req, res) => {
 });
 
 // ── GET /reports/staff-search ──────────────────────────────────────────────────
-router.get('/staff-search', requireReporter, async (req, res) => {
+router.get('/staff-search', requireReporterOrManager, async (req, res) => {
     try {
         const db = await getDb();
+        const subordinatesOnly = req.query.subordinates_only === 'true';
+        
+        // Check access: admin/hr/coordinator can see all, managers can only see subordinates
+        const userHasFullAccess = hasReportAccess(req.user);
+        
+        let subordinateEmails = [];
+        if (subordinatesOnly && !userHasFullAccess) {
+            subordinateEmails = await getUserSubordinates(db, req.user.email.toLowerCase());
+            if (subordinateEmails.length === 0) {
+                return res.json([]);
+            }
+        }
         
         // Parse skill filters from query parameter
         const skillFilters = req.query.skills ? JSON.parse(decodeURIComponent(req.query.skills)) : [];
         
+        // Build subordinate filter clause
+        const subordinateFilter = subordinateEmails.length > 0
+            ? ` LOWER(s.staff_email) IN (${subordinateEmails.map(() => '?').join(',')})`
+            : null;
+        
         if (skillFilters.length === 0) {
             // If no filters, return all staff with their skills
-            const query = `
+            let query = `
                 SELECT 
                     s.id,
                     s.staff_name,
@@ -216,10 +374,16 @@ router.get('/staff-search', requireReporter, async (req, res) => {
                     sk.rating
                 FROM submissions s
                 LEFT JOIN submission_skills sk ON s.id = sk.submission_id
-                ORDER BY s.staff_name ASC, sk.skill ASC
             `;
             
-            const [rows] = await db.query(query);
+            const params = [];
+            if (subordinatesOnly && !userHasFullAccess && subordinateFilter) {
+                query += ` WHERE ${subordinateFilter}`;
+                params.push(...subordinateEmails);
+            }
+            query += ` ORDER BY s.staff_name ASC, sk.skill ASC`;
+            
+            const [rows] = await db.query(query, params);
             
             // Group by staff member
             const staffMap = new Map();
@@ -248,6 +412,44 @@ router.get('/staff-search', requireReporter, async (req, res) => {
         
         // Build dynamic WHERE clause for multiple skill filters
         // We need staff who have ALL the required skills at the minimum rating
+        let whereClauses = ['s.id IN ('];
+        
+        // Build subquery: get staff IDs that have ALL required skills
+        const subqueryParts = [];
+        skillFilters.forEach(filter => {
+            subqueryParts.push(`
+                SELECT sk.submission_id 
+                FROM submission_skills sk 
+                WHERE LOWER(sk.skill) = LOWER(?) AND sk.rating >= ?
+            `);
+        });
+        
+        let innerQuery = `
+                SELECT submission_id 
+                FROM (
+        `;
+        
+        // Intersect all skill filters
+        innerQuery += subqueryParts.join(' INTERSECT ');
+        
+        innerQuery += `
+                ) AS matching_submissions
+            )`;
+        
+        whereClauses.push(innerQuery);
+        
+        // Add subordinate filter if needed
+        const params = [];
+        skillFilters.forEach(filter => {
+            params.push(filter.name);
+            params.push(filter.minRating || 0);
+        });
+        
+        if (subordinatesOnly && !userHasFullAccess && subordinateFilter) {
+            whereClauses.push(`AND ${subordinateFilter}`);
+            params.push(...subordinateEmails);
+        }
+        
         let query = `
             SELECT 
                 s.id,
@@ -260,39 +462,9 @@ router.get('/staff-search', requireReporter, async (req, res) => {
                 sk.rating
             FROM submissions s
             LEFT JOIN submission_skills sk ON s.id = sk.submission_id
-            WHERE s.id IN (
-        `;
-        
-        // Build subquery: get staff IDs that have ALL required skills
-        const subqueryParts = [];
-        skillFilters.forEach(filter => {
-            subqueryParts.push(`
-                SELECT sk.submission_id 
-                FROM submission_skills sk 
-                WHERE LOWER(sk.skill) = LOWER(?) AND sk.rating >= ?
-            `);
-        });
-        
-        query += `
-                SELECT submission_id 
-                FROM (
-        `;
-        
-        // Intersect all skill filters
-        query += subqueryParts.join(' INTERSECT ');
-        
-        query += `
-                ) AS matching_submissions
-            )
+            WHERE ${whereClauses.join(' ')}
             ORDER BY s.staff_name ASC, sk.skill ASC
         `;
-        
-        // Flatten parameters
-        const params = [];
-        skillFilters.forEach(filter => {
-            params.push(filter.name);
-            params.push(filter.minRating || 0);
-        });
         
         const [rows] = await db.query(query, params);
         

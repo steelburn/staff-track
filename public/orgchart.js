@@ -2,6 +2,8 @@
 
 const authUser = requireAuth();
 
+let chart = null;
+let chartData = [];
 
 document.addEventListener('DOMContentLoaded', async () => {
     // Initialize sidebar navigation
@@ -23,88 +25,126 @@ document.addEventListener('DOMContentLoaded', async () => {
 
 async function initChart() {
     try {
+        if (typeof d3 === 'undefined' || !d3.OrgChart) {
+            throw new Error('OrgChart library (d3-org-chart) failed to load');
+        }
+
         const res = await window.StaffTrackAuth.apiFetch('/api/catalog/staff');
         if (!res.ok) throw new Error('Failed to load staff data');
         const staff = await res.json();
 
-        let chartData = buildFlatData(staff);
+        chartData = buildFlatData(staff);
+        console.log(`OrgChart: Loading ${chartData.length} nodes (${chartData.filter(n => !n.parentId).length} roots)`);
 
-        var chart = new OrgChart(document.getElementById("chart-container"), {
-            template: "ana",
-            enableSearch: true,
-            mouseWheel: { zoom: true, ctrlZoom: true },
-            layout: OrgChart.mixed,
-            nodeBinding: {
-                field_0: "name",
-                field_1: "title"
-            },
-            // Event handler for node click - expand/focus on clicked node
-            nodeClick: function (sender, args) {
-                chart.focus(args.node.id, { expand: true, center: true });
-            }
-        });
-        // OrgChart v7+ requires explicit load() call to render
-        // Validate data structure before loading
-        const rootCount = chartData.filter(n => !n.pid).length;
-        const selfCycles = chartData.filter(n => n.pid && n.pid === n.id).length;
-        console.log(`OrgChart: Loading ${chartData.length} nodes, ${rootCount} roots, ${selfCycles} self-cycles`);
-        if (rootCount === 0) {
-            console.warn('OrgChart: No root nodes found! Chart may not render.');
-        }
-        if (selfCycles > 0) {
-            console.warn(`OrgChart: ${selfCycles} self-cycle(s) detected and filtered.`);
-            chartData = chartData.filter(n => !n.pid || n.pid !== n.id);
-        }
-        chart.load(chartData);
+        chart = new d3.OrgChart()
+            .container('#chart-container')
+            .data(chartData)
+            .nodeWidth(() => 240)
+            .nodeHeight(() => 84)
+            .compactMarginPair(() => 60)
+            .compactMarginBetween(() => 16)
+            .initialExpandLevel(3)
+            .nodeContent(nodeContent)
+            .onNodeClick(onNodeClick)
+            .render();
+
+        // Remove the loading placeholder now that the SVG is in place
+        document.querySelector('#chart-container .loading-state')?.remove();
+
         window._orgChart = chart;
 
-        // Try to centre on the logged-in user after the chart has rendered
+        // Fit the whole org into view, then highlight the logged-in user
         setTimeout(() => {
-            const userEmail = authUser.email;
-            if (userEmail && window._orgChart) {
-                const userExists = chartData.some(n => n.id === userEmail);
-                if (userExists) {
-                    try {
-                        // OrgChart API v7+: focus(); earlier versions: centre()
-                        if (typeof chart.focus === 'function') {
-                            chart.focus(userEmail);
-                        } else if (typeof chart.centre === 'function') {
-                            chart.centre(userEmail);
-                        }
-                    } catch (e) {
-                        console.warn('OrgChart focus/centre not available:', e.message);
-                    }
+            try {
+                chart.fit({ animate: false });
+                const userEmail = authUser.email;
+                if (userEmail && chartData.some(n => n.id === userEmail)) {
+                    chart.setHighlighted(userEmail).render();
                 }
+            } catch (e) {
+                console.warn('OrgChart initial fit/highlight:', e.message);
             }
-        }, 800);
+        }, 100);
 
-        // Connect zoom buttons
-        document.getElementById('btn-zoom-in')?.addEventListener('click', () => {
-            if (window._orgChart) {
-                const cur = window._orgChart.getScale ? window._orgChart.getScale() : 1;
-                window._orgChart.setScale ? window._orgChart.setScale(Math.min((cur || 1) + 0.25, 3))
-                    : window._orgChart.zoom(1.25);
-            }
-        });
-        document.getElementById('btn-zoom-out')?.addEventListener('click', () => {
-            if (window._orgChart) {
-                const cur = window._orgChart.getScale ? window._orgChart.getScale() : 1;
-                window._orgChart.setScale ? window._orgChart.setScale(Math.max((cur || 1) - 0.25, 0.3))
-                    : window._orgChart.zoom(0.8);
-            }
-        });
-
+        wireControls();
     } catch (e) {
         console.error(e);
-        document.getElementById('chart-container').innerHTML = `<p class="grid-empty">Error loading organization chart.</p>`;
+        document.getElementById('chart-container').innerHTML = '<p class="grid-empty">Error loading organization chart.</p>';
     }
 }
 
+function nodeContent(d) {
+    const data = d.data;
+    const initial = (data.name || '?').trim().charAt(0).toUpperCase() || '?';
+    return `
+    <div class="oc-card">
+      <div class="oc-avatar">${escapeHtml(initial)}</div>
+      <div class="oc-meta">
+        <div class="oc-name">${escapeHtml(data.name)}</div>
+        <div class="oc-title">${escapeHtml(data.title || '')}</div>
+        ${data.department ? `<div class="oc-dept">${escapeHtml(data.department)}</div>` : ''}
+      </div>
+    </div>`;
+}
+
+function onNodeClick(d) {
+    if (!chart) return;
+    const node = d.data;
+    const hasChildren = (d.children && d.children.length > 0) || (d._children && d._children.length > 0);
+    if (hasChildren) {
+        // _expanded is undefined/true when expanded, false when collapsed
+        const isExpanded = node._expanded !== false;
+        chart.setExpanded(node.id, !isExpanded).render();
+    }
+    chart.setCentered(node.id).render();
+}
+
+function wireControls() {
+    document.getElementById('btn-zoom-in')?.addEventListener('click', () => chart?.zoomIn());
+    document.getElementById('btn-zoom-out')?.addEventListener('click', () => chart?.zoomOut());
+    document.getElementById('btn-fit')?.addEventListener('click', () => chart?.fit());
+    document.getElementById('btn-expand-all')?.addEventListener('click', () => chart?.expandAll());
+    document.getElementById('btn-collapse-all')?.addEventListener('click', () => chart?.collapseAll());
+
+    // Debounced search: highlight + center first match
+    const searchInput = document.getElementById('chart-search');
+    if (searchInput) {
+        let timer = null;
+        searchInput.addEventListener('input', () => {
+            clearTimeout(timer);
+            timer = setTimeout(() => performSearch(searchInput.value.trim()), 250);
+        });
+    }
+}
+
+function performSearch(query) {
+    if (!chart) return;
+    const status = document.getElementById('search-status');
+    if (!query) {
+        status.textContent = '';
+        chart.clearHighlighting().render();
+        return;
+    }
+    const q = query.toLowerCase();
+    const matches = chartData.filter(n =>
+        (n.name || '').toLowerCase().includes(q) ||
+        (n.title || '').toLowerCase().includes(q) ||
+        (n.department || '').toLowerCase().includes(q)
+    );
+    if (matches.length === 0) {
+        status.textContent = 'No matches';
+        chart.clearHighlighting().render();
+        return;
+    }
+    status.textContent = matches.length === 1 ? '1 match' : `${matches.length} matches`;
+    chart.setHighlighted(matches[0].id).setCentered(matches[0].id).render();
+}
+
 function buildFlatData(staff) {
-    // BALKAN prefers a flat array with { id: X, pid: ParentX, name: Y, title: Z }
+    // d3-org-chart expects a flat array of { id, parentId, ...custom fields }
     const nodes = [];
 
-    // Create a name-to-email map for PID mapping if manager is specified by name
+    // Map manager names to emails so manager_name (not email) still resolves
     const nameMap = new Map();
     staff.forEach(s => nameMap.set(s.name, s.email));
 
@@ -112,14 +152,15 @@ function buildFlatData(staff) {
         const node = {
             id: s.email,
             name: s.name,
-            title: s.title || ''
+            title: s.title || '',
+            department: s.department || ''
         };
 
         if (s.manager_name && nameMap.has(s.manager_name)) {
             const managerEmail = nameMap.get(s.manager_name);
             // Prevent self-cycle: if manager is self, treat as root
             if (managerEmail !== s.email) {
-                node.pid = managerEmail;
+                node.parentId = managerEmail;
             }
         }
 
@@ -127,42 +168,81 @@ function buildFlatData(staff) {
     });
 
     // Identify which nodes are parents (have children)
-    const parentIds = new Set(nodes.filter(n => n.pid).map(n => n.pid));
+    const parentIds = new Set(nodes.filter(n => n.parentId).map(n => n.parentId));
 
     // Exclude orphans with no children:
     // A node is kept if:
     // 1. It has a parent (it's part of a branch)
     // 2. OR it is a root AND it has children (it's the start of a branch)
     let filteredNodes = nodes.filter(n => {
-        const hasParent = !!n.pid;
+        const hasParent = !!n.parentId;
         const hasChildren = parentIds.has(n.id);
         return hasParent || hasChildren;
     });
 
-    // BalkanJS Trial Limit: 200 nodes
-    // If still > 195 (leave buffer), sort and slice
-    if (filteredNodes.length > 195) {
-        console.warn(`OrgChart: ${filteredNodes.length} nodes exceeds trial limit. Capping to 195.`);
-        // Prioritize roots and those with more children
-        filteredNodes = filteredNodes.sort((a, b) => {
-            const aHasChildren = parentIds.has(a.id) ? 1 : 0;
-            const bHasChildren = parentIds.has(b.id) ? 1 : 0;
-            return bHasChildren - aHasChildren;
-        }).slice(0, 195);
-    }
+    // Break manager cycles (A → B → A) that d3.stratify would reject
+    filteredNodes = breakCycles(filteredNodes);
 
     // Handle multiple roots by creating a virtual top node if needed
-    const roots = filteredNodes.filter(n => !n.pid);
+    const roots = filteredNodes.filter(n => !n.parentId);
     if (roots.length > 1) {
         const virtualRootId = 'virtual_root';
         filteredNodes.push({
             id: virtualRootId,
             name: 'StaffTrack Organization',
-            title: 'Top Level'
+            title: 'Top Level',
+            department: ''
         });
-        roots.forEach(r => r.pid = virtualRootId);
+        roots.forEach(r => r.parentId = virtualRootId);
     }
 
     console.log(`OrgChart: Final node count = ${filteredNodes.length}`);
     return filteredNodes;
+}
+
+// Kahn's algorithm: any node not reachable from a root is in a manager
+// cycle — strip its parentId so it renders as a root instead of crashing stratify.
+function breakCycles(nodes) {
+    const byId = new Map(nodes.map(n => [n.id, n]));
+    // In-degree: each node has at most one parent (1) or is a root (0)
+    const pendingParentCount = new Map(nodes.map(n => [n.id, 0]));
+    nodes.forEach(n => {
+        if (n.parentId && byId.has(n.parentId)) {
+            pendingParentCount.set(n.id, 1);
+        }
+    });
+
+    const queue = nodes.filter(n => !n.parentId || !byId.has(n.parentId)).map(n => n.id);
+    const visited = new Set(queue);
+
+    while (queue.length) {
+        const curId = queue.shift();
+        nodes.forEach(n => {
+            if (n.parentId === curId && !visited.has(n.id)) {
+                const remaining = pendingParentCount.get(n.id) - 1;
+                pendingParentCount.set(n.id, remaining);
+                if (remaining <= 0) {
+                    visited.add(n.id);
+                    queue.push(n.id);
+                }
+            }
+        });
+    }
+
+    nodes.forEach(n => {
+        if (n.parentId && !visited.has(n.id)) {
+            console.warn(`OrgChart: cycle detected — ${n.name} promoted to root`);
+            n.parentId = undefined;
+        }
+    });
+    return nodes;
+}
+
+function escapeHtml(str) {
+    return String(str ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
 }

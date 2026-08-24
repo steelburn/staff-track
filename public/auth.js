@@ -25,7 +25,10 @@ window.StaffTrackAuth = {
         if (refreshToken) {
             sessionStorage.setItem('st_refresh_token', refreshToken);
         }
-        sessionStorage.setItem('st_user', JSON.stringify(user));
+        // Preserve existing user data (like name) if not provided in new user object
+        const existingUser = this.getUser();
+        const mergedUser = Object.assign({}, existingUser || {}, user);
+        sessionStorage.setItem('st_user', JSON.stringify(mergedUser));
         
         // Store expiry time (7 hours from now - gives 1 hour buffer before actual 8h expiry)
         var expiresAt = Date.now() + (7 * 60 * 60 * 1000);
@@ -124,7 +127,6 @@ window.StaffTrackAuth = {
         var token = this.getToken();
         var userStr = sessionStorage.getItem('st_user');
 
-
         try {
             var user = JSON.parse(userStr);
             if (user.role !== 'admin') {
@@ -137,3 +139,73 @@ window.StaffTrackAuth = {
         }
     }
 };
+
+// ── Legacy Auth Helpers ────────────────────────────────────────────────────────
+// Global functions for backward compatibility with pages using requireAuth/requireAdmin
+
+/**
+ * Check authentication and redirect if not logged in.
+ * @returns {Object|null} The authenticated user object, or null if not authenticated
+ */
+function requireAuth() {
+    var token = sessionStorage.getItem('st_token');
+    var userStr = sessionStorage.getItem('st_user');
+
+    if (!token || !userStr) {
+        location.href = '/login.html';
+        return null;
+    }
+
+    try {
+        return JSON.parse(userStr);
+    } catch {
+        location.href = '/login.html';
+        return null;
+    }
+}
+
+/**
+ * Check if user has admin role and redirect if not.
+ * @param {Object} authUser - The authenticated user object
+ * @returns {boolean} True if user is admin, false otherwise
+ */
+function requireAdmin(authUser) {
+    if (!authUser || !authUser.isAdmin) {
+        location.href = '/';
+        return false;
+    }
+    return true;
+}
+
+/**
+ * Check if user has required permissions (admin, HR, or coordinator).
+ * @param {Object} authUser - The authenticated user object
+ * @param {string[]} requiredRoles - Array of roles to check ('admin', 'hr', 'coordinator')
+ * @returns {boolean} True if user has required permission, false otherwise
+ */
+function requirePermission(authUser, requiredRoles = []) {
+    if (!authUser) {
+        location.href = '/login.html';
+        return false;
+    }
+
+    const hasRole = requiredRoles.some(role => {
+        switch (role) {
+            case 'admin':
+                return authUser.isAdmin === true;
+            case 'hr':
+                return authUser.is_hr === true || authUser.is_hr === 1;
+            case 'coordinator':
+                return authUser.is_coordinator === true || authUser.is_coordinator === 1;
+            default:
+                return false;
+        }
+    });
+
+    if (!hasRole && requiredRoles.length > 0) {
+        location.href = '/';
+        return false;
+    }
+
+    return true;
+}

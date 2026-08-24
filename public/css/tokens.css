@@ -122,6 +122,36 @@
     --header-height: 64px;
     --page-padding: 32px;
     --content-max-width: 1440px;
+
+    /* ─── Legacy Variable Aliases ───────────────────────────────────────────
+       Maps pre-redesign token names to the new design system so older inline
+       styles and JS-rendered colors keep resolving. Remove once fully migrated. */
+    --border: var(--color-border);
+    --border-hover: var(--color-border-hover);
+    --bg-base: var(--color-bg-base);
+    --bg-card: var(--color-bg-surface);
+    --bg-surface: var(--color-bg-surface);
+    --bg-muted: var(--color-bg-muted);
+    --bg-elevated: var(--color-bg-elevated);
+    --bg-hover: var(--color-bg-hover);
+    --text-main: var(--color-text-primary);
+    --text-primary: var(--color-text-primary);
+    --text-secondary: var(--color-text-secondary);
+    --text-muted: var(--color-text-muted);
+    --accent-blue: var(--color-primary);
+    --accent-green: var(--color-success);
+    --accent-rose: var(--color-danger);
+    --accent-amber: var(--color-warning);
+    --primary: var(--color-primary);
+    --primary-light: var(--color-primary-light);
+    --primary-hover: var(--color-primary-hover);
+    --success: var(--color-success);
+    --success-light: var(--color-success-light);
+    --danger: var(--color-danger);
+    --danger-light: var(--color-danger-light);
+    --warning: var(--color-warning);
+    --warning-light: var(--color-warning-light);
+    --sidebar-collapsed: var(--sidebar-collapsed-width);
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════

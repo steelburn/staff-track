@@ -65,12 +65,12 @@ EOF
 curl http://localhost:3000/data-tools/status | jq
 
 # Or via Docker
-docker compose exec backend sqlite3 /data/submissions.db ".tables"
+docker compose exec db mysql -u stafftrack -pstafftrack_dev_password stafftrack -e "SHOW TABLES;"
 ```
 
 ## Where Data is Stored
 
-- **Running Database**: `/data/submissions.db` (inside container at `/data/`)
+- **Running Database**: MySQL 8.0 (inside `db` container)
 - **Docker Volume**: `staff-track_db_data` (managed by Docker)
 - **Backup Location**: `/home/steelburn/staff-track-data/_data/` (original backup)
 
@@ -125,7 +125,7 @@ docker compose exec backend sh -c "cp /tmp/submissions.db* /data/"
 docker compose restart backend
 
 # 5. Verify
-docker compose exec backend sqlite3 /data/submissions.db "SELECT COUNT(*) FROM submissions;"
+docker compose exec db mysql -u stafftrack -pstafftrack_dev_password stafftrack -e "SELECT COUNT(*) FROM submissions;"
 ```
 
 ## API Endpoints Reference

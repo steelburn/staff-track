@@ -1,13 +1,15 @@
 'use strict';
 
 const authUser = requireAuth();
-requireAdmin(authUser);
 
 
-document.getElementById('btn-logout').addEventListener('click', () => {
-    sessionStorage.clear();
-    location.href = '/login.html';
-});
+const logoutBtn = document.getElementById('btn-logout');
+if (logoutBtn) {
+    logoutBtn.addEventListener('click', () => {
+        sessionStorage.clear();
+        location.href = '/login.html';
+    });
+}
 
 // ── Helper ───────────────────────────────────────────────────────────────────
 function showToast(msg, isErr = false) {

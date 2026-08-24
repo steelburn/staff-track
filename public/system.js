@@ -4,7 +4,6 @@
 
 
 const authUser = requireAuth();
-requireAdmin(authUser);
 
 
 // ── Helper ───────────────────────────────────────────────────────────────────
