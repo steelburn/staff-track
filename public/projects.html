@@ -5,96 +5,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>StaffTrack — Projects</title>
-    <link rel="stylesheet" href="/css/main.css">
-    <script src="/theme.js"></script>
-    <style>
-        .project-card {
-            background: var(--color-bg-surface);
-            border: 1px solid var(--color-border);
-            border-radius: var(--radius-lg);
-            overflow: hidden;
-            transition: all var(--transition-slow);
-        }
-
-        .project-card:hover {
-            box-shadow: var(--shadow-md);
-            border-color: var(--color-border-hover);
-            transform: translateY(-2px);
-        }
-
-        .project-card-header {
-            padding: var(--space-4) var(--space-5);
-            border-bottom: 1px solid var(--color-border);
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            gap: var(--space-3);
-        }
-
-        .project-card-meta {
-            display: flex;
-            align-items: center;
-            gap: var(--space-3);
-            flex-wrap: wrap;
-            min-width: 0;
-        }
-
-        .project-card-name {
-            font-size: var(--font-size-md);
-            font-weight: var(--font-weight-semibold);
-            color: var(--color-text-primary);
-        }
-
-        .project-customer {
-            font-size: var(--font-size-sm);
-            color: var(--color-text-secondary);
-        }
-
-        .project-card-staff {
-            padding: var(--space-4) var(--space-5);
-            min-height: 60px;
-        }
-
-        .staff-badge {
-            display: inline-flex;
-            align-items: center;
-            gap: var(--space-3);
-            background: var(--color-primary-light);
-            border: 1px solid var(--color-primary);
-            border-radius: var(--radius-md);
-            padding: var(--space-2) var(--space-3);
-            font-size: var(--font-size-sm);
-            margin: var(--space-1);
-        }
-
-        .staff-badge-name {
-            font-weight: var(--font-weight-semibold);
-            color: var(--color-text-primary);
-        }
-
-        .staff-badge-role {
-            font-size: var(--font-size-xs);
-            color: var(--color-text-secondary);
-        }
-
-        .no-staff-label {
-            color: var(--color-text-muted);
-            font-size: var(--font-size-sm);
-            font-style: italic;
-        }
-
-        .projects-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
-            gap: var(--space-4);
-        }
-
-        @media (max-width: 768px) {
-            .projects-grid {
-                grid-template-columns: 1fr;
-            }
-        }
-    </style>
+    <link rel="stylesheet" href="/css/main.css?v=20260824f">
+    <script src="/theme.js?v=20260824d"></script>
 </head>
 
 <body>
@@ -181,10 +93,11 @@
     <!-- Toast Container -->
     <div id="toast-container" class="toast-container"></div>
 
-    <script src="/auth.js"></script>
-    <script src="/sidebar.js"></script>
-    <script src="/toast.js"></script>
-    <script src="/projects.js"></script>
+    <script src="/auth.js?v=20260824d"></script>
+    <script src="/menu.js?v=20260824d"></script>
+    <script src="/sidebar.js?v=20260824d"></script>
+    <script src="/toast.js?v=20260824d"></script>
+    <script src="/projects.js?v=20260824f"></script>
 </body>
 
 </html>

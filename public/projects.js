@@ -164,8 +164,24 @@ function render() {
     });
   });
 
-  // Wire up Edit / Delete assignment buttons
-  container.querySelectorAll('.btn-edit-assign').forEach(btn => {
+  // Expand "+N more" staff chips
+  container.querySelectorAll('.staff-more').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const p = list[+btn.dataset.idx];
+      const area = btn.closest('.project-card-staff');
+      if (!p || !area) return;
+      const canEdit = authUser.isAdmin === true || authUser.is_coordinator === true || authUser.is_coordinator === 1;
+      area.innerHTML = p.staff.map(s => staffBadgeHTML(s, q, canEdit, p)).join('');
+      wireAssignmentButtons(area);
+    });
+  });
+
+  wireAssignmentButtons(container);
+}
+
+// Wire edit/unassign buttons inside a root element (card container or expanded staff area)
+function wireAssignmentButtons(root) {
+  root.querySelectorAll('.btn-edit-assign').forEach(btn => {
     btn.addEventListener('click', () => {
       const s = JSON.parse(btn.dataset.staff);
       const p = JSON.parse(btn.dataset.project);
@@ -173,7 +189,7 @@ function render() {
     });
   });
 
-  container.querySelectorAll('.btn-del-assign').forEach(btn => {
+  root.querySelectorAll('.btn-del-assign').forEach(btn => {
     btn.addEventListener('click', async () => {
       const s = JSON.parse(btn.dataset.staff);
       const p = JSON.parse(btn.dataset.project);
@@ -194,6 +210,23 @@ function render() {
   });
 }
 
+// One staff badge (used for both the clamped list and the "+N more" expansion)
+function staffBadgeHTML(s, q, canEditAssign, p) {
+  return `
+        <div class="staff-badge">
+          <div class="staff-info">
+            <span class="staff-badge-name">${hl(s.name, q)}</span>
+            ${s.role ? `<span class="staff-badge-role">${hl(s.role, q)}</span>` : ''}
+            ${s.endDate ? `<span class="staff-badge-date">until ${s.endDate}</span>` : ''}
+          </div>
+          ${canEditAssign ? `
+          <div class="badge-actions">
+            <button class="badge-btn btn-edit-assign" title="Edit Assignment" data-staff='${JSON.stringify(s).replace(/'/g, "&apos;")}' data-project='{"soc":"${p.soc}","project_name":"${(p.project_name || '').replace(/'/g, "&apos;")}","customer":"${(p.customer || '').replace(/'/g, "&apos;")}"}'>✎</button>
+            <button class="badge-btn btn-del btn-del-assign" title="Unassign" data-staff='${JSON.stringify(s).replace(/'/g, "&apos;")}' data-project='{"soc":"${p.soc}","project_name":"${(p.project_name || '').replace(/'/g, "&apos;")}"}'>✕</button>
+          </div>` : ''}
+        </div>`;
+}
+
 function buildProjectCard(p, q, idx) {
   const isAdmin = authUser.isAdmin === true;
   const isCoord = authUser.is_coordinator === true || authUser.is_coordinator === 1;
@@ -210,19 +243,12 @@ function buildProjectCard(p, q, idx) {
   });
 
   const staffBadges = p.staff.length
-    ? p.staff.map(s => `
-        <div class="staff-badge">
-          <div class="staff-info">
-            <span class="staff-badge-name">${hl(s.name, q)}</span>
-            ${s.role ? `<span class="staff-badge-role">${hl(s.role, q)}</span>` : ''}
-            ${s.endDate ? `<span class="staff-badge-date">until ${s.endDate}</span>` : ''}
-          </div>
-          ${canEditAssign ? `
-          <div class="badge-actions">
-            <button class="badge-btn btn-edit-assign" title="Edit Assignment" data-staff='${JSON.stringify(s).replace(/'/g, "&apos;")}' data-project='{"soc":"${p.soc}","project_name":"${(p.project_name || '').replace(/'/g, "&apos;")}","customer":"${(p.customer || '').replace(/'/g, "&apos;")}"}'>✎</button>
-            <button class="badge-btn btn-del btn-del-assign" title="Unassign" data-staff='${JSON.stringify(s).replace(/'/g, "&apos;")}' data-project='{"soc":"${p.soc}","project_name":"${(p.project_name || '').replace(/'/g, "&apos;")}"}'>✕</button>
-          </div>` : ''}
-        </div>`).join('')
+    ? (() => {
+        const MAX_BADGES = 6;
+        const visible = p.staff.slice(0, MAX_BADGES).map(s => staffBadgeHTML(s, q, canEditAssign, p)).join('');
+        const hidden = p.staff.length - Math.min(p.staff.length, MAX_BADGES);
+        return visible + (hidden > 0 ? `<button class="staff-more" data-idx="${idx}">＋${hidden} more</button>` : '');
+      })()
     : `<span class="no-staff-label">No staff assigned</span>`;
 
   let classBadges = '';
@@ -252,7 +278,7 @@ function buildProjectCard(p, q, idx) {
 
   const canEditProject = isAdmin || isCoord;
 
-  const editBtn = canEditProject ? `<button class="badge-btn btn-edit-project" style="display:inline-flex;margin-left:.5rem" title="Edit Project Details" data-id="${managedObj ? managedObj.id : ''}" data-project='${JSON.stringify({
+  const editBtn = canEditProject ? `<button class="badge-btn btn-edit-project" title="Edit Project Details" data-id="${managedObj ? managedObj.id : ''}" data-project='${JSON.stringify({
     soc: (managedObj ? managedObj.soc : p.soc) || '',
     project_name: (managedObj ? (managedObj.project_name || managedObj.name) : p.project_name) || '',
     customer: (managedObj ? managedObj.customer : p.customer) || '',
@@ -271,7 +297,8 @@ function buildProjectCard(p, q, idx) {
       <div class="project-card-header">
         <div class="project-card-meta" style="display:flex;align-items:center;flex-wrap:wrap">
           ${p.soc ? `<span class="soc-badge">${hl(p.soc, q)}</span>` : ''}
-          <h3 class="project-card-name" style="display:flex;align-items:center">${hl(p.project_name || '(unnamed)', q)} ${editBtn}</h3>
+          <h3 class="project-card-name">${hl(p.project_name || '(unnamed)', q)}</h3>
+          ${editBtn}
           ${p.customer ? `<span class="project-customer">${hl(p.customer, q)}</span>` : ''}
           ${classHtml}
         </div>
@@ -282,7 +309,6 @@ function buildProjectCard(p, q, idx) {
             ＋ Assign Staff
           </button>` : ''}
         </div>
-      </div>
       </div>
       <div class="project-card-body">
         ${dateHtml}
@@ -296,7 +322,7 @@ function buildProjectCard(p, q, idx) {
 // ── Coordinator Create Project Modal ──────────────────────────────────────────
 function showCreateProjectModal() {
   const backdrop = document.createElement('div');
-  backdrop.className = 'modal-backdrop';
+  backdrop.className = 'modal-backdrop active';
   backdrop.innerHTML = `
     <div class="modal" role="dialog" aria-modal="true" style="max-width:480px">
       <div class="modal-header">
@@ -457,7 +483,7 @@ function showCreateProjectModal() {
 // ── Coordinator Edit Project Modal ────────────────────────────────────────────
 function showEditProjectModal(id, p) {
   const backdrop = document.createElement('div');
-  backdrop.className = 'modal-backdrop';
+  backdrop.className = 'modal-backdrop active';
   backdrop.innerHTML = `
     <div class="modal" role="dialog" aria-modal="true" style="max-width:480px">
       <div class="modal-header">
@@ -576,7 +602,7 @@ function showEditProjectModal(id, p) {
 // ── Assign Staff Modal ────────────────────────────────────────────────────────
 function showAssignModal(project) {
   const backdrop = document.createElement('div');
-  backdrop.className = 'modal-backdrop';
+  backdrop.className = 'modal-backdrop active';
   backdrop.innerHTML = `
     <div class="modal" role="dialog" aria-modal="true" style="max-width:480px">
       <div class="modal-header">
@@ -702,7 +728,7 @@ function showAssignModal(project) {
 // ── Edit Assignment Modal ───────────────────────────────────────────────────────
 function showEditAssignModal(staff, project) {
   const backdrop = document.createElement('div');
-  backdrop.className = 'modal-backdrop';
+  backdrop.className = 'modal-backdrop active';
   backdrop.innerHTML = `
     <div class="modal" role="dialog" aria-modal="true" style="max-width:480px">
       <div class="modal-header">
@@ -834,12 +860,14 @@ async function init() {
   // If coordinator or admin, inject "Add New Project" button
   if (authUser.is_coordinator === true || authUser.is_coordinator === 1 || authUser.isAdmin === true) {
     const tbRight = document.querySelector('.view-toolbar-right');
-    const addBtn = document.createElement('button');
-    addBtn.className = 'btn-add';
-    addBtn.style.marginRight = 'auto';
-    addBtn.innerHTML = `＋ New Project`;
-    addBtn.onclick = showCreateProjectModal;
-    tbRight.prepend(addBtn);
+    if (tbRight) {
+      const addBtn = document.createElement('button');
+      addBtn.className = 'btn-add';
+      addBtn.style.marginRight = 'auto';
+      addBtn.innerHTML = `＋ New Project`;
+      addBtn.onclick = showCreateProjectModal;
+      tbRight.prepend(addBtn);
+    }
   } else {
     // Hide assignment buttons if not a coordinator
     const style = document.createElement('style');
