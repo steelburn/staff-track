@@ -353,6 +353,9 @@
                             <button class="tab-btn" data-tab="generate-cv">
                                 <span>🖨️</span> Generate CV
                             </button>
+                            <button class="tab-btn" data-tab="audit">
+                                <span>🧾</span> Audit Trail
+                            </button>
                         </div>
 
                         <!-- Tab Content: My Submission -->
@@ -871,6 +874,38 @@
                                                 <tbody id="snapshots-tbody"></tbody>
                                             </table>
                                         </div>
+                                    </div>
+                                </div>
+                            </section>
+                        </div>
+
+                        <!-- Tab Content: Audit Trail -->
+                        <div class="tab-content" id="audit-tab">
+                            <section class="card">
+                                <div class="card-header">
+                                    <div>
+                                        <div class="card-title">🧾 Audit Trail</div>
+                                        <div class="card-subtitle">Every time you update any personal entry — staff details, skills, projects, education, certifications, work history or photo — it is recorded here.</div>
+                                    </div>
+                                </div>
+                                <div class="card-body">
+                                    <div id="audit-empty" class="empty-state" style="padding: var(--space-8);">
+                                        <div class="empty-state-icon">🧾</div>
+                                        <div class="empty-state-title">No updates recorded yet</div>
+                                        <div class="empty-state-text">Your profile updates will appear here.</div>
+                                    </div>
+                                    <div class="table-container" id="audit-table-container" style="display: none;">
+                                        <table class="table">
+                                            <thead>
+                                                <tr>
+                                                    <th style="width: 170px;">When</th>
+                                                    <th>Section</th>
+                                                    <th>Action</th>
+                                                    <th>What Changed</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody id="audit-tbody"></tbody>
+                                        </table>
                                     </div>
                                 </div>
                             </section>

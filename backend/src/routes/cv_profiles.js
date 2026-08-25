@@ -2,6 +2,7 @@ import express from 'express';
 import { v4 as uuidv4 } from 'uuid';
 import { getDb } from '../db.js';
 import { verifyToken, requireRole } from './auth.js';
+import { logAudit, markStaffUpdated } from '../utils/audit.js';
 import path from 'path';
 import fs from 'fs';
 import multer from 'multer';
@@ -282,7 +283,7 @@ router.put('/:email', verifyToken, async (req, res) => {
 
         // Check if profile exists
         const [existing] = await db.query(
-            'SELECT id FROM cv_profiles WHERE LOWER(staff_email) = ?',
+            'SELECT id, summary, phone, linkedin, location FROM cv_profiles WHERE LOWER(staff_email) = ?',
             [email.toLowerCase()]
         );
 
@@ -295,6 +296,21 @@ router.put('/:email', verifyToken, async (req, res) => {
              WHERE LOWER(staff_email) = ?`,
             [summary || null, phone || null, linkedin || null, location || null, now, email.toLowerCase()]
         );
+
+        // Audit: report which profile fields actually changed
+        const cur = existing[0];
+        const changed = ['summary', 'phone', 'linkedin', 'location'].filter(f => (cur[f] || '') !== (req.body[f] || ''));
+        if (changed.length) {
+            await logAudit(db, {
+                staffEmail: email,
+                actorEmail: req.user.email,
+                section: 'profile',
+                action: 'update',
+                summary: `Updated profile: ${changed.join(', ')}`,
+                details: { fields: changed }
+            });
+            await markStaffUpdated(db, email);
+        }
 
         res.json({ success: true });
     } catch (err) {
@@ -376,6 +392,50 @@ router.get('/:email', verifyToken, async (req, res) => {
         res.status(500).json({ error: 'Failed to fetch CV profile' });
     }
 });
+
+// ── GET /:email/audit — Staff's own audit trail (owner, admin, HR, coordinator) ──
+router.get('/:email/audit', verifyToken, async (req, res) => {
+    try {
+        const { email } = req.params;
+        const db = await getDb();
+
+        const userEmail = (req.user.email || '').toLowerCase();
+        const isOwner = userEmail === email.toLowerCase();
+        const isPrivileged = req.user.isAdmin === true
+            || req.user.is_hr === 1 || req.user.is_hr === true
+            || req.user.is_coordinator === 1 || req.user.is_coordinator === true;
+        if (!isOwner && !isPrivileged) {
+            return res.status(403).json({ error: 'You can only view your own audit trail' });
+        }
+
+        const [rows] = await db.query(
+            `SELECT id, staff_email, actor_email, section, action, summary, details, created_at
+             FROM profile_audit_log
+             WHERE LOWER(staff_email) = ?
+             ORDER BY created_at DESC, id DESC
+             LIMIT 500`,
+            [email.toLowerCase()]
+        );
+
+        res.json(rows.map(r => ({
+            id: r.id,
+            staffEmail: r.staff_email,
+            actorEmail: r.actor_email,
+            section: r.section,
+            action: r.action,
+            summary: r.summary,
+            details: typeof r.details === 'string' ? safeParseJson(r.details) : r.details,
+            createdAt: r.created_at
+        })));
+    } catch (err) {
+        console.error('Error fetching audit trail:', err);
+        res.status(500).json({ error: 'Failed to fetch audit trail' });
+    }
+});
+
+function safeParseJson(s) {
+    try { return JSON.parse(s); } catch { return null; }
+}
 
 // GET /:email/snapshots - Fetch CV snapshots for an email
 router.get('/:email/snapshots', verifyToken, async (req, res) => {
@@ -1038,6 +1098,15 @@ router.post('/:email/photo', verifyToken, upload.single('photo'), async (req, re
         );
         
         console.log(`Update result: ${JSON.stringify(updateResult)}`);
+        await logAudit(db, {
+            staffEmail: email,
+            actorEmail: req.user.email,
+            section: 'photo',
+            action: 'update',
+            summary: 'Updated profile photo',
+            details: { photo_path: photoPath }
+        });
+        await markStaffUpdated(db, email);
         res.json({ photo_path: photoPath });
     } catch (err) {
         console.error('Error uploading photo:', err);
@@ -1088,6 +1157,16 @@ router.post('/:email/education', verifyToken, async (req, res) => {
             [id, email.toLowerCase(), institution || null, degree || null, field || null, start_year || null, end_year || null, description || null, now]
         );
 
+        await logAudit(db, {
+            staffEmail: email,
+            actorEmail: req.user.email,
+            section: 'education',
+            action: 'create',
+            summary: `Added education: ${[institution, degree].filter(Boolean).join(' — ') || 'entry'}`,
+            details: { institution, degree, field, start_year, end_year }
+        });
+        await markStaffUpdated(db, email);
+
         res.json({ id });
     } catch (err) {
         console.error('Error adding education:', err);
@@ -1108,12 +1187,28 @@ router.put('/:email/education/:id', verifyToken, async (req, res) => {
         const { institution, degree, field, start_year, end_year, description } = req.body;
         const db = await getDb();
 
+        const [oldRows] = await db.query(
+            'SELECT institution, degree FROM education WHERE id = ? AND LOWER(staff_email) = ?',
+            [id, email.toLowerCase()]
+        );
+
         const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
         await db.query(
             `UPDATE education SET institution = ?, degree = ?, field = ?, start_year = ?, end_year = ?, description = ?
              WHERE id = ? AND LOWER(staff_email) = ?`,
             [institution || null, degree || null, field || null, start_year || null, end_year || null, description || null, id, email.toLowerCase()]
         );
+
+        const oldRow = oldRows[0] || {};
+        await logAudit(db, {
+            staffEmail: email,
+            actorEmail: req.user.email,
+            section: 'education',
+            action: 'update',
+            summary: `Updated education: ${[oldRow.institution, oldRow.degree].filter(Boolean).join(' — ') || 'entry'}`,
+            details: { id, institution, degree, field, start_year, end_year }
+        });
+        await markStaffUpdated(db, email);
 
         res.json({ success: true });
     } catch (err) {
@@ -1133,7 +1228,22 @@ router.delete('/:email/education/:id', verifyToken, async (req, res) => {
         }
 
         const db = await getDb();
+        const [oldRows] = await db.query(
+            'SELECT institution, degree FROM education WHERE id = ? AND LOWER(staff_email) = ?',
+            [id, email.toLowerCase()]
+        );
         await db.query('DELETE FROM education WHERE id = ? AND LOWER(staff_email) = ?', [id, email.toLowerCase()]);
+
+        const oldRow = oldRows[0] || {};
+        await logAudit(db, {
+            staffEmail: email,
+            actorEmail: req.user.email,
+            section: 'education',
+            action: 'delete',
+            summary: `Removed education: ${[oldRow.institution, oldRow.degree].filter(Boolean).join(' — ') || 'entry'}`,
+            details: { id }
+        });
+        await markStaffUpdated(db, email);
         res.json({ success: true });
     } catch (err) {
         console.error('Error deleting education:', err);
@@ -1172,6 +1282,16 @@ router.post('/:email/certifications', verifyToken, async (req, res) => {
             [id, email.toLowerCase(), name || null, issuer || null, date_obtained || null, expiry_date || null, credential_id || null, description || null, now]
         );
 
+        await logAudit(db, {
+            staffEmail: email,
+            actorEmail: req.user.email,
+            section: 'certifications',
+            action: 'create',
+            summary: `Added certification: ${name || 'entry'}`,
+            details: { name, issuer, date_obtained, expiry_date, credential_id }
+        });
+        await markStaffUpdated(db, email);
+
         res.json({ id });
     } catch (err) {
         console.error('Error adding certification:', err);
@@ -1202,11 +1322,26 @@ router.put('/:email/certifications/:id', verifyToken, async (req, res) => {
         if (dateRangeErr) return res.status(400).json({ error: dateRangeErr });
 
         const db = await getDb();
+        const [oldRows] = await db.query(
+            'SELECT name, issuer FROM certifications WHERE id = ? AND LOWER(staff_email) = ?',
+            [id, email.toLowerCase()]
+        );
         await db.query(
             `UPDATE certifications SET name = ?, issuer = ?, date_obtained = ?, expiry_date = ?, credential_id = ?, description = ?
              WHERE id = ? AND LOWER(staff_email) = ?`,
             [name || null, issuer || null, date_obtained || null, expiry_date || null, credential_id || null, description || null, id, email.toLowerCase()]
         );
+
+        const oldRow = oldRows[0] || {};
+        await logAudit(db, {
+            staffEmail: email,
+            actorEmail: req.user.email,
+            section: 'certifications',
+            action: 'update',
+            summary: `Updated certification: ${oldRow.name || 'entry'}`,
+            details: { id, name, issuer, date_obtained, expiry_date }
+        });
+        await markStaffUpdated(db, email);
 
         res.json({ success: true });
     } catch (err) {
@@ -1226,7 +1361,22 @@ router.delete('/:email/certifications/:id', verifyToken, async (req, res) => {
         }
 
         const db = await getDb();
+        const [oldRows] = await db.query(
+            'SELECT name, issuer FROM certifications WHERE id = ? AND LOWER(staff_email) = ?',
+            [id, email.toLowerCase()]
+        );
         await db.query('DELETE FROM certifications WHERE id = ? AND LOWER(staff_email) = ?', [id, email.toLowerCase()]);
+
+        const oldRow = oldRows[0] || {};
+        await logAudit(db, {
+            staffEmail: email,
+            actorEmail: req.user.email,
+            section: 'certifications',
+            action: 'delete',
+            summary: `Removed certification: ${oldRow.name || 'entry'}`,
+            details: { id }
+        });
+        await markStaffUpdated(db, email);
         res.json({ success: true });
     } catch (err) {
         console.error('Error deleting certification:', err);
@@ -1265,6 +1415,16 @@ router.post('/:email/work-history', verifyToken, async (req, res) => {
             [id, email.toLowerCase(), employer || null, job_title || null, start_date || null, end_date || null, description || null, is_current || 0, now]
         );
 
+        await logAudit(db, {
+            staffEmail: email,
+            actorEmail: req.user.email,
+            section: 'work_history',
+            action: 'create',
+            summary: `Added work history: ${[employer, job_title].filter(Boolean).join(' — ') || 'entry'}`,
+            details: { employer, job_title, start_date, end_date, is_current }
+        });
+        await markStaffUpdated(db, email);
+
         res.json({ id });
     } catch (err) {
         console.error('Error adding work history:', err);
@@ -1295,11 +1455,26 @@ router.put('/:email/work-history/:id', verifyToken, async (req, res) => {
         if (dateRangeErr) return res.status(400).json({ error: dateRangeErr });
 
         const db = await getDb();
+        const [oldRows] = await db.query(
+            'SELECT employer, job_title FROM work_history WHERE id = ? AND LOWER(staff_email) = ?',
+            [id, email.toLowerCase()]
+        );
         await db.query(
             `UPDATE work_history SET employer = ?, job_title = ?, start_date = ?, end_date = ?, description = ?, is_current = ?
              WHERE id = ? AND LOWER(staff_email) = ?`,
             [employer || null, job_title || null, start_date || null, end_date || null, description || null, is_current || 0, id, email.toLowerCase()]
         );
+
+        const oldRow = oldRows[0] || {};
+        await logAudit(db, {
+            staffEmail: email,
+            actorEmail: req.user.email,
+            section: 'work_history',
+            action: 'update',
+            summary: `Updated work history: ${[oldRow.employer, oldRow.job_title].filter(Boolean).join(' — ') || 'entry'}`,
+            details: { id, employer, job_title, start_date, end_date, is_current }
+        });
+        await markStaffUpdated(db, email);
 
         res.json({ success: true });
     } catch (err) {
@@ -1319,7 +1494,22 @@ router.delete('/:email/work-history/:id', verifyToken, async (req, res) => {
         }
 
         const db = await getDb();
+        const [oldRows] = await db.query(
+            'SELECT employer, job_title FROM work_history WHERE id = ? AND LOWER(staff_email) = ?',
+            [id, email.toLowerCase()]
+        );
         await db.query('DELETE FROM work_history WHERE id = ? AND LOWER(staff_email) = ?', [id, email.toLowerCase()]);
+
+        const oldRow = oldRows[0] || {};
+        await logAudit(db, {
+            staffEmail: email,
+            actorEmail: req.user.email,
+            section: 'work_history',
+            action: 'delete',
+            summary: `Removed work history: ${[oldRow.employer, oldRow.job_title].filter(Boolean).join(' — ') || 'entry'}`,
+            details: { id }
+        });
+        await markStaffUpdated(db, email);
         res.json({ success: true });
     } catch (err) {
         console.error('Error deleting work history:', err);
@@ -1379,6 +1569,16 @@ router.post('/:email/past-projects', verifyToken, async (req, res) => {
             [id, email.toLowerCase(), project_name || null, work_history_id || null, role || null, start_date || null, end_date || null, description || null, technologies || null]
         );
 
+        await logAudit(db, {
+            staffEmail: email,
+            actorEmail: req.user.email,
+            section: 'past_projects',
+            action: 'create',
+            summary: `Added past project: ${project_name || 'entry'}`,
+            details: { project_name, role, start_date, end_date }
+        });
+        await markStaffUpdated(db, email);
+
         res.json({ id });
     } catch (err) {
         console.error('Error adding past project:', err);
@@ -1409,11 +1609,26 @@ router.put('/:email/past-projects/:id', verifyToken, async (req, res) => {
         if (dateRangeErr) return res.status(400).json({ error: dateRangeErr });
 
         const db = await getDb();
+        const [oldRows] = await db.query(
+            'SELECT project_name FROM cv_past_projects WHERE id = ? AND LOWER(staff_email) = ?',
+            [id, email.toLowerCase()]
+        );
         await db.query(
             `UPDATE cv_past_projects SET project_name = ?, work_history_id = ?, role = ?, start_date = ?, end_date = ?, description = ?, technologies = ?
              WHERE id = ? AND LOWER(staff_email) = ?`,
             [project_name || null, work_history_id || null, role || null, start_date || null, end_date || null, description || null, technologies || null, id, email.toLowerCase()]
         );
+
+        const oldRow = oldRows[0] || {};
+        await logAudit(db, {
+            staffEmail: email,
+            actorEmail: req.user.email,
+            section: 'past_projects',
+            action: 'update',
+            summary: `Updated past project: ${oldRow.project_name || 'entry'}`,
+            details: { id, project_name, role, start_date, end_date }
+        });
+        await markStaffUpdated(db, email);
 
         res.json({ success: true });
     } catch (err) {
@@ -1433,7 +1648,22 @@ router.delete('/:email/past-projects/:id', verifyToken, async (req, res) => {
         }
 
         const db = await getDb();
+        const [oldRows] = await db.query(
+            'SELECT project_name FROM cv_past_projects WHERE id = ? AND LOWER(staff_email) = ?',
+            [id, email.toLowerCase()]
+        );
         await db.query('DELETE FROM cv_past_projects WHERE id = ? AND LOWER(staff_email) = ?', [id, email.toLowerCase()]);
+
+        const oldRow = oldRows[0] || {};
+        await logAudit(db, {
+            staffEmail: email,
+            actorEmail: req.user.email,
+            section: 'past_projects',
+            action: 'delete',
+            summary: `Removed past project: ${oldRow.project_name || 'entry'}`,
+            details: { id }
+        });
+        await markStaffUpdated(db, email);
         res.json({ success: true });
     } catch (err) {
         console.error('Error deleting past project:', err);
@@ -1488,6 +1718,15 @@ router.post('/:email/education/:id/proof', verifyToken, proofUpload.single('proo
 
         await db.query('UPDATE education SET proof_path = ? WHERE id = ?', [proofPath, id]);
         console.log(`Education proof uploaded: ${proofPath} for ${email}`);
+        await logAudit(db, {
+            staffEmail: email,
+            actorEmail: req.user.email,
+            section: 'education',
+            action: 'update',
+            summary: 'Uploaded education proof document',
+            details: { id, proof_path: proofPath }
+        });
+        await markStaffUpdated(db, email);
         res.json({ proof_path: proofPath });
     } catch (err) {
         console.error('Error uploading education proof:', err);
@@ -1521,6 +1760,14 @@ router.delete('/:email/education/:id/proof', verifyToken, async (req, res) => {
         }
 
         await db.query('UPDATE education SET proof_path = NULL WHERE id = ?', [id]);
+        await logAudit(db, {
+            staffEmail: email,
+            actorEmail: req.user.email,
+            section: 'education',
+            action: 'update',
+            summary: 'Removed education proof document'
+        });
+        await markStaffUpdated(db, email);
         res.json({ deleted: true });
     } catch (err) {
         console.error('Error deleting education proof:', err);
@@ -1552,6 +1799,15 @@ router.post('/:email/certifications/:id/proof', verifyToken, proofUpload.single(
 
         await db.query('UPDATE certifications SET proof_path = ? WHERE id = ?', [proofPath, id]);
         console.log(`Certification proof uploaded: ${proofPath} for ${email}`);
+        await logAudit(db, {
+            staffEmail: email,
+            actorEmail: req.user.email,
+            section: 'certifications',
+            action: 'update',
+            summary: 'Uploaded certification proof document',
+            details: { id, proof_path: proofPath }
+        });
+        await markStaffUpdated(db, email);
         res.json({ proof_path: proofPath });
     } catch (err) {
         console.error('Error uploading certification proof:', err);
@@ -1585,6 +1841,14 @@ router.delete('/:email/certifications/:id/proof', verifyToken, async (req, res) 
         }
 
         await db.query('UPDATE certifications SET proof_path = NULL WHERE id = ?', [id]);
+        await logAudit(db, {
+            staffEmail: email,
+            actorEmail: req.user.email,
+            section: 'certifications',
+            action: 'update',
+            summary: 'Removed certification proof document'
+        });
+        await markStaffUpdated(db, email);
         res.json({ deleted: true });
     } catch (err) {
         console.error('Error deleting certification proof:', err);

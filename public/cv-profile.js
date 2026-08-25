@@ -150,6 +150,12 @@ function wireUpTabSwitching() {
             const targetContent = document.getElementById(`${targetTab}-tab`);
             if (targetContent) targetContent.classList.add('active');
 
+            // Lazy-load the audit trail the first time the tab is opened
+            if (targetTab === 'audit' && !auditLoaded) {
+                auditLoaded = true;
+                loadAuditTrail();
+            }
+
             // Scroll to top so tab bar and content are both visible
             window.scrollTo({ top: 0, behavior: 'smooth' });
         });
@@ -162,6 +168,83 @@ function wireUpTabSwitching() {
         const btn = document.querySelector(`.tab-btn[data-tab="${requestedTab}"]`);
         if (btn) {
             btn.click();
+        }
+    }
+}
+
+// ── Audit Trail ───────────────────────────────────────────────────────────────
+let auditLoaded = false;
+
+const AUDIT_SECTION_LABELS = {
+    'staff_details': 'Staff Details',
+    'skills': 'Skills',
+    'projects': 'Active Projects',
+    'profile': 'Profile',
+    'photo': 'Photo',
+    'education': 'Education',
+    'certifications': 'Certifications',
+    'work_history': 'Work History',
+    'past_projects': 'Past Projects'
+};
+
+function auditActionBadge(action) {
+    const styles = {
+        create: 'background:var(--color-success-light);color:var(--color-success);border:1px solid rgba(16,185,129,.3)',
+        update: 'background:var(--color-primary-light);color:var(--color-primary);border:1px solid rgba(99,102,241,.3)',
+        delete: 'background:var(--color-danger-light);color:var(--color-danger);border:1px solid rgba(239,68,68,.3)'
+    };
+    const label = { create: 'Added', update: 'Updated', delete: 'Removed' }[action] || action;
+    return `<span class="staff-updated-badge" style="${styles[action] || styles.update};text-transform:capitalize;">${label}</span>`;
+}
+
+function formatAuditDate(v) {
+    if (!v) return '—';
+    const d = new Date(v);
+    if (isNaN(d.getTime())) return String(v);
+    return d.toLocaleString(undefined, {
+        year: 'numeric', month: 'short', day: 'numeric',
+        hour: '2-digit', minute: '2-digit'
+    });
+}
+
+async function loadAuditTrail() {
+    const tbody = document.getElementById('audit-tbody');
+    const emptyEl = document.getElementById('audit-empty');
+    const tableEl = document.getElementById('audit-table-container');
+    if (!tbody) return;
+
+    try {
+        const res = await window.StaffTrackAuth.apiFetch(`/api/cv-profiles/${encodeURIComponent(targetProfileEmail)}/audit`);
+        if (!res.ok) {
+            if (res.status === 403) {
+                if (emptyEl) {
+                    emptyEl.querySelector('.empty-state-title').textContent = 'Audit trail not available';
+                    emptyEl.querySelector('.empty-state-text').textContent = 'You can only view your own audit trail.';
+                    emptyEl.style.display = '';
+                }
+                return;
+            }
+            throw new Error('audit fetch failed');
+        }
+        const rows = await res.json();
+
+        if (emptyEl) emptyEl.style.display = rows.length ? 'none' : '';
+        if (tableEl) tableEl.style.display = rows.length ? '' : 'none';
+
+        tbody.innerHTML = rows.map(r => `
+            <tr>
+                <td style="white-space:nowrap;color:var(--color-text-secondary);font-size:.82rem;">${formatAuditDate(r.createdAt)}</td>
+                <td>${AUDIT_SECTION_LABELS[r.section] || r.section}</td>
+                <td>${auditActionBadge(r.action)}</td>
+                <td style="color:var(--color-text-secondary);font-size:.85rem;">${r.summary || '—'}</td>
+            </tr>
+        `).join('');
+    } catch (err) {
+        console.error('Failed to load audit trail:', err);
+        if (emptyEl) {
+            emptyEl.querySelector('.empty-state-title').textContent = 'Could not load audit trail';
+            emptyEl.querySelector('.empty-state-text').textContent = 'Please try again later.';
+            emptyEl.style.display = '';
         }
     }
 }

@@ -2,6 +2,7 @@ import express from 'express';
 import { v4 as uuidv4 } from 'uuid';
 import { getDb } from '../db.js';
 import { verifyToken, requireRole } from './auth.js';
+import { logAudit, markStaffUpdated, diffByKey } from '../utils/audit.js';
 
 const router = express.Router();
 
@@ -217,14 +218,34 @@ router.post('/', verifyToken, async (req, res) => {
             return res.status(400).json({ error: 'staffEmail and staffName are required' });
         }
 
+        // Idempotency guard: if this staff already has a submission row, update
+        // that row instead of INSERTing a duplicate. Lost sessionStorage ids used
+        // to cause a double-POST → two submission rows per email → the same staff
+        // listed twice in All Staff.
+        const [existingSubs] = await db.query(
+            'SELECT id FROM submissions WHERE LOWER(staff_email) = ? ORDER BY updated_at DESC LIMIT 1',
+            [staffEmail.toLowerCase()]
+        );
+        if (existingSubs.length) {
+            const existingId = existingSubs[0].id;
+            await applySubmissionUpdate(db, existingId, {
+                staffName: finalStaffName,
+                staffData,
+                editedFields,
+                skills,
+                projects
+            }, req.user.email, staffEmail);
+            return res.json({ id: existingId });
+        }
+
         const id = uuidv4();
         const now = new Date().toISOString().slice(0, 19) + 'Z';
         const editedFieldsJson = JSON.stringify(editedFields || []);
 
         // Insert main submission
         await db.query(
-            `INSERT INTO submissions (id, staff_email, staff_name, title, department, manager_name, edited_fields, created_at, updated_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            `INSERT INTO submissions (id, staff_email, staff_name, title, department, manager_name, edited_fields, created_at, updated_at, updated_by_staff)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1)`,
             [id, staffEmail.toLowerCase(), finalStaffName, title || null, department || null, managerName || null, editedFieldsJson, now, now]
         );
 
@@ -267,6 +288,55 @@ router.post('/', verifyToken, async (req, res) => {
         res.status(500).json({ error: 'Failed to create submission' });
     }
 });
+
+// ── Helper: audit one submission save (staff details + skills + active projects) ──
+// Rows are canonicalized before diffing: DB rows carry nulls/DATE objects while
+// frontend payloads carry undefined/'' — comparing raw JSON would log phantom
+// "changed" rows on every untouched autosave.
+function normVal(v) { return (v === undefined || v === null) ? '' : String(v).trim(); }
+function normDateVal(v) { return v ? String(v).slice(0, 10) : ''; }
+
+function canonSkills(rows) {
+    return rows.map(s => ({ skill: normVal(s.skill), rating: (s.rating === undefined || s.rating === null) ? '' : String(s.rating) }));
+}
+
+function canonProjects(rows) {
+    return rows.map(p => ({
+        project_name: normVal(p.project_name || p.projectName),
+        soc: normVal(p.soc),
+        customer: normVal(p.customer),
+        role: normVal(p.role),
+        start_date: normDateVal(p.start_date || p.startDate),
+        end_date: normDateVal(p.end_date || p.endDate),
+        description: normVal(p.description),
+        technologies: normVal(p.technologies || p.technologies_used)
+    }));
+}
+
+async function auditSubmissionSave(db, { staffEmail, actorEmail, id, editedFields, oldSkills, newSkills, oldProjects, newProjects }) {
+    const ef = (editedFields || []).filter(f => typeof f === 'string' && f.trim());
+    if (ef.length) {
+        await logAudit(db, { staffEmail, actorEmail, section: 'staff_details', action: 'update', summary: `Updated: ${ef.join(', ')}`, details: { fields: ef } });
+    }
+
+    const sDiff = diffByKey(canonSkills(oldSkills), canonSkills(newSkills), s => s.skill, s => s.skill);
+    if (sDiff.changed) {
+        await logAudit(db, {
+            staffEmail, actorEmail, section: 'skills', action: 'update',
+            summary: `Skills: +${sDiff.added.length} added, -${sDiff.removed.length} removed, ~${sDiff.updated.length} changed`,
+            details: sDiff
+        });
+    }
+
+    const pDiff = diffByKey(canonProjects(oldProjects), canonProjects(newProjects), p => p.project_name, p => p.project_name);
+    if (pDiff.changed) {
+        await logAudit(db, {
+            staffEmail, actorEmail, section: 'projects', action: 'update',
+            summary: `Active projects: +${pDiff.added.length} added, -${pDiff.removed.length} removed, ~${pDiff.updated.length} changed`,
+            details: pDiff
+        });
+    }
+}
 
 // ── Incremental merge helpers (PUT must never rewrite untouched rows) ─────
 /**
@@ -402,10 +472,6 @@ router.put('/:id', verifyToken, async (req, res) => {
             if (catalogRow.length && catalogRow[0].name) finalStaffName = catalogRow[0].name;
         }
 
-        const title = staffData.title;
-        const department = staffData.department;
-        const managerName = staffData.managerName;
-
         // Verify submission exists and belongs to the caller. Without this guard a
         // user could rewrite another staff's submission (payload email is client-controlled).
         const [existing] = await db.query('SELECT id, staff_email FROM submissions WHERE id = ?', [id]);
@@ -416,19 +482,13 @@ router.put('/:id', verifyToken, async (req, res) => {
             return res.status(403).json({ error: 'You can only edit your own submission' });
         }
 
-        const now = new Date().toISOString().slice(0, 19) + 'Z';
-        const editedFieldsJson = JSON.stringify(editedFields || []);
-
-        // Update main submission
-        await db.query(
-            `UPDATE submissions SET staff_email = ?, staff_name = ?, title = ?, department = ?, manager_name = ?, edited_fields = ?, updated_at = ?
-             WHERE id = ?`,
-            [staffEmail.toLowerCase(), finalStaffName, title || null, department || null, managerName || null, editedFieldsJson, now, id]
-        );
-
-        // Merge skills & projects incrementally — untouched rows are never rewritten
-        await mergeSkills(db, id, skills);
-        await mergeProjects(db, id, projects);
+        await applySubmissionUpdate(db, id, {
+            staffName: finalStaffName,
+            staffData,
+            editedFields,
+            skills,
+            projects
+        }, req.user.email, staffEmail);
 
         res.json({ success: true });
     } catch (err) {
@@ -437,11 +497,55 @@ router.put('/:id', verifyToken, async (req, res) => {
     }
 });
 
+// ── Shared update path (used by PUT /:id and the POST idempotency guard) ─────
+// Snapshots current rows, updates the submission, merges skills/projects, flips
+// the staff-updated flag and writes the audit trail.
+async function applySubmissionUpdate(db, id, { staffName, staffData = {}, editedFields, skills = [], projects = [] }, actorEmail, staffEmail) {
+    const now = new Date().toISOString().slice(0, 19) + 'Z';
+    const editedFieldsJson = JSON.stringify(editedFields || []);
+
+    // Snapshot current skills/projects before merging so the audit log can
+    // report what actually changed (added / removed / updated).
+    const [oldSkillRows] = await db.query(
+        'SELECT skill, rating FROM submission_skills WHERE submission_id = ?', [id]);
+    const [oldProjectRows] = await db.query(
+        `SELECT soc, project_name, customer, role, start_date, end_date, description, technologies_used
+         FROM submission_projects WHERE submission_id = ?`, [id]);
+
+    // Update main submission — any staff save counts as "staff updated",
+    // regardless of which field changed.
+    await db.query(
+        `UPDATE submissions SET staff_email = ?, staff_name = ?, title = ?, department = ?, manager_name = ?, edited_fields = ?, updated_at = ?, updated_by_staff = 1
+         WHERE id = ?`,
+        [(staffEmail || '').toLowerCase(), staffName, staffData.title || null, staffData.department || null, staffData.managerName || null, editedFieldsJson, now, id]
+    );
+
+    // Merge skills & projects incrementally — untouched rows are never rewritten
+    await mergeSkills(db, id, skills);
+    await mergeProjects(db, id, projects);
+
+    await markStaffUpdated(db, staffEmail);
+    await auditSubmissionSave(db, {
+        staffEmail,
+        actorEmail,
+        id,
+        editedFields,
+        oldSkills: oldSkillRows,
+        newSkills: skills.map(({ skill, rating }) => ({ skill, rating })),
+        oldProjects: oldProjectRows,
+        newProjects: projects
+    });
+}
+
 // ── DELETE /:id/skills/:skillId — Remove one skill row (explicit) ────────────
 router.delete('/:id/skills/:skillId', verifyToken, async (req, res) => {
     try {
         const db = await getDb();
         const { id, skillId } = req.params;
+        const [rows] = await db.query(
+            'SELECT skill FROM submission_skills WHERE id = ? AND submission_id = ?',
+            [skillId, id]
+        );
         const [result] = await db.query(
             'DELETE FROM submission_skills WHERE id = ? AND submission_id = ?',
             [skillId, id]
@@ -449,6 +553,15 @@ router.delete('/:id/skills/:skillId', verifyToken, async (req, res) => {
         if (result.affectedRows === 0) {
             return res.status(404).json({ error: 'Skill row not found' });
         }
+        const staffEmail = req.user.email || '';
+        await markStaffUpdated(db, staffEmail);
+        await logAudit(db, {
+            staffEmail,
+            actorEmail: staffEmail,
+            section: 'skills',
+            action: 'delete',
+            summary: `Removed skill: ${rows[0] ? rows[0].skill : skillId}`
+        });
         res.json({ success: true });
     } catch (err) {
         console.error('DELETE skill error:', err);
@@ -461,6 +574,10 @@ router.delete('/:id/projects/:projectId', verifyToken, async (req, res) => {
     try {
         const db = await getDb();
         const { id, projectId } = req.params;
+        const [rows] = await db.query(
+            'SELECT project_name FROM submission_projects WHERE id = ? AND submission_id = ?',
+            [projectId, id]
+        );
         const [result] = await db.query(
             'DELETE FROM submission_projects WHERE id = ? AND submission_id = ?',
             [projectId, id]
@@ -468,6 +585,15 @@ router.delete('/:id/projects/:projectId', verifyToken, async (req, res) => {
         if (result.affectedRows === 0) {
             return res.status(404).json({ error: 'Project row not found' });
         }
+        const staffEmail = req.user.email || '';
+        await markStaffUpdated(db, staffEmail);
+        await logAudit(db, {
+            staffEmail,
+            actorEmail: staffEmail,
+            section: 'projects',
+            action: 'delete',
+            summary: `Removed active project: ${rows[0] ? rows[0].project_name : projectId}`
+        });
         res.json({ success: true });
     } catch (err) {
         console.error('DELETE project error:', err);
