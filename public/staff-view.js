@@ -5,6 +5,11 @@ const authUser = requireAuth();
 let STAFF_REPORT = [];
 let includeInactive = false;
 
+// ── Sort & column filter state ────────────────────────────────────────────────
+let sortKey = 'name';
+let sortDir = 'asc';
+const colFilters = { name: '', title: '', department: '', projects: '', skills: '', updated: '' };
+
 // ── Utility ───────────────────────────────────────────────────────────────────
 function hl(text, q) {
     if (!q || !text) return text || '';
@@ -23,6 +28,50 @@ function escapeHtml(text) {
 function formatDate(iso) {
     if (!iso) return '—';
     return new Date(iso).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
+}
+
+// ── Sort & column filter helpers ──────────────────────────────────────────────
+function currentQuery() {
+    const el = document.getElementById('staff-search');
+    return el ? el.value.trim() : '';
+}
+
+function sortValue(s) {
+    switch (sortKey) {
+        case 'projects': return s.projects.length;
+        case 'skills': return s.skills.length;
+        case 'updated': {
+            const t = s.updatedAt ? new Date(s.updatedAt).getTime() : NaN;
+            return isNaN(t) ? -Infinity : t;
+        }
+        default: return (s[sortKey] || '').toLowerCase();
+    }
+}
+
+function compareStaff(a, b) {
+    const va = sortValue(a);
+    const vb = sortValue(b);
+    // Empty / missing values always sort last, regardless of direction
+    const aEmpty = va === '' || va === -Infinity;
+    const bEmpty = vb === '' || vb === -Infinity;
+    if (aEmpty || bEmpty) {
+        if (aEmpty && bEmpty) return 0;
+        return aEmpty ? 1 : -1;
+    }
+    let cmp;
+    if (typeof va === 'number' && typeof vb === 'number') cmp = va - vb;
+    else cmp = String(va).localeCompare(String(vb), undefined, { sensitivity: 'base' });
+    return sortDir === 'asc' ? cmp : -cmp;
+}
+
+function updateSortIndicators() {
+    document.querySelectorAll('#staff-table th.sortable').forEach(th => {
+        const ind = th.querySelector('.sort-ind');
+        if (!ind) return;
+        const active = th.dataset.sort === sortKey;
+        th.classList.toggle('sorted', active);
+        ind.textContent = active ? (sortDir === 'asc' ? '▲' : '▼') : '';
+    });
 }
 
 // ── Export CSV ────────────────────────────────────────────────────────────────
@@ -64,18 +113,33 @@ function renderTable(q = '') {
     const panel = document.getElementById('staff-detail-panel');
     panel.style.display = 'none';
 
-    let list = STAFF_REPORT;
-    if (ql) {
-        list = list.filter(s =>
-            s.staffName.toLowerCase().includes(ql) ||
-            s.department.toLowerCase().includes(ql) ||
-            s.title.toLowerCase().includes(ql) ||
+    let list = STAFF_REPORT.filter(s => {
+        // Global search box (name / title / department / project / soc)
+        if (ql && !(
+            (s.staffName || '').toLowerCase().includes(ql) ||
+            (s.department || '').toLowerCase().includes(ql) ||
+            (s.title || '').toLowerCase().includes(ql) ||
             s.projects.some(p =>
                 (p.projectName || '').toLowerCase().includes(ql) ||
                 (p.soc || '').toLowerCase().includes(ql)
             )
-        );
-    }
+        )) return false;
+
+        // Per-column filters (AND-combined)
+        if (colFilters.name && !(s.staffName || '').toLowerCase().includes(colFilters.name)) return false;
+        if (colFilters.title && !(s.title || '').toLowerCase().includes(colFilters.title)) return false;
+        if (colFilters.department && !(s.department || '').toLowerCase().includes(colFilters.department)) return false;
+        if (colFilters.projects && !s.projects.some(p =>
+            (p.projectName || '').toLowerCase().includes(colFilters.projects) ||
+            (p.soc || '').toLowerCase().includes(colFilters.projects))) return false;
+        if (colFilters.skills && !s.skills.some(sk => (sk.skill || '').toLowerCase().includes(colFilters.skills))) return false;
+        if (colFilters.updated === 'staff' && !s.updatedByStaff) return false;
+        if (colFilters.updated === 'not-staff' && s.updatedByStaff) return false;
+        return true;
+    });
+
+    list.sort(compareStaff);
+    updateSortIndicators();
 
     countEl.textContent = `${list.length} staff member${list.length !== 1 ? 's' : ''}`;
 
@@ -239,6 +303,46 @@ async function init() {
     document.getElementById('staff-search').addEventListener('input', e => {
         renderTable(e.target.value.trim());
     });
+
+    // Column header sorting
+    document.querySelectorAll('#staff-table th.sortable').forEach(th => {
+        th.addEventListener('click', () => {
+            const key = th.dataset.sort;
+            if (key === sortKey) {
+                sortDir = sortDir === 'asc' ? 'desc' : 'asc';
+            } else {
+                sortKey = key;
+                sortDir = 'asc';
+            }
+            renderTable(currentQuery());
+        });
+    });
+
+    // Per-column text filters
+    const textFilterMap = {
+        'col-filter-name': 'name',
+        'col-filter-title': 'title',
+        'col-filter-department': 'department',
+        'col-filter-projects': 'projects',
+        'col-filter-skills': 'skills'
+    };
+    Object.entries(textFilterMap).forEach(([id, key]) => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        el.addEventListener('input', e => {
+            colFilters[key] = e.target.value.trim().toLowerCase();
+            renderTable(currentQuery());
+        });
+    });
+
+    // Updated column dropdown filter
+    const updatedFilter = document.getElementById('col-filter-updated');
+    if (updatedFilter) {
+        updatedFilter.addEventListener('change', e => {
+            colFilters.updated = e.target.value;
+            renderTable(currentQuery());
+        });
+    }
 
     document.getElementById('toggle-inactive').addEventListener('change', async e => {
         includeInactive = e.target.checked;

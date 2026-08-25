@@ -85,12 +85,26 @@
                         <table class="table table-clickable" id="staff-table">
                             <thead>
                                 <tr>
-                                    <th>Name</th>
-                                    <th>Title</th>
-                                    <th>Department</th>
-                                    <th>Projects</th>
-                                    <th>Skills</th>
-                                    <th>Last Updated</th>
+                                    <th data-sort="name" class="sortable">Name <span class="sort-ind"></span></th>
+                                    <th data-sort="title" class="sortable">Title <span class="sort-ind"></span></th>
+                                    <th data-sort="department" class="sortable">Department <span class="sort-ind"></span></th>
+                                    <th data-sort="projects" class="sortable">Projects <span class="sort-ind"></span></th>
+                                    <th data-sort="skills" class="sortable">Skills <span class="sort-ind"></span></th>
+                                    <th data-sort="updated" class="sortable">Last Updated <span class="sort-ind"></span></th>
+                                </tr>
+                                <tr class="col-filters">
+                                    <td><input type="text" class="input col-filter" id="col-filter-name" placeholder="Filter name..."></td>
+                                    <td><input type="text" class="input col-filter" id="col-filter-title" placeholder="Filter title..."></td>
+                                    <td><input type="text" class="input col-filter" id="col-filter-department" placeholder="Filter dept..."></td>
+                                    <td><input type="text" class="input col-filter" id="col-filter-projects" placeholder="Filter project..."></td>
+                                    <td><input type="text" class="input col-filter" id="col-filter-skills" placeholder="Filter skill..."></td>
+                                    <td>
+                                        <select class="input col-filter" id="col-filter-updated">
+                                            <option value="">Any update</option>
+                                            <option value="staff">Staff updated</option>
+                                            <option value="not-staff">Not staff updated</option>
+                                        </select>
+                                    </td>
                                 </tr>
                             </thead>
                             <tbody id="staff-tbody">

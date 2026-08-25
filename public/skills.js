@@ -207,8 +207,8 @@ function renderSkillsView() {
 
     // Apply text search filter
     const filtered = currentData.filter(item =>
-        item.skill.toLowerCase().includes(searchQuery) ||
-        item.staff.some(s => s.name.toLowerCase().includes(searchQuery))
+        (item.skill || '').toLowerCase().includes(searchQuery) ||
+        item.staff.some(s => (s.name || '').toLowerCase().includes(searchQuery))
     );
 
     countEl.textContent = `${filtered.length} unique skill${filtered.length !== 1 ? 's' : ''}`;
@@ -250,10 +250,10 @@ function renderStaffView() {
 
     // Apply text search filter
     const filtered = currentData.filter(staff =>
-        staff.staffName.toLowerCase().includes(searchQuery) ||
-        (staff.title && staff.title.toLowerCase().includes(searchQuery)) ||
-        (staff.department && staff.department.toLowerCase().includes(searchQuery)) ||
-        (staff.skills && staff.skills.some(s => s.skill.toLowerCase().includes(searchQuery)))
+        (staff.staffName || '').toLowerCase().includes(searchQuery) ||
+        (staff.title || '').toLowerCase().includes(searchQuery) ||
+        (staff.department || '').toLowerCase().includes(searchQuery) ||
+        (staff.skills && staff.skills.some(s => (s.skill || '').toLowerCase().includes(searchQuery)))
     );
 
     countEl.textContent = `${filtered.length} staff found`;
