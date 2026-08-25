@@ -148,7 +148,7 @@ const Sidebar = {
             <div class="nav-section">
                 <div class="nav-section-label">Main</div>
                 ${this.renderNavItem('📄', 'My CV', '/cv-profile.html', activeTab === 'cv-profile')}
-                ${this.renderNavItem('🗂', 'Projects', '/projects.html', activeTab === 'projects', 12)}
+                ${this.renderNavItem('🗂', 'Projects', '/projects.html', activeTab === 'projects', '', 'projects')}
                 ${this.renderNavItem('📊', 'Skills', '/skills.html', activeTab === 'skills')}
                 ${this.renderNavItem('🌳', 'Org Chart', '/orgchart.html', activeTab === 'orgchart')}
                 ${hasFullAccess ? this.renderNavItem('📈', 'Gantt Charts', '/gantt.html', activeTab === 'gantt') : ''}
@@ -161,7 +161,7 @@ const Sidebar = {
             html += `
                 <div class="nav-section">
                     <div class="nav-section-label">Management</div>
-                    ${showStaff ? this.renderNavItem('👥', 'All Staff', '/staff-view.html', activeTab === 'staff', 48) : ''}
+                    ${showStaff ? this.renderNavItem('👥', 'All Staff', '/staff-view.html', activeTab === 'staff', '', 'staff') : ''}
                     ${isAdmin ? this.renderNavItem('⚙️', 'Catalog', '/catalog.html', activeTab === 'catalog') : ''}
                     ${isAdmin ? this.renderNavItem('📋', 'CV Templates', '/cv-template-editor.html', activeTab === 'cv-template-editor') : ''}
                     ${isAdmin ? this.renderNavItem('💻', 'System', '/system.html', activeTab === 'system') : ''}
@@ -182,6 +182,45 @@ const Sidebar = {
                 }
             });
         });
+
+        // Populate the badges with live counts (fire-and-forget)
+        this.refreshBadges(user);
+    },
+
+    /**
+     * Fetch live counts for the nav badges:
+     * - All Staff: number of staff with updated entries (updated_by_staff = 1)
+     * - Projects:  total projects in the catalog
+     */
+    async refreshBadges(user) {
+        const setBadge = (key, val) => {
+            const el = document.querySelector(`[data-nav-badge="${key}"]`);
+            if (el) el.textContent = val;
+        };
+        try {
+            if (!user) return;
+            const isAdmin = user.isAdmin === true;
+            const isHR = user.is_hr === true || user.is_hr === 1;
+            const showStaff = isAdmin || isHR;
+            if (!window.StaffTrackAuth || typeof window.StaffTrackAuth.apiFetch !== 'function') return;
+
+            if (showStaff) {
+                const res = await window.StaffTrackAuth.apiFetch('/api/reports/staff');
+                if (res.ok) {
+                    const rows = await res.json();
+                    setBadge('staff', rows.filter(r => r.updatedByStaff).length);
+                }
+            }
+
+            const projRes = await window.StaffTrackAuth.apiFetch('/api/catalog/projects');
+            if (projRes.ok) {
+                const projects = await projRes.json();
+                setBadge('projects', Array.isArray(projects) ? projects.length : 0);
+            }
+        } catch (err) {
+            // Badges stay hidden if the fetch fails — never break the page
+            console.error('Sidebar badge refresh failed:', err);
+        }
     },
 
     /**
@@ -191,13 +230,16 @@ const Sidebar = {
      * @param {string} label - Display label
      * @param {string} href - Link URL
      * @param {boolean} isActive - Whether this item is active
-     * @param {number} [badge] - Optional badge count
+     * @param {number|string} [badge] - Optional badge count (rendered when !== undefined)
+     * @param {string} [badgeId] - data-nav-badge key so refreshBadges can target it
      * @returns {string} HTML string
      */
-    renderNavItem(icon, label, href, isActive, badge) {
+    renderNavItem(icon, label, href, isActive, badge, badgeId) {
         const activeClass = isActive ? ' active' : '';
-        const badgeHtml = badge ? `<span class="nav-badge">${badge}</span>` : '';
-        
+        const badgeHtml = (badge !== undefined)
+            ? `<span class="nav-badge" data-nav-badge="${badgeId || ''}">${badge || ''}</span>`
+            : '';
+
         return `
             <a href="${href}" class="nav-item${activeClass}">
                 <span class="nav-icon">${icon}</span>

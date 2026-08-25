@@ -162,11 +162,11 @@ router.get('/staff', requireReporterOrManager, async (req, res) => {
             if (!staffMap.has(row.id)) {
                 staffMap.set(row.id, {
                     id: row.id,
-                    staffName: row.staff_name,
+                    staffName: row.staff_name || '',
                     email: row.staff_email,
-                    title: row.title,
-                    department: row.department,
-                    managerName: row.manager_name,
+                    title: row.title || '',
+                    department: row.department || '',
+                    managerName: row.manager_name || '',
                     updatedAt: row.updated_at,
                     updatedByStaff: row.updated_by_staff,
                     projects: [],
@@ -306,13 +306,19 @@ router.get('/skills', requireReporterOrManager, async (req, res) => {
 
         const [rows] = await db.query(query, params);
 
-        // Group by skill
-        const skillMap = new Map();
+        // Group by skill, normalizing case + whitespace so ".NET" / ".net" /
+        // ".NET " (trailing space) collapse into one catalog entry. The display
+        // label is the most common spelling; staff lists are merged.
+        const normalizeSkill = s => (s || '').trim().toLowerCase().replace(/\s+/g, ' ');
+
+        const skillGroups = new Map(); // normKey -> { variants: Map<label,count>, staff: [] }
         rows.forEach(row => {
-            if (!skillMap.has(row.skill)) {
-                skillMap.set(row.skill, []);
-            }
-            skillMap.get(row.skill).push({
+            const raw = (row.skill || '').trim();
+            const key = normalizeSkill(raw);
+            if (!skillGroups.has(key)) skillGroups.set(key, { variants: new Map(), staff: [] });
+            const g = skillGroups.get(key);
+            g.variants.set(raw, (g.variants.get(raw) || 0) + 1);
+            g.staff.push({
                 name: row.staff_name,
                 email: row.staff_email,
                 title: row.title,
@@ -322,11 +328,19 @@ router.get('/skills', requireReporterOrManager, async (req, res) => {
             });
         });
 
-        // Convert to array format
-        const result = Array.from(skillMap.entries()).map(([skill, staff]) => ({
-            skill,
-            staff
-        }));
+        const result = [];
+        for (const [key, g] of skillGroups) {
+            let label = key;
+            let bestCount = -1;
+            for (const [variant, count] of g.variants) {
+                if (count > bestCount || (count === bestCount && variant.length < label.length)) {
+                    label = variant;
+                    bestCount = count;
+                }
+            }
+            result.push({ skill: label, staff: g.staff });
+        }
+        result.sort((a, b) => a.skill.localeCompare(b.skill, undefined, { sensitivity: 'base' }));
 
         res.json(result);
     } catch (err) {
