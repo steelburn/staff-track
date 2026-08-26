@@ -82,42 +82,33 @@
             color: var(--color-text-muted);
         }
 
-        /* ── Horizontal bars ──────────────────────────────────────────── */
-        .bar-row {
+        /* ── Charts (Apache ECharts) ─────────────────────────────────────── */
+        .dash-grid {
             display: grid;
-            grid-template-columns: minmax(120px, 1fr) 2.2fr 44px;
-            align-items: center;
-            gap: var(--space-3);
-            padding: 3px 0;
+            grid-template-columns: 1fr 1fr;
+            gap: var(--space-5);
         }
 
-        .bar-label {
-            font-size: var(--font-size-sm);
-            color: var(--color-text-primary);
-            overflow: hidden;
-            text-overflow: ellipsis;
-            white-space: nowrap;
+        .chart-box {
+            width: 100%;
         }
 
-        .bar-track {
-            background: var(--color-bg-muted);
-            border-radius: var(--radius-full);
-            height: 10px;
-            overflow: hidden;
+        .chart-lg {
+            height: 340px;
         }
 
-        .bar-fill {
-            height: 100%;
-            background: var(--color-primary);
-            border-radius: var(--radius-full);
-            transition: width 0.4s ease;
-            min-width: 2px;
+        .chart-md {
+            height: 260px;
         }
 
-        .bar-count {
-            font-size: var(--font-size-xs);
-            color: var(--color-text-muted);
-            text-align: right;
+        .chart-sm {
+            height: 220px;
+        }
+
+        @media (max-width: 1100px) {
+            .dash-grid {
+                grid-template-columns: 1fr;
+            }
         }
 
         /* ── Tables ───────────────────────────────────────────────────── */
@@ -365,49 +356,64 @@
                             <div id="dash-org"></div>
                         </section>
 
-                        <!-- Profile completeness -->
-                        <section class="dash-card" id="dash-completeness-card">
-                            <div class="dash-card-header">
-                                <h2>Profile completeness</h2>
-                                <a class="dash-link" href="/staff-view.html">All staff →</a>
-                            </div>
-                            <div id="dash-completeness"></div>
-                        </section>
+                        <!-- Headcount by department + Top skills -->
+                        <div class="dash-grid">
+                            <section class="dash-card" id="dash-depts-card">
+                                <div class="dash-card-header">
+                                    <h2>Headcount by department</h2>
+                                </div>
+                                <div id="chart-depts" class="chart-box chart-lg"></div>
+                            </section>
 
-                        <!-- Top skills -->
-                        <section class="dash-card" id="dash-skills-card">
-                            <div class="dash-card-header">
-                                <h2>Top skills</h2>
-                                <a class="dash-link" href="/skills.html">Skills catalog →</a>
-                            </div>
-                            <div id="dash-skills"></div>
-                        </section>
+                            <section class="dash-card" id="dash-skills-card">
+                                <div class="dash-card-header">
+                                    <h2>Top skills</h2>
+                                    <a class="dash-link" href="/skills.html">Skills catalog →</a>
+                                </div>
+                                <div id="chart-skills" class="chart-box chart-lg"></div>
+                            </section>
+                        </div>
 
-                        <!-- Project coverage -->
-                        <section class="dash-card" id="dash-projects-card">
-                            <div class="dash-card-header">
-                                <h2>Project coverage</h2>
-                                <a class="dash-link" href="/projects.html">Projects →</a>
-                            </div>
-                            <div id="dash-projects"></div>
-                        </section>
+                        <!-- Profile completeness + Project coverage -->
+                        <div class="dash-grid">
+                            <section class="dash-card" id="dash-completeness-card">
+                                <div class="dash-card-header">
+                                    <h2>Profile completeness</h2>
+                                    <a class="dash-link" href="/staff-view.html">All staff →</a>
+                                </div>
+                                <div id="dash-completeness"></div>
+                                <div id="chart-completeness" class="chart-box chart-md" style="margin-top:var(--space-3)"></div>
+                            </section>
 
-                        <!-- Certification health -->
-                        <section class="dash-card" id="dash-certs-card">
-                            <div class="dash-card-header">
-                                <h2>Certification health</h2>
-                                <a class="dash-link" href="/certifications.html">Certifications →</a>
-                            </div>
-                            <div id="dash-certs"></div>
-                        </section>
+                            <section class="dash-card" id="dash-projects-card">
+                                <div class="dash-card-header">
+                                    <h2>Project coverage</h2>
+                                    <a class="dash-link" href="/projects.html">Projects →</a>
+                                </div>
+                                <div id="dash-projects"></div>
+                                <div id="chart-projects" class="chart-box chart-sm" style="margin-top:var(--space-3)"></div>
+                            </section>
+                        </div>
 
-                        <!-- Engagement -->
-                        <section class="dash-card" id="dash-engagement-card">
-                            <div class="dash-card-header">
-                                <h2>Staff activity (last 30 days)</h2>
-                            </div>
-                            <div id="dash-engagement"></div>
-                        </section>
+                        <!-- Certification health + Engagement -->
+                        <div class="dash-grid">
+                            <section class="dash-card" id="dash-certs-card">
+                                <div class="dash-card-header">
+                                    <h2>Certification health</h2>
+                                    <a class="dash-link" href="/certifications.html">Certifications →</a>
+                                </div>
+                                <div id="dash-certs"></div>
+                                <div id="chart-certs" class="chart-box chart-sm" style="margin-top:var(--space-3)"></div>
+                            </section>
+
+                            <section class="dash-card" id="dash-engagement-card">
+                                <div class="dash-card-header">
+                                    <h2>Staff activity (last 30 days)</h2>
+                                </div>
+                                <div id="dash-engagement"></div>
+                                <div id="chart-engagement" class="chart-box chart-md" style="margin-top:var(--space-3)"></div>
+                            </section>
+                        </div>
                     </div>
                 </div>
             </main>
@@ -417,11 +423,12 @@
     <!-- Toast Container -->
     <div id="toast-container" class="toast-container"></div>
 
-    <script src="/auth.js?v=20260826a"></script>
-    <script src="/menu.js?v=20260826a"></script>
-    <script src="/sidebar.js?v=20260826a"></script>
-    <script src="/toast.js?v=20260826a"></script>
-    <script src="/reporting.js?v=20260826a"></script>
+    <script src="/auth.js?v=20260826b"></script>
+    <script src="/menu.js?v=20260826b"></script>
+    <script src="/sidebar.js?v=20260826b"></script>
+    <script src="/toast.js?v=20260826b"></script>
+    <script src="/vendor/echarts.min.js?v=20260826b"></script>
+    <script src="/reporting.js?v=20260826b"></script>
 </body>
 
 </html>

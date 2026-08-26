@@ -5,6 +5,7 @@ const authUser = requireAuth();
 // ── State ─────────────────────────────────────────────────────────────────────
 let payload = null;          // GET /reports/dashboard response
 let includeInactive = false; // default: inactive staff filtered out (server default)
+const charts = {};           // id -> echarts instance
 
 // ── Initialization ────────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
@@ -24,6 +25,10 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     wireInactiveToggle();
+    wireThemeCharts();
+    window.addEventListener('resize', () => {
+        Object.values(charts).forEach(c => { try { c.resize(); } catch (e) { /* noop */ } });
+    });
     loadDashboard();
 });
 
@@ -34,6 +39,15 @@ function wireInactiveToggle() {
             includeInactive = e.target.checked;
             await loadDashboard();
         });
+    }
+}
+
+// ECharts canvas colours come from CSS variables, which the dark theme flips —
+// re-render the charts shortly after a theme toggle so they repaint correctly.
+function wireThemeCharts() {
+    const btn = document.querySelector('[data-theme-toggle]');
+    if (btn) {
+        btn.addEventListener('click', () => setTimeout(renderAll, 60));
     }
 }
 
@@ -84,14 +98,20 @@ function showError(text) {
 
 // ── Rendering ─────────────────────────────────────────────────────────────────
 function renderAll() {
+    disposeCharts();
     renderScopeBanner();
     renderKpis();
     renderOrg();
+    renderDeptChart();
     renderCompleteness();
-    renderEngagement();
-    renderSkills();
+    renderCompletenessChart();
+    renderSkillsChart();
     renderProjects();
+    renderProjectsChart();
     renderCerts();
+    renderCertsChart();
+    renderEngagement();
+    renderEngagementChart();
 }
 
 function renderScopeBanner() {
@@ -126,16 +146,6 @@ function renderKpis() {
         kpiCard('Staff updated CV', eng.staffUpdatedCount, `${eng.edits30d} edits in 30 days`) +
         kpiCard('Catalog projects', proj.catalogTotal, `${proj.staffWithProjects} staff with active projects`) +
         kpiCard('Certs expiring ≤ 90d', cert.expiring90d, `${cert.expired} already expired`);
-}
-
-function barRow(label, value, max, countLabel) {
-    const pct = max > 0 ? Math.round((value / max) * 100) : 0;
-    return `
-        <div class="bar-row">
-            <div class="bar-label" title="${label}">${label}</div>
-            <div class="bar-track"><div class="bar-fill" style="width:${Math.max(pct, value > 0 ? 2 : 0)}%"></div></div>
-            <div class="bar-count">${countLabel || value}</div>
-        </div>`;
 }
 
 function scoreBadge(score) {
@@ -189,13 +199,9 @@ function renderCompleteness() {
     }
 
     const total = comp.buckets.reduce((s, b) => s + b.count, 0);
-    const maxBucket = Math.max(...comp.buckets.map(b => b.count), 1);
     html += `<p class="dash-muted" style="margin-bottom:var(--space-3)">CV/profile completeness score across ${total} staff
         (profile + summary + skills + education + certifications + work history + past projects).
         Average <strong>${comp.avgSkillCount}</strong> skills per staff.</p>`;
-    comp.buckets.forEach(b => {
-        html += barRow(b.bucket, b.count, maxBucket, `${b.count} · ${total ? Math.round(b.count / total * 100) : 0}%`);
-    });
 
     if (comp.lowest.length > 0) {
         html += `
@@ -215,56 +221,15 @@ function renderCompleteness() {
     el.innerHTML = html;
 }
 
-function renderEngagement() {
-    const eng = payload.engagement;
-    const el = document.getElementById('dash-engagement');
-    const series = eng.series || [];
-
-    let svg = '';
-    if (series.length > 0) {
-        const maxC = Math.max(...series.map(s => s.count), 1);
-        const n = series.length;
-        const bw = 4, gap = 2;
-        const viewW = n * (bw + gap);
-        svg = `
-            <svg class="eng-chart" viewBox="0 0 ${viewW} 90" preserveAspectRatio="none" role="img" aria-label="Edits per day over the last 30 days">
-                ${series.map((s, i) => {
-                    const h = Math.max(2, Math.round((s.count / maxC) * 80));
-                    return `<rect class="eng-bar" x="${i * (bw + gap)}" y="${90 - h}" width="${bw}" height="${h}" rx="1">
-                        <title>${s.date}: ${s.count} edit${s.count === 1 ? '' : 's'}</title></rect>`;
-                }).join('')}
-            </svg>
-            <p class="dash-muted" style="margin-top:var(--space-2)"><strong>${eng.edits30d}</strong> profile edits in the last 30 days
-                (${series.length} active day${series.length === 1 ? '' : 's'}); <strong>${eng.staffUpdatedCount}</strong> staff have updated their own CV.</p>`;
-    } else {
-        svg = '<p class="dash-muted">No audit activity in the last 30 days.</p>';
-    }
-    el.innerHTML = svg;
-}
-
-function renderSkills() {
-    const top = payload.skills.top || [];
-    const el = document.getElementById('dash-skills');
-    if (top.length === 0) {
-        el.innerHTML = '<p class="dash-muted">No skills recorded yet.</p>';
-        return;
-    }
-    const max = top[0].staff;
-    el.innerHTML = top.map(s => barRow(s.name, s.staff, max, `${s.staff} staff`)).join('');
-}
-
 function renderProjects() {
     const proj = payload.projects;
-    const hc = payload.headcount;
     const el = document.getElementById('dash-projects');
-    const coverage = hc.total > 0 ? Math.round((proj.staffWithProjects / hc.total) * 100) : 0;
     el.innerHTML = `
-        <div class="stat-tiles" style="margin-bottom:var(--space-4)">
+        <div class="stat-tiles">
             <div class="stat-tile"><span class="num">${proj.catalogTotal}</span><span class="lbl">Catalog projects</span></div>
             <div class="stat-tile"><span class="num">${proj.managedTotal}</span><span class="lbl">Coordinator-managed</span></div>
             <div class="stat-tile"><span class="num">${proj.staffWithProjects}</span><span class="lbl">Staff with active projects</span></div>
         </div>
-        ${barRow('Staff with ≥ 1 project', proj.staffWithProjects, hc.total, `${coverage}% of ${hc.total}`)}
         <p class="dash-muted" style="margin-top:var(--space-2)">${proj.projectLinks} project assignment${proj.projectLinks === 1 ? '' : 's'} recorded.</p>`;
 }
 
@@ -287,6 +252,229 @@ function renderCerts() {
         html += `<p class="dash-muted">${cert.total} certifications on file for staff in this view.</p>`;
     }
     el.innerHTML = html;
+}
+
+function renderEngagement() {
+    const eng = payload.engagement;
+    const el = document.getElementById('dash-engagement');
+    const series = eng.series || [];
+    if (series.length > 0) {
+        el.innerHTML = `<p class="dash-muted"><strong>${eng.edits30d}</strong> profile edits in the last 30 days
+            (${series.length} active day${series.length === 1 ? '' : 's'}); <strong>${eng.staffUpdatedCount}</strong> staff have updated their own CV.</p>`;
+    } else {
+        el.innerHTML = '<p class="dash-muted">No audit activity in the last 30 days.</p>';
+    }
+}
+
+// ── ECharts helpers ───────────────────────────────────────────────────────────
+function cssVar(name) {
+    return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+}
+
+// Theme-aware palette: colours are read from the live CSS variables, which the
+// dark theme ([data-theme="dark"]) flips — re-initialising charts after a theme
+// toggle therefore picks up the right colours automatically.
+function chartColors() {
+    return {
+        primary: cssVar('--color-primary') || '#6366f1',
+        text: cssVar('--color-text-primary') || '#0f172a',
+        muted: cssVar('--color-text-muted') || '#94a3b8',
+        border: cssVar('--color-border') || '#e2e8f0',
+        grid: 'rgba(148,163,184,0.15)',
+        success: '#10b981',
+        warning: '#d97706',
+        danger: '#dc2626',
+        series: ['#6366f1', '#7aa2f7', '#9ece6a', '#e0af68', '#bb9af7', '#7dcfff', '#f7768e', '#2ac3de', '#ff9e64', '#c0caf5']
+    };
+}
+
+function mkChart(id) {
+    const el = document.getElementById(id);
+    if (!el || typeof echarts === 'undefined') return null;
+    try {
+        const c = echarts.init(el);
+        charts[id] = c;
+        return c;
+    } catch (e) {
+        console.error(`ECharts init failed for ${id}:`, e);
+        return null;
+    }
+}
+
+function disposeCharts() {
+    Object.keys(charts).forEach(k => {
+        try { charts[k].dispose(); } catch (e) { /* noop */ }
+        delete charts[k];
+    });
+}
+
+function axisColors(col) {
+    return {
+        axisLabel: { color: col.muted, fontSize: 11 },
+        axisLine: { lineStyle: { color: col.border } },
+        splitLine: { lineStyle: { color: col.grid } }
+    };
+}
+
+// ── Charts ────────────────────────────────────────────────────────────────────
+function renderDeptChart() {
+    const depts = (payload.headcount.byDepartment || []).slice(0, 12).slice().reverse();
+    const c = mkChart('chart-depts');
+    if (!c) return;
+    const col = chartColors();
+    c.setOption({
+        tooltip: {
+            trigger: 'axis', axisPointer: { type: 'shadow' },
+            formatter: (params) => {
+                const d = depts[params[0].dataIndex];
+                return `<strong>${escapeHtml(d.department)}</strong><br/>Active: ${d.active}<br/>Inactive: ${d.inactive}<br/>Total: ${d.total}`;
+            }
+        },
+        grid: { left: 8, right: 24, top: 10, bottom: 8, containLabel: true },
+        xAxis: { type: 'value', ...axisColors(col) },
+        yAxis: {
+            type: 'category',
+            data: depts.map(d => d.department),
+            axisLabel: { color: col.text, fontSize: 11 },
+            axisLine: { lineStyle: { color: col.border } }
+        },
+        series: [{
+            type: 'bar',
+            data: depts.map(d => d.active),
+            barWidth: 12,
+            itemStyle: { color: col.primary, borderRadius: [0, 6, 6, 0] },
+            label: { show: true, position: 'right', color: col.muted, fontSize: 11 }
+        }]
+    });
+}
+
+function renderCompletenessChart() {
+    const buckets = payload.completeness.buckets || [];
+    const c = mkChart('chart-completeness');
+    if (!c) return;
+    const col = chartColors();
+    c.setOption({
+        tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
+        grid: { left: 8, right: 16, top: 10, bottom: 8, containLabel: true },
+        xAxis: { type: 'category', data: buckets.map(b => b.bucket), ...axisColors(col) },
+        yAxis: { type: 'value', ...axisColors(col) },
+        series: [{
+            type: 'bar',
+            data: buckets.map(b => b.count),
+            barWidth: 28,
+            itemStyle: { color: col.primary, borderRadius: [6, 6, 0, 0] },
+            label: { show: true, position: 'top', color: col.muted, fontSize: 11 }
+        }]
+    });
+}
+
+function renderSkillsChart() {
+    const top = (payload.skills.top || []).slice().reverse();
+    const c = mkChart('chart-skills');
+    if (!c) return;
+    const col = chartColors();
+    c.setOption({
+        tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
+        grid: { left: 8, right: 24, top: 10, bottom: 8, containLabel: true },
+        xAxis: { type: 'value', ...axisColors(col) },
+        yAxis: {
+            type: 'category',
+            data: top.map(s => s.name),
+            axisLabel: { color: col.text, fontSize: 11 },
+            axisLine: { lineStyle: { color: col.border } }
+        },
+        series: [{
+            type: 'bar',
+            data: top.map(s => s.staff),
+            barWidth: 12,
+            itemStyle: { color: col.primary, borderRadius: [0, 6, 6, 0] },
+            label: { show: true, position: 'right', color: col.muted, fontSize: 11 }
+        }]
+    });
+}
+
+function renderProjectsChart() {
+    const proj = payload.projects;
+    const hc = payload.headcount;
+    const c = mkChart('chart-projects');
+    if (!c) return;
+    const col = chartColors();
+    const withProj = proj.staffWithProjects;
+    const without = Math.max(hc.total - withProj, 0);
+    c.setOption({
+        tooltip: { trigger: 'item', formatter: '{b}: {c} ({d}%)' },
+        legend: { bottom: 0, textStyle: { color: col.muted, fontSize: 11 } },
+        series: [{
+            type: 'pie',
+            radius: ['45%', '70%'],
+            center: ['50%', '44%'],
+            avoidLabelOverlap: true,
+            itemStyle: { borderRadius: 6, borderColor: cssVar('--color-bg-surface') || '#fff', borderWidth: 2 },
+            label: { show: false },
+            data: [
+                { name: 'With ≥1 project', value: withProj, itemStyle: { color: col.primary } },
+                { name: 'No project', value: without, itemStyle: { color: col.grid } }
+            ]
+        }]
+    });
+}
+
+function renderCertsChart() {
+    const cert = payload.certifications;
+    const c = mkChart('chart-certs');
+    if (!c || cert.total === 0) return;
+    const col = chartColors();
+    const valid = Math.max(cert.total - cert.expired - cert.expiring90d, 0);
+    c.setOption({
+        tooltip: { trigger: 'item', formatter: '{b}: {c} ({d}%)' },
+        legend: { bottom: 0, textStyle: { color: col.muted, fontSize: 11 } },
+        series: [{
+            type: 'pie',
+            radius: ['45%', '70%'],
+            center: ['50%', '44%'],
+            avoidLabelOverlap: true,
+            itemStyle: { borderRadius: 6, borderColor: cssVar('--color-bg-surface') || '#fff', borderWidth: 2 },
+            label: { show: false },
+            data: [
+                { name: 'Valid', value: valid, itemStyle: { color: col.success } },
+                { name: 'Expiring ≤ 90d', value: cert.expiring90d, itemStyle: { color: col.warning } },
+                { name: 'Expired', value: cert.expired, itemStyle: { color: col.danger } }
+            ]
+        }]
+    });
+}
+
+function renderEngagementChart() {
+    const series = payload.engagement.series || [];
+    const c = mkChart('chart-engagement');
+    if (!c) return;
+    const col = chartColors();
+    if (series.length === 0) return;
+    const dates = series.map(s => (s.date || '').slice(5)); // MM-DD
+    c.setOption({
+        tooltip: { trigger: 'axis' },
+        grid: { left: 8, right: 16, top: 16, bottom: 8, containLabel: true },
+        xAxis: { type: 'category', boundaryGap: false, data: dates, ...axisColors(col) },
+        yAxis: { type: 'value', minInterval: 1, ...axisColors(col) },
+        series: [{
+            type: 'line',
+            data: series.map(s => s.count),
+            smooth: true,
+            symbol: 'circle',
+            symbolSize: 5,
+            lineStyle: { color: col.primary, width: 2 },
+            itemStyle: { color: col.primary },
+            areaStyle: {
+                color: {
+                    type: 'linear', x: 0, y: 0, x2: 0, y2: 1,
+                    colorStops: [
+                        { offset: 0, color: col.primary + '55' },
+                        { offset: 1, color: col.primary + '00' }
+                    ]
+                }
+            }
+        }]
+    });
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
