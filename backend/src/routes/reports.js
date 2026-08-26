@@ -48,7 +48,11 @@ async function getUserSubordinates(db, userEmail) {
     if (!userName) return [];
 
     // Recursive CTE to find all subordinates (direct and indirect).
-    // Inactive staff (user_roles.is_active = 0) are excluded from the tree.
+    // The tree walks ALL staff regardless of is_active — activity is a per-query
+    // concern (activeJoin filters results), NOT a tree property. Filtering the
+    // walk by is_active hid active staff under inactive managers (e.g. active
+    // Karuppasamy reports to inactive Maruthi) and could 403 a manager whose
+    // whole chain is inactive, despite them having the right to a dashboard.
     // UNION (DISTINCT) doubles as a cycle guard — manager_name data contains
     // cycles (orgchart's breakCycles exists for the same reason); UNION ALL
     // loops forever and MySQL aborts at 1001 iterations (500 for any manager
@@ -58,7 +62,6 @@ async function getUserSubordinates(db, userEmail) {
             -- Base case: direct subordinates
             SELECT s.email, s.name, s.manager_name
             FROM staff s
-            INNER JOIN user_roles ur ON s.email = ur.email AND ur.is_active = 1
             WHERE s.manager_name = ?
             
             UNION
@@ -66,7 +69,6 @@ async function getUserSubordinates(db, userEmail) {
             -- Recursive case: subordinates of subordinates
             SELECT s.email, s.name, s.manager_name
             FROM staff s
-            INNER JOIN user_roles ur ON s.email = ur.email AND ur.is_active = 1
             INNER JOIN subordinates sub ON s.manager_name = sub.name
         )
         SELECT email FROM subordinates
@@ -105,6 +107,12 @@ async function resolveDashboardScope(db, user) {
 function scopeClause(scopeEmails, alias = 's') {
     if (!scopeEmails) return '';
     return ` AND LOWER(${alias}.email) IN (${buildPlaceholders(scopeEmails)})`;
+}
+
+// Department filter clause (staff aliased as s). null => all departments.
+function deptClause(dept) {
+    if (!dept) return '';
+    return ' AND s.department = ?';
 }
 
 // ── GET /reports/my-subordinates ─────────────────────────────────────────────
@@ -667,33 +675,38 @@ router.get('/dashboard', verifyToken, async (req, res) => {
             return res.status(403).json({ error: 'Management dashboard access required' });
         }
         const includeInactive = req.query.include_inactive === 'true' && scope === 'all';
-        const payload = { scope, asOf: new Date().toISOString().slice(0, 10), includeInactive };
+        const dept = req.query.department ? String(req.query.department) : null;
+        const payload = { scope, asOf: new Date().toISOString().slice(0, 10), includeInactive, department: dept };
 
         const activeJoin = includeInactive
             ? 'LEFT JOIN user_roles ur ON LOWER(ur.email) = LOWER(s.email)'
             : 'INNER JOIN user_roles ur ON LOWER(ur.email) = LOWER(s.email) AND ur.is_active = 1';
         const scopeEmails = emails; // may be null
         const sc = scopeClause(scopeEmails, 's');
-        const params = scopeEmails || [];
+        const dc = deptClause(dept);
+        const params = [...(scopeEmails || []), ...(dept ? [dept] : [])];
+        const deptParams = scopeEmails || []; // dept list stays unfiltered even when scoped
 
-        // Headcount
+        // Headcount. byDepartment deliberately NOT department-filtered — it is
+        // the org map (dropdown + drill-down chart stay complete while a dept
+        // sub-dashboard is active). payload.departments reuses it.
         const [hcRows] = await db.query(
             `SELECT s.department AS department, COUNT(*) AS total,
                     SUM(ur.is_active = 1) AS active, SUM(ur.is_active = 0) AS inactive
              FROM staff s ${activeJoin}
              WHERE (s.department IS NOT NULL AND s.department <> '') ${sc}
              GROUP BY s.department ORDER BY active DESC, total DESC`,
-            params
+            deptParams
         );
         const [roleRows] = await db.query(
             `SELECT ur.role, COUNT(*) AS count FROM staff s ${activeJoin}
-             WHERE ur.role IS NOT NULL ${sc}
+             WHERE ur.role IS NOT NULL ${sc} ${dc}
              GROUP BY ur.role ORDER BY count DESC`,
             params
         );
         const [totalRows] = await db.query(
             `SELECT COUNT(*) AS total, SUM(ur.is_active = 1) AS active, SUM(ur.is_active = 0) AS inactive
-             FROM staff s ${activeJoin} WHERE 1=1 ${sc}`,
+             FROM staff s ${activeJoin} WHERE 1=1 ${sc} ${dc}`,
             params
         );
         const hc = totalRows[0];
@@ -702,20 +715,21 @@ router.get('/dashboard', verifyToken, async (req, res) => {
             byDepartment: hcRows.map(r => ({ department: r.department, total: r.total, active: Number(r.active) || 0, inactive: Number(r.inactive) || 0 })),
             byRole: roleRows.map(r => ({ role: r.role, count: r.count }))
         };
+        payload.departments = payload.headcount.byDepartment;
 
         // Org structure
         const [mgrRows] = await db.query(
             `SELECT s.manager_name AS name, COUNT(*) AS directReports,
                     COUNT(DISTINCT s.department) AS departments
              FROM staff s ${activeJoin}
-             WHERE s.manager_name IS NOT NULL AND s.manager_name <> '' ${sc}
+             WHERE s.manager_name IS NOT NULL AND s.manager_name <> '' ${sc} ${dc}
              GROUP BY s.manager_name ORDER BY directReports DESC LIMIT 20`,
             params
         );
         const [noMgrRows] = await db.query(
             `SELECT s.email, s.name, s.department, s.title
              FROM staff s ${activeJoin}
-             WHERE (s.manager_name IS NULL OR s.manager_name = '') ${sc}
+             WHERE (s.manager_name IS NULL OR s.manager_name = '') ${sc} ${dc}
              ORDER BY s.name`,
             params
         );
@@ -723,7 +737,7 @@ router.get('/dashboard', verifyToken, async (req, res) => {
             `SELECT s.email, s.name, s.department, s.title, s.manager_name
              FROM staff s ${activeJoin}
              LEFT JOIN staff m ON m.name = s.manager_name AND m.email <> s.email
-             WHERE (s.manager_name IS NOT NULL AND s.manager_name <> '') AND m.email IS NULL ${sc}
+             WHERE (s.manager_name IS NOT NULL AND s.manager_name <> '') AND m.email IS NULL ${sc} ${dc}
              ORDER BY s.name`,
             params
         );
@@ -752,7 +766,7 @@ router.get('/dashboard', verifyToken, async (req, res) => {
              FROM staff s ${activeJoin}
              LEFT JOIN cv_profiles cp ON LOWER(cp.staff_email) = LOWER(s.email)
              LEFT JOIN submissions su ON LOWER(su.staff_email) = LOWER(s.email)
-             WHERE 1=1 ${sc}`,
+             WHERE 1=1 ${sc} ${dc}`,
             params
         );
         const buckets = { '0-20': 0, '21-40': 0, '41-60': 0, '61-80': 0, '81-100': 0 };
@@ -786,15 +800,22 @@ router.get('/dashboard', verifyToken, async (req, res) => {
             `SELECT COUNT(*) AS updatedCount FROM submissions su
              JOIN staff s ON LOWER(s.email) = LOWER(su.staff_email)
              ${includeInactive ? '' : "JOIN user_roles ur ON LOWER(ur.email) = LOWER(su.staff_email) AND ur.is_active = 1"}
-             WHERE su.updated_by_staff = 1 ${sc}`,
+             WHERE su.updated_by_staff = 1 ${sc} ${dc}`,
             params
         );
+        // Activity series is scoped like the rest of the dashboard (staff join
+        // for scope/department; active filter mirrors staffUpdatedCount).
+        // NOTE: profile_audit_log was created utf8mb4_unicode_ci while staff/
+        // user_roles are utf8mb4_0900_ai_ci — COLLATE forces the join (migration
+        // 0012 normalises the columns; keep the COLLATE as belt-and-braces).
         const [seriesRows] = await db.query(
-            `SELECT DATE(created_at) AS d, COUNT(*) AS c
-             FROM profile_audit_log
-             WHERE created_at >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)
-             GROUP BY DATE(created_at) ORDER BY d`,
-            []
+            `SELECT DATE(pal.created_at) AS d, COUNT(*) AS c
+             FROM profile_audit_log pal
+             JOIN staff s ON LOWER(s.email) = LOWER(pal.staff_email) COLLATE utf8mb4_0900_ai_ci
+             ${includeInactive ? '' : "JOIN user_roles ur ON LOWER(ur.email) = LOWER(pal.staff_email) COLLATE utf8mb4_0900_ai_ci AND ur.is_active = 1"}
+             WHERE pal.created_at >= DATE_SUB(CURDATE(), INTERVAL 30 DAY) ${sc} ${dc}
+             GROUP BY DATE(pal.created_at) ORDER BY d`,
+            params
         );
         payload.engagement = {
             staffUpdatedCount: engRows[0] ? engRows[0].updatedCount : 0,
@@ -810,7 +831,7 @@ router.get('/dashboard', verifyToken, async (req, res) => {
              JOIN submissions su ON su.id = sk.submission_id
              JOIN staff s ON LOWER(s.email) = LOWER(su.staff_email)
              ${includeInactive ? '' : 'JOIN user_roles ur ON LOWER(ur.email) = LOWER(su.staff_email) AND ur.is_active = 1'}
-             WHERE 1=1 ${sc}
+             WHERE 1=1 ${sc} ${dc}
              GROUP BY norm ORDER BY staffCount DESC LIMIT 10`,
             params
         );
@@ -826,7 +847,7 @@ router.get('/dashboard', verifyToken, async (req, res) => {
              JOIN submissions su ON su.id = sp.submission_id
              JOIN staff s ON LOWER(s.email) = LOWER(su.staff_email)
              ${includeInactive ? '' : 'JOIN user_roles ur ON LOWER(ur.email) = LOWER(su.staff_email) AND ur.is_active = 1'}
-             WHERE 1=1 ${sc}`,
+             WHERE 1=1 ${sc} ${dc}`,
             params
         );
         payload.projects = {
@@ -849,7 +870,7 @@ router.get('/dashboard', verifyToken, async (req, res) => {
              JOIN staff st ON LOWER(st.email) = LOWER(c.staff_email)
              JOIN staff s ON LOWER(s.email) = LOWER(c.staff_email)
              ${includeInactive ? '' : 'JOIN user_roles ur ON LOWER(ur.email) = LOWER(c.staff_email) AND ur.is_active = 1'}
-             WHERE 1=1 ${sc}`,
+             WHERE 1=1 ${sc} ${dc}`,
             params
         );
         const todayStr = formatDate(certRows[0] && certRows[0].today);
