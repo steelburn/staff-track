@@ -2405,23 +2405,6 @@ async function savePastProject() {
         return;
     }
 
-    // Validation: Ensure project dates are within employer's dates
-    if (workHistoryId) {
-        const employer = workHistoryData.find(e => e.id === workHistoryId);
-        if (employer) {
-            if (startDate && employer.start_date && startDate < employer.start_date) {
-                showToast(`Project start date (${startDate}) cannot be earlier than employer start date (${employer.start_date})`, true);
-                return;
-            }
-            if (endDate && employer.end_date && endDate > employer.end_date) {
-                showToast(`Project end date (${endDate}) cannot be later than employer end date (${employer.end_date})`, true);
-                return;
-            }
-            // If employer has no end date (current), project can have an end date or not.
-            // If project is ongoing, its endDate might be null/empty.
-        }
-    }
-
     const body = {
         project_name: projectName,
         work_history_id: workHistoryId,
@@ -2432,6 +2415,77 @@ async function savePastProject() {
         description
     };
 
+    // Soft-check: project dates vs selected employer's tenure.
+    // Dates outside the employer's period are NOT a hard error (projects often
+    // span before/after a formal employment window, or the association is only
+    // approximate) — surface a confirm modal, then save on approval.
+    if (workHistoryId) {
+        const employer = workHistoryData.find(e => e.id === workHistoryId);
+        if (employer) {
+            const conflicts = [];
+            if (startDate && employer.start_date && startDate < employer.start_date) {
+                conflicts.push(`Start date (${startDate}) is before the employer period (${employer.start_date}).`);
+            }
+            if (endDate && employer.end_date && endDate > employer.end_date) {
+                conflicts.push(`End date (${endDate}) is after the employer period (${employer.end_date}).`);
+            }
+            if (conflicts.length) {
+                confirmPastProjectDates(body, id, employer, conflicts);
+                return;
+            }
+        }
+    }
+
+    await submitPastProject(body, id);
+}
+
+// Pending past-project save awaiting the date-conflict "Save Anyway" modal
+let pendingPastProjectSave = null;
+
+function esc(s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+function confirmPastProjectDates(body, id, employer, conflicts) {
+    pendingPastProjectSave = { body, id };
+    const backdrop = document.createElement('div');
+    backdrop.className = 'modal-backdrop active';
+    const periodEnd = employer.end_date || 'Present';
+    backdrop.innerHTML = `
+      <div class="modal" role="dialog" aria-modal="true" style="max-width:480px">
+        <div class="modal-header">
+          <h2>⚠️ Dates outside employer period</h2>
+          <button class="modal-close" title="Close">✕</button>
+        </div>
+        <div class="modal-body">
+          <p style="font-size:.9rem;color:var(--text-secondary);margin-bottom:.75rem">
+            This project is linked to <strong>${esc(employer.employer || 'the selected employer')}</strong> (${esc(employer.start_date || '—')} – ${esc(periodEnd)}), but:
+          </p>
+          <ul style="margin:0 0 .9rem 1.2rem;font-size:.88rem;color:var(--text-secondary)">
+            ${conflicts.map(c => `<li>${esc(c)}</li>`).join('')}
+          </ul>
+          <p style="font-size:.9rem;margin-bottom:0">These dates will appear as-is on your CV, which may look inconsistent with the employer period. Save anyway?</p>
+        </div>
+        <div class="modal-footer">
+          <button class="btn-secondary modal-close-btn">Go Back</button>
+          <button class="btn-primary" id="btn-pp-save-anyway">💾 Save Anyway</button>
+        </div>
+      </div>`;
+    document.body.appendChild(backdrop);
+
+    const close = () => { pendingPastProjectSave = null; backdrop.remove(); };
+    backdrop.querySelector('.modal-close').addEventListener('click', close);
+    backdrop.querySelector('.modal-close-btn').addEventListener('click', close);
+    backdrop.addEventListener('click', e => { if (e.target === backdrop) close(); });
+    backdrop.querySelector('#btn-pp-save-anyway').addEventListener('click', async () => {
+        const pending = pendingPastProjectSave;
+        pendingPastProjectSave = null;
+        backdrop.remove();
+        if (pending) await submitPastProject(pending.body, pending.id);
+    });
+}
+
+async function submitPastProject(body, id) {
     const email = targetProfileEmail;
     try {
         let res;
