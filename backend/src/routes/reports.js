@@ -712,19 +712,28 @@ router.get('/dashboard', verifyToken, async (req, res) => {
              GROUP BY s.manager_name ORDER BY directReports DESC LIMIT 20`,
             params
         );
+        const [noMgrRows] = await db.query(
+            `SELECT s.email, s.name, s.department, s.title
+             FROM staff s ${activeJoin}
+             WHERE (s.manager_name IS NULL OR s.manager_name = '') ${sc}
+             ORDER BY s.name`,
+            params
+        );
         const [orphanRows] = await db.query(
-            `SELECT SUM(m.email IS NULL) AS orphans,
-                    SUM(s.manager_name IS NULL OR s.manager_name = '') AS noManager
+            `SELECT s.email, s.name, s.department, s.title, s.manager_name
              FROM staff s ${activeJoin}
              LEFT JOIN staff m ON m.name = s.manager_name AND m.email <> s.email
-             WHERE 1=1 ${sc}`,
+             WHERE (s.manager_name IS NOT NULL AND s.manager_name <> '') AND m.email IS NULL ${sc}
+             ORDER BY s.name`,
             params
         );
         payload.org = {
             managers: mgrRows,
-            orphans: Number(orphanRows[0].orphans) || 0,
-            noManager: Number(orphanRows[0].noManager) || 0,
-            topSpan: mgrRows.length ? mgrRows[0].directReports : 0
+            orphans: orphanRows.length,
+            noManager: noMgrRows.length,
+            topSpan: mgrRows.length ? mgrRows[0].directReports : 0,
+            noManagerStaff: noMgrRows,
+            orphanStaff: orphanRows
         };
 
         // Profile completeness (per active staff)

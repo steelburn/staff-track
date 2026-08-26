@@ -160,10 +160,14 @@ function renderOrg() {
 
     const alerts = [];
     if (org.noManager > 0) {
-        alerts.push(`<div class="dash-alert warning">⚠️ <span><strong>${org.noManager}</strong> staff member${org.noManager === 1 ? '' : 's'} have no manager assigned.</span></div>`);
+        alerts.push(orgAlertHTML('warning',
+            `⚠️ <span><strong>${org.noManager}</strong> staff member${org.noManager === 1 ? '' : 's'} have no manager assigned.</span>`,
+            'noManager', org.noManagerStaff));
     }
     if (org.orphans > 0) {
-        alerts.push(`<div class="dash-alert warning">⚠️ <span><strong>${org.orphans}</strong> staff report to a manager not in the roster (or to themselves).</span></div>`);
+        alerts.push(orgAlertHTML('warning',
+            `⚠️ <span><strong>${org.orphans}</strong> staff report to a manager not in the roster (or to themselves).</span>`,
+            'orphans', org.orphanStaff));
     }
     if (alerts.length === 0) {
         alerts.push('<div class="dash-alert success">✅ All staff have a valid manager in the roster.</div>');
@@ -187,6 +191,43 @@ function renderOrg() {
             </table>`;
     }
     el.innerHTML = html;
+    wireOrgAlerts();
+}
+
+// Expandable warning alert: summary line + Details toggle revealing the staff list.
+function orgAlertHTML(kind, msg, key, staff) {
+    const rows = (staff || []).map(s => `
+        <tr>
+            <td><a href="/cv-profile.html?email=${encodeURIComponent(s.email)}">${escapeHtml(s.name)}</a></td>
+            <td>${escapeHtml(s.department || '—')}</td>
+            <td>${escapeHtml(s.title || '—')}</td>
+            ${s.manager_name ? `<td>${escapeHtml(s.manager_name)}</td>` : ''}
+        </tr>`).join('');
+    const extraCol = (staff || []).some(s => s.manager_name) ? '<th>Reports to</th>' : '';
+    return `
+        <div class="dash-alert ${kind}">
+            ${msg}
+            <button type="button" class="dash-alert-toggle" data-alert-key="${key}" aria-expanded="false">Details ▾</button>
+            <div class="dash-alert-details" id="alert-details-${key}" hidden>
+                <table class="dash-table">
+                    <thead><tr><th>Name</th><th>Department</th><th>Title</th>${extraCol}</tr></thead>
+                    <tbody>${rows}</tbody>
+                </table>
+            </div>
+        </div>`;
+}
+
+function wireOrgAlerts() {
+    document.querySelectorAll('.dash-alert-toggle').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const details = document.getElementById(`alert-details-${btn.dataset.alertKey}`);
+            if (!details) return;
+            const wasExpanded = !details.hidden;
+            details.hidden = wasExpanded;
+            btn.setAttribute('aria-expanded', String(!wasExpanded));
+            btn.textContent = wasExpanded ? 'Details ▾' : 'Hide ▲';
+        });
+    });
 }
 
 function renderCompleteness() {
