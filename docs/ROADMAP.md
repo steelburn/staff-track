@@ -197,6 +197,27 @@ Plus schema changes to `submission_projects`: add `start_date`, `description`, `
 > [!NOTE]
 > Since both sources are in-house and known, this is more tractable than a generic connector framework. We can build specific adapters and generalize later if needed.
 
+#### ✅ Implemented (2026-08-26)
+
+**Source**: BeeSuite AppCore REST (`https://appcore.beesuite.app`), JWT auth via `khairulnizam@zen.com.my`.
+
+**Staff sync pipeline** — `POST /api/admin/sync-staff` (background), status via `GET /api/admin/sync-staff/status`:
+
+| Phase | Work | Progress weight |
+|:---|:---|:---|
+| `login` | AppCore auth + staff list (`/api/users/staff`, tenant-filtered) | 0–5% |
+| `fetch-details` | Employment detail per staff (`/api/admin/user-info-details/employment-detail/{id}`) — **8-worker parallel pool**, 15s timeout, 3 attempts w/ 400ms×n backoff | 5–65% |
+| `update-db` | Sequential upserts: `staff` (name, title, department, manager_name) + `user_roles` (is_active reactivation) | 65–95% |
+| `deactivate` | `user_roles.is_active=0` for wrong-tenant / non-Active / resigned staff | 96–100% |
+
+**Fields synced**: `staff.name` ← employeeName, `staff.title` ← designation, `staff.department` ← department, `staff.manager_name` ← employmentDetail.reportingToName, `user_roles.is_active` ← status + dateOfResignation. Inactive/resigned staff are deactivated and skipped (their title/department are not overwritten). Failed detail fetches (after retries) keep the existing manager_name (`stats.detailFailures`).
+
+**Timing**: 306 staff ≈ 50s end-to-end (was 4–6 min sequential with no timeout/retry — a single hung request could stall the sync indefinitely, and the frontend 3-min poll cap bailed mid-run).
+
+**Frontend** (`system.html`/`system.js`): progress bar + phase label, 30-min poll budget, resumes monitoring on page load if a sync is already running.
+
+**Verify**: `node review-sync-staff.cjs` (API timing/phases) and `node review-sync-ui.cjs` (live screenshots).
+
 ---
 
 ### 4. 🔌 Retrofit into Existing System — ⏸️ ON HOLD

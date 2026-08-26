@@ -21,11 +21,101 @@ function esc(s) {
     })[c]);
 }
 
-async function handleSyncStaff() {
+const SYNC_PHASE_LABELS = {
+    'login': 'Logging in to BeeSuite…',
+    'fetch-details': 'Fetching employment details',
+    'update-db': 'Updating database',
+    'deactivate': 'Deactivating stale accounts',
+    'done': 'Complete',
+    'error': 'Failed'
+};
+
+function renderSyncProgress(status) {
     const btn = document.getElementById('btn-do-sync-staff');
+    const statusDiv = document.getElementById('staff-sync-status');
+    const wrap = document.getElementById('staff-sync-progress-wrap');
+    const bar = document.getElementById('staff-sync-progress');
+    const phaseEl = document.getElementById('staff-sync-phase');
+    const pct = typeof status.percent === 'number' ? status.percent : 0;
+    const label = SYNC_PHASE_LABELS[status.phase] || 'Syncing…';
+
+    if (wrap) wrap.style.display = 'block';
+    if (bar) { bar.value = pct; }
+    if (phaseEl) {
+        phaseEl.textContent = `${label} — ${status.currentStaff || '…'} (${status.progress}/${status.total})`;
+    }
+    if (btn) btn.textContent = `⏳ ${pct}%`;
+    if (statusDiv) statusDiv.textContent = `${label} (${status.progress}/${status.total})`;
+}
+
+function renderSyncComplete(status) {
     const statusDiv = document.getElementById('staff-sync-status');
     const statsCard = document.getElementById('import-stats-card');
     const resultsBody = document.getElementById('import-results-body');
+    const bar = document.getElementById('staff-sync-progress');
+    const phaseEl = document.getElementById('staff-sync-phase');
+    if (bar) { bar.value = 100; }
+    if (phaseEl) { phaseEl.textContent = 'Complete'; }
+
+    const result = status.result;
+    if (result && result.success) {
+        showToast(`Sync Success: ${result.count} added, ${result.updated} updated`);
+        if (statusDiv) statusDiv.textContent = `Last sync: ${new Date().toLocaleString()}`;
+        if (statsCard) statsCard.style.display = 'block';
+        if (resultsBody) {
+            let detailsHtml = `
+                <div style="color:var(--accent-blue);font-weight:600">Sync Complete</div>
+                <div>✅ New staff added: <b>${result.count}</b></div>
+                <div>🔄 Staff updated: <b>${result.updated}</b></div>
+                <div>⏭️ Skipped: <b>${result.skipped}</b></div>
+            `;
+            if (result.inactiveSkipped > 0) detailsHtml += `<div>🚫 Inactive users: <b>${result.inactiveSkipped}</b></div>`;
+            if (result.resignedSkipped > 0) detailsHtml += `<div>📅 Resigned users: <b>${result.resignedSkipped}</b></div>`;
+            if (result.wrongTenantDeactivated > 0) detailsHtml += `<div>🏢 Wrong tenant deactivated: <b>${result.wrongTenantDeactivated}</b></div>`;
+            if (result.detailFailures > 0) detailsHtml += `<div>⚠️ Detail fetch failures (kept old manager data): <b>${result.detailFailures}</b></div>`;
+            detailsHtml += `<div style="margin-top:.5rem;font-size:.75rem">Staff catalog is now up to date.</div>`;
+            resultsBody.innerHTML = detailsHtml;
+        }
+    } else {
+        showToast((result && result.error) || 'Sync failed', true);
+        if (statusDiv) statusDiv.textContent = 'Sync failed. Please try again.';
+    }
+}
+
+// Poll until the background sync completes. Budget is 30 minutes (was 3 min —
+// a full 300+ staff sync routinely exceeded the old cap, so the UI bailed out
+// mid-run and the results were lost even though the backend kept going).
+async function pollSyncUntilDone() {
+    const maxPolls = 1800;
+    let status = null;
+    for (let pollCount = 0; pollCount < maxPolls; pollCount++) {
+        await new Promise(r => setTimeout(r, 1000));
+        try {
+            const statusRes = await window.StaffTrackAuth.apiFetch('/api/admin/sync-staff/status');
+            if (!statusRes.ok) continue;
+            status = await statusRes.json();
+        } catch (e) {
+            continue; // transient network blip — keep polling
+        }
+        if (status.completed) {
+            renderSyncComplete(status);
+            return;
+        }
+        if (status.inProgress) {
+            renderSyncProgress(status);
+        }
+    }
+    // Hard ceiling reached — the backend is likely still running; stay calm.
+    showToast('Sync still running after 30 minutes — check back later.', true);
+    const statusDiv = document.getElementById('staff-sync-status');
+    if (statusDiv && status && status.inProgress) {
+        statusDiv.textContent = 'Sync still in progress…';
+    }
+}
+
+async function handleSyncStaff() {
+    const btn = document.getElementById('btn-do-sync-staff');
+    const statusDiv = document.getElementById('staff-sync-status');
 
     if (!btn) return;
 
@@ -44,52 +134,7 @@ async function handleSyncStaff() {
         if (data.started) {
             if (statusDiv) statusDiv.textContent = 'Syncing staff... please wait';
             btn.textContent = '⏳ Syncing...';
-
-            // Poll for status until complete
-            let pollCount = 0;
-            const maxPolls = 180; // 3 minutes max
-            while (pollCount < maxPolls) {
-                await new Promise(r => setTimeout(r, 1000));
-
-                const statusRes = await window.StaffTrackAuth.apiFetch('/api/admin/sync-staff/status');
-                if (statusRes.ok) {
-                    const status = await statusRes.json();
-
-                    if (status.completed) {
-                        const result = status.result;
-                        if (result.success) {
-                            showToast(`Sync Success: ${result.count} added, ${result.updated} updated`);
-                            if (statusDiv) statusDiv.textContent = `Last sync: ${new Date().toLocaleString()}`;
-                            if (statsCard) statsCard.style.display = 'block';
-                            if (resultsBody) {
-                                let detailsHtml = `
-                                    <div style="color:var(--accent-blue);font-weight:600">Sync Complete</div>
-                                    <div>✅ New staff added: <b>${result.count}</b></div>
-                                    <div>🔄 Staff updated: <b>${result.updated}</b></div>
-                                    <div>⏭️ Skipped: <b>${result.skipped}</b></div>
-                                `;
-                                if (result.inactiveSkipped > 0) detailsHtml += `<div>🚫 Inactive users: <b>${result.inactiveSkipped}</b></div>`;
-                                if (result.resignedSkipped > 0) detailsHtml += `<div>📅 Resigned users: <b>${result.resignedSkipped}</b></div>`;
-                                if (result.wrongTenantDeactivated > 0) detailsHtml += `<div>🏢 Wrong tenant deactivated: <b>${result.wrongTenantDeactivated}</b></div>`;
-                                detailsHtml += `<div style="margin-top:.5rem;font-size:.75rem">Staff catalog is now up to date.</div>`;
-                                resultsBody.innerHTML = detailsHtml;
-                            }
-                        } else {
-                            throw new Error(result.error || 'Sync failed');
-                        }
-                        break;
-                    } else if (status.inProgress) {
-                        const pct = status.total > 0 ? Math.round((status.progress / status.total) * 100) : 0;
-                        btn.textContent = `⏳ ${status.progress}/${status.total} (${pct}%)`;
-                        if (statusDiv) statusDiv.textContent = `Syncing: ${status.currentStaff || 'loading...'} (${status.progress}/${status.total})`;
-                    }
-                }
-                pollCount++;
-            }
-
-            if (pollCount >= maxPolls && !status.completed) {
-                showToast('Sync timed out. Check status later.', true);
-            }
+            await pollSyncUntilDone();
         } else {
             throw new Error(data.error || 'Failed to start sync');
         }
@@ -100,6 +145,27 @@ async function handleSyncStaff() {
         btn.disabled = false;
         btn.textContent = originalText;
     }
+}
+
+// If a sync is already running in the backend (page reload mid-sync, or a sync
+// started from another tab), resume monitoring instead of showing the idle UI.
+async function resumeSyncMonitor() {
+    const btn = document.getElementById('btn-do-sync-staff');
+    if (!btn || btn.disabled) return;
+    try {
+        const res = await window.StaffTrackAuth.apiFetch('/api/admin/sync-staff/status');
+        if (!res.ok) return;
+        const status = await res.json();
+        if (status.inProgress && !status.completed) {
+            btn.disabled = true;
+            const statusDiv = document.getElementById('staff-sync-status');
+            if (statusDiv) statusDiv.textContent = 'Sync already running — monitoring…';
+            renderSyncProgress(status);
+            await pollSyncUntilDone();
+            btn.disabled = false;
+            btn.textContent = '🔄 Sync Staff';
+        }
+    } catch (e) { /* ignore */ }
 }
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -121,6 +187,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const syncStaffBtn = document.getElementById('btn-do-sync-staff');
     if (syncStaffBtn) {
         syncStaffBtn.addEventListener('click', handleSyncStaff);
+        resumeSyncMonitor();
     }
 
     const syncProjectsBtn = document.getElementById('btn-do-sync-projects');

@@ -613,18 +613,58 @@ router.delete('/staff/:email', verifyToken, requireRole('admin'), async (req, re
 const syncStatus = {
     inProgress: false,
     startedAt: null,
+    phase: '',           // 'login' | 'fetch-details' | 'update-db' | 'deactivate' | 'done' | 'error'
+    percent: 0,          // weighted 0-100 overall progress (login 0-5, fetch 5-65, db 65-95, deactivate 95-100)
     progress: 0,
     total: 0,
     currentStaff: '',
-    stats: { added: 0, updated: 0, skipped: 0, inactiveSkipped: 0, resignedSkipped: 0, wrongTenantDeactivated: 0 },
+    stats: { added: 0, updated: 0, skipped: 0, inactiveSkipped: 0, resignedSkipped: 0, wrongTenantDeactivated: 0, detailFailures: 0 },
     errors: [],
     completed: false,
     result: null
 };
 
+// Run async work over items with limited concurrency (worker pool). A hung
+// BeeSuite call only occupies one worker instead of stalling the whole sync.
+async function mapLimit(items, limit, fn) {
+    const results = new Array(items.length);
+    let next = 0;
+    const workers = Array.from({ length: Math.min(limit, items.length || 1) }, async () => {
+        while (next < items.length) {
+            const i = next++;
+            results[i] = await fn(items[i], i);
+        }
+    });
+    await Promise.all(workers);
+    return results;
+}
+
+// Fetch one staff's employment detail with timeout + retries so a single
+// hung/throttled BeeSuite request can't stall the whole sync forever.
+async function fetchEmploymentDetail(staff, accessToken, maxAttempts = 3) {
+    let lastErr;
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+        try {
+            const res = await axios.get(
+                `${BEESUITE_API_BASE}/api/admin/user-info-details/employment-detail/${staff.id}`,
+                { headers: { 'Authorization': `JWT ${accessToken}` }, timeout: 15000 }
+            );
+            return res.data?.employmentDetail || null;
+        } catch (err) {
+            lastErr = err;
+            if (attempt < maxAttempts) {
+                await new Promise(r => setTimeout(r, 400 * attempt)); // 400ms, 800ms backoff
+            }
+        }
+    }
+    throw lastErr;
+}
+
 router.get('/sync-staff/status', verifyToken, requireRole('admin'), async (req, res) => {
     res.json({
         inProgress: syncStatus.inProgress,
+        phase: syncStatus.phase,
+        percent: syncStatus.percent,
         progress: syncStatus.progress,
         total: syncStatus.total,
         currentStaff: syncStatus.currentStaff,
@@ -641,10 +681,12 @@ router.post('/sync-staff', verifyToken, requireRole('admin'), async (req, res) =
     
     syncStatus.inProgress = true;
     syncStatus.startedAt = new Date().toISOString();
+    syncStatus.phase = 'login';
+    syncStatus.percent = 0;
     syncStatus.progress = 0;
     syncStatus.total = 0;
     syncStatus.currentStaff = '';
-    syncStatus.stats = { added: 0, updated: 0, skipped: 0, inactiveSkipped: 0, resignedSkipped: 0, wrongTenantDeactivated: 0 };
+    syncStatus.stats = { added: 0, updated: 0, skipped: 0, inactiveSkipped: 0, resignedSkipped: 0, wrongTenantDeactivated: 0, detailFailures: 0 };
     syncStatus.errors = [];
     syncStatus.completed = false;
     syncStatus.result = null;
@@ -661,7 +703,7 @@ router.post('/sync-staff', verifyToken, requireRole('admin'), async (req, res) =
             const authResponse = await axios.post(`${BEESUITE_API_BASE}/api/auth/login`, {
                 email: BEESUITE_EMAIL,
                 password: BEESUITE_PASSWORD
-            });
+            }, { timeout: 20000 });
 
             const accessToken = authResponse.data.access_token;
 
@@ -670,7 +712,8 @@ router.post('/sync-staff', verifyToken, requireRole('admin'), async (req, res) =
             }
 
             const staffResponse = await axios.get(`${BEESUITE_API_BASE}/api/users/staff`, {
-                headers: { 'Authorization': `JWT ${accessToken}` }
+                headers: { 'Authorization': `JWT ${accessToken}` },
+                timeout: 30000
             });
 
             let staffList = staffResponse.data;
@@ -683,51 +726,68 @@ router.post('/sync-staff', verifyToken, requireRole('admin'), async (req, res) =
             const filteredStaffList = staffList.filter(s => s.companyId === referenceCompanyId);
             const validEmails = new Set(filteredStaffList.map(s => s.email?.toLowerCase()).filter(Boolean));
 
-            let added = 0, updated = 0, skipped = 0, inactiveSkipped = 0, resignedSkipped = 0, wrongTenantDeactivated = 0;
             syncStatus.total = filteredStaffList.length;
 
+            // ── Phase 1: fetch employment details in parallel (8 workers, retried) ──
+            // 306 staff × ~800ms sequential ≈ 4+ min used to stall the sync; parallel
+            // fetch drops this to ~30-40s even if a few calls hang (timeout+retry).
+            syncStatus.phase = 'fetch-details';
+            const details = new Map(); // email(lowercase) -> employmentDetail
+            await mapLimit(filteredStaffList, 8, async (staff) => {
+                if (!staff.email) return;
+                syncStatus.currentStaff = staff.email;
+                syncStatus.progress++;
+                syncStatus.percent = 5 + Math.round((syncStatus.progress / Math.max(syncStatus.total, 1)) * 60);
+                try {
+                    const detail = await fetchEmploymentDetail(staff, accessToken);
+                    if (detail) details.set(staff.email.toLowerCase(), detail);
+                } catch (err) {
+                    syncStatus.stats.detailFailures++;
+                    if (syncStatus.errors.length < 100) {
+                        syncStatus.errors.push({ staff: staff.email, error: `employment-detail: ${err.message}` });
+                    }
+                }
+            });
+
+            let added = 0, updated = 0, skipped = 0, inactiveSkipped = 0, resignedSkipped = 0, wrongTenantDeactivated = 0;
+
+            // ── Phase 2: upsert staff + roles (sequential local DB writes) ──
+            syncStatus.phase = 'update-db';
+            syncStatus.progress = 0;
             for (let i = 0; i < filteredStaffList.length; i++) {
                 const staff = filteredStaffList[i];
-                const staffName = staff.email || 'Unknown';
-                syncStatus.currentStaff = staffName;
+                const email = staff.email;
+                const name = staff.employeeName;
+                const title = staff.designation;
+                const department = staff.department;
+                syncStatus.currentStaff = email || 'Unknown';
                 syncStatus.progress = i + 1;
+                syncStatus.percent = 65 + Math.round(((i + 1) / Math.max(filteredStaffList.length, 1)) * 30);
 
                 try {
-                    const email = staff.email;
-                    const name = staff.employeeName;
-                    const title = staff.designation;
-                    const department = staff.department;
-
                     if (!email || !name) {
                         skipped++;
                         continue;
                     }
 
-                    const [existing] = await db.query('SELECT email, manager_name FROM staff WHERE email = ?', [email]);
-                    const isNewStaff = existing.length === 0;
-
-                    let managerName = existing.length > 0 ? existing[0].manager_name : null;
+                    const emp = details.get(email.toLowerCase());
+                    let managerName = null;
                     let isResigned = false;
 
-                    try {
-                        const empRes = await axios.get(
-                            `${BEESUITE_API_BASE}/api/admin/user-info-details/employment-detail/${staff.id}`,
-                            { headers: { 'Authorization': `JWT ${accessToken}` } }
-                        );
+                    if (emp) {
+                        managerName = emp.reportingToName || null;
 
-                        if (empRes.data?.employmentDetail) {
-                            const emp = empRes.data.employmentDetail;
-                            managerName = emp.reportingToName;
-
-                            if (emp.dateOfResignation && emp.dateOfResignation !== 'Invalid Date' && emp.dateOfResignation !== 'Invalid date') {
-                                const resDate = new Date(emp.dateOfResignation);
-                                if (!isNaN(resDate.getTime()) && resDate < new Date()) {
-                                    isResigned = true;
-                                }
+                        if (emp.dateOfResignation && emp.dateOfResignation !== 'Invalid Date' && emp.dateOfResignation !== 'Invalid date') {
+                            const resDate = new Date(emp.dateOfResignation);
+                            if (!isNaN(resDate.getTime()) && resDate < new Date()) {
+                                isResigned = true;
                             }
                         }
-                    } catch (empErr) {
-                        syncStatus.errors.push({ staff: email, error: empErr.message });
+                    }
+
+                    const [existing] = await db.query('SELECT email, manager_name FROM staff WHERE email = ?', [email]);
+                    if (!managerName && existing.length > 0) {
+                        managerName = existing[0].manager_name;
                     }
 
                     const shouldDeactivate = staff.status !== 'Active' || isResigned;
@@ -772,11 +832,16 @@ router.post('/sync-staff', verifyToken, requireRole('admin'), async (req, res) =
                             [new Date().toISOString().slice(0, 19).replace('T', ' '), email]);
                     }
                 } catch (err) {
-                    syncStatus.errors.push({ staff: staff.email || staff.name, error: err.message });
+                    if (syncStatus.errors.length < 100) {
+                        syncStatus.errors.push({ staff: staff.email || staff.name, error: err.message });
+                    }
                     skipped++;
                 }
             }
 
+            // ── Phase 3: deactivate wrong-tenant accounts ──
+            syncStatus.phase = 'deactivate';
+            syncStatus.percent = 96;
             // Get local staff emails to identify wrong-tenant users
             const [localStaffRows] = await db.query('SELECT email FROM staff WHERE email IS NOT NULL');
             const localEmails = localStaffRows.map(r => r.email?.toLowerCase()).filter(Boolean);
@@ -787,7 +852,9 @@ router.post('/sync-staff', verifyToken, requireRole('admin'), async (req, res) =
                 wrongTenantDeactivated++;
             }
 
-            syncStatus.stats = { added, updated, skipped, inactiveSkipped, resignedSkipped, wrongTenantDeactivated };
+            syncStatus.stats = { added, updated, skipped, inactiveSkipped, resignedSkipped, wrongTenantDeactivated, detailFailures: syncStatus.stats.detailFailures };
+            syncStatus.phase = 'done';
+            syncStatus.percent = 100;
             syncStatus.completed = true;
             syncStatus.result = {
                 success: true,
@@ -797,9 +864,11 @@ router.post('/sync-staff', verifyToken, requireRole('admin'), async (req, res) =
                 inactiveSkipped,
                 resignedSkipped,
                 wrongTenantDeactivated,
+                detailFailures: syncStatus.stats.detailFailures,
                 message: `Sync complete: ${added} added, ${updated} updated, ${skipped} skipped (${inactiveSkipped} inactive, ${resignedSkipped} resigned, ${wrongTenantDeactivated} wrong tenant)`
             };
         } catch (err) {
+            syncStatus.phase = 'error';
             syncStatus.result = { success: false, error: err.message };
         } finally {
             syncStatus.inProgress = false;

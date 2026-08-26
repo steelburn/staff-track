@@ -52,6 +52,7 @@ docker compose up -d
 - **Skill Consolidation**: Admin tools for skill governance including merge, split, and rename operations.
 - **Staff Search**: Advanced search functionality for finding staff by multiple skill criteria.
 - **Certification Catalog**: Organization-wide certification tracking with expiry monitoring (Expired / Expiring ≤ 90 days), By Certification / By Staff views, and proof links — Admin/HR only.
+- **BeeSuite Staff Sync**: One-click manual sync from the System page pulls all staff from BeeSuite AppCore — name, title/designation, department, manager, and active/resigned status — and upserts the local `staff` + `user_roles` tables (parallel fetch, ~50s for 300+ staff; see docs/ROADMAP.md §3).
 
 ## 📁 Repository Structure
 
@@ -62,7 +63,7 @@ docker compose up -d
 - **Management Pages**:
   - `admin.html`: User permission and role management.
   - `catalog.html`: Global staff and project record maintenance.
-  - `system.html`: Bulk CSV data imports, skill consolidation, and system stats.
+  - `system.html`: BeeSuite staff/project sync cards, skill consolidation, and system stats.
 - **Standard Pages**:
   - `index.html`: My Submission / Home.
   - `cv-profile.html`: CV profile management.
