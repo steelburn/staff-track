@@ -191,7 +191,7 @@ function renderOrg() {
             </table>`;
     }
     el.innerHTML = html;
-    wireOrgAlerts();
+    wireAlertToggles(el);
 }
 
 // Expandable warning alert: summary line + Details toggle revealing the staff list.
@@ -217,17 +217,26 @@ function orgAlertHTML(kind, msg, key, staff) {
         </div>`;
 }
 
-function wireOrgAlerts() {
-    document.querySelectorAll('.dash-alert-toggle').forEach(btn => {
-        btn.addEventListener('click', () => {
-            const details = document.getElementById(`alert-details-${btn.dataset.alertKey}`);
-            if (!details) return;
-            const wasExpanded = !details.hidden;
-            details.hidden = wasExpanded;
-            btn.setAttribute('aria-expanded', String(!wasExpanded));
-            btn.textContent = wasExpanded ? 'Details ▾' : 'Hide ▲';
-        });
+// Bind Details toggles within a container. Scoped per render so re-rendering
+// one section never re-binds (and double-fires) another section's toggles.
+function wireAlertToggles(scope) {
+    (scope || document).querySelectorAll('.dash-alert-toggle').forEach(btn => {
+        btn.addEventListener('click', () => toggleAlertDetails(btn.dataset.alertKey, btn));
     });
+}
+
+// Toggle an expandable alert's details block. btn optional — when triggered from
+// a chart slice click the button is looked up by key.
+function toggleAlertDetails(key, btn) {
+    const details = document.getElementById(`alert-details-${key}`);
+    if (!details) return;
+    const wasExpanded = !details.hidden;
+    details.hidden = wasExpanded;
+    const target = btn || document.querySelector(`.dash-alert-toggle[data-alert-key="${key}"]`);
+    if (target) {
+        target.setAttribute('aria-expanded', String(!wasExpanded));
+        target.textContent = wasExpanded ? 'Details ▾' : 'Hide ▲';
+    }
 }
 
 function renderCompleteness() {
@@ -282,10 +291,14 @@ function renderCerts() {
         html = '<p class="dash-muted">No certifications recorded.</p>';
     } else {
         if (cert.expired > 0) {
-            html += `<div class="dash-alert danger">⛔ <span><strong>${cert.expired}</strong> certification${cert.expired === 1 ? '' : 's'} already expired — renew or remove.</span></div>`;
+            html += certAlertHTML('danger',
+                `⛔ <span><strong>${cert.expired}</strong> certification${cert.expired === 1 ? '' : 's'} already expired — renew or remove.</span>`,
+                'certs-expired', cert.expiredCerts);
         }
         if (cert.expiring90d > 0) {
-            html += `<div class="dash-alert warning">⚠️ <span><strong>${cert.expiring90d}</strong> certification${cert.expiring90d === 1 ? '' : 's'} expiring within 90 days.</span></div>`;
+            html += certAlertHTML('warning',
+                `⚠️ <span><strong>${cert.expiring90d}</strong> certification${cert.expiring90d === 1 ? '' : 's'} expiring within 90 days.</span>`,
+                'certs-expiring', cert.expiringCerts);
         }
         if (cert.expired === 0 && cert.expiring90d === 0) {
             html += '<div class="dash-alert success">✅ No certifications expiring within 90 days.</div>';
@@ -293,6 +306,30 @@ function renderCerts() {
         html += `<p class="dash-muted">${cert.total} certifications on file for staff in this view.</p>`;
     }
     el.innerHTML = html;
+    wireAlertToggles(el);
+}
+
+// Expandable certification alert: summary + Details toggle revealing the cert list.
+function certAlertHTML(kind, msg, key, certs) {
+    const rows = (certs || []).map(c => `
+        <tr>
+            <td>${escapeHtml(c.certName)}</td>
+            <td><a href="/cv-profile.html?email=${encodeURIComponent(c.email)}">${escapeHtml(c.staffName)}</a></td>
+            <td>${escapeHtml(c.issuer || '—')}</td>
+            <td>${c.dateObtained || '—'}</td>
+            <td class="num">${c.expiryDate || '—'}</td>
+        </tr>`).join('');
+    return `
+        <div class="dash-alert ${kind}">
+            ${msg}
+            <button type="button" class="dash-alert-toggle" data-alert-key="${key}" aria-expanded="false">Details ▾</button>
+            <div class="dash-alert-details" id="alert-details-${key}" hidden>
+                <table class="dash-table">
+                    <thead><tr><th>Certification</th><th>Staff</th><th>Issuer</th><th>Obtained</th><th class="num">Expires</th></tr></thead>
+                    <tbody>${rows}</tbody>
+                </table>
+            </div>
+        </div>`;
 }
 
 function renderEngagement() {
@@ -482,6 +519,12 @@ function renderCertsChart() {
                 { name: 'Expired', value: cert.expired, itemStyle: { color: col.danger } }
             ]
         }]
+    });
+    // Slice click drills down into the matching cert list (same toggle as the alert buttons)
+    c.on('click', (params) => {
+        const key = params.name === 'Expired' ? 'certs-expired'
+            : params.name === 'Expiring ≤ 90d' ? 'certs-expiring' : null;
+        if (key) toggleAlertDetails(key);
     });
 }
 

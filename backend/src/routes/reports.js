@@ -836,22 +836,49 @@ router.get('/dashboard', verifyToken, async (req, res) => {
             projectLinks: projCovRows[0] ? projCovRows[0].projectLinks : 0
         };
 
-        // Certifications (expiry status — same day-boundary logic as /reports/certifications)
+        // Certifications (expiry status — same day-boundary logic as /reports/certifications).
+        // Fetches detail rows so the frontend can drill down into expired/expiring lists.
+        // Day boundaries come from the DB (CURDATE) to stay TZ-consistent with the old SUM query;
+        // YYYY-MM-DD strings compare lexicographically.
         const [certRows] = await db.query(
-            `SELECT COUNT(*) AS total,
-                    SUM(c.expiry_date IS NOT NULL AND c.expiry_date < CURDATE()) AS expired,
-                    SUM(c.expiry_date IS NOT NULL AND c.expiry_date BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 90 DAY)) AS expiring90d
+            `SELECT c.staff_email, c.name, c.issuer, c.date_obtained, c.expiry_date, c.credential_id,
+                    COALESCE(st.name, c.staff_email) AS staff_name,
+                    CURDATE() AS today,
+                    DATE_ADD(CURDATE(), INTERVAL 90 DAY) AS plus90
              FROM certifications c
+             JOIN staff st ON LOWER(st.email) = LOWER(c.staff_email)
              JOIN staff s ON LOWER(s.email) = LOWER(c.staff_email)
              ${includeInactive ? '' : 'JOIN user_roles ur ON LOWER(ur.email) = LOWER(c.staff_email) AND ur.is_active = 1'}
              WHERE 1=1 ${sc}`,
             params
         );
-        const cr = certRows[0] || { total: 0, expired: 0, expiring90d: 0 };
+        const todayStr = formatDate(certRows[0] && certRows[0].today);
+        const plus90Str = formatDate(certRows[0] && certRows[0].plus90);
+        const expiredCerts = [], expiringCerts = [];
+        for (const r of certRows) {
+            const expiryStr = formatDate(r.expiry_date);
+            if (!expiryStr) continue; // no expiry = valid
+            const rec = {
+                certName: r.name,
+                staffName: r.staff_name,
+                email: r.staff_email,
+                issuer: r.issuer || '',
+                credentialId: r.credential_id || '',
+                dateObtained: formatDate(r.date_obtained),
+                expiryDate: expiryStr
+            };
+            if (expiryStr < todayStr) expiredCerts.push(rec);
+            else if (expiryStr <= plus90Str) expiringCerts.push(rec);
+        }
+        const sortByExpiry = (a, b) => (a.expiryDate < b.expiryDate ? -1 : 1);
+        expiredCerts.sort(sortByExpiry);
+        expiringCerts.sort(sortByExpiry);
         payload.certifications = {
-            total: Number(cr.total) || 0,
-            expired: Number(cr.expired) || 0,
-            expiring90d: Number(cr.expiring90d) || 0
+            total: certRows.length,
+            expired: expiredCerts.length,
+            expiring90d: expiringCerts.length,
+            expiredCerts,
+            expiringCerts
         };
 
         res.json(payload);
