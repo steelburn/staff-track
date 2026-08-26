@@ -656,4 +656,200 @@ router.get('/staff-search', requireReporterOrManager, async (req, res) => {
     }
 });
 
+// ── GET /reports/dashboard ───────────────────────────────────────────────────
+// Aggregated org KPIs for management. Scope: all (admin/HR/coordinator),
+// subordinates (managers, direct + indirect), or 403.
+router.get('/dashboard', verifyToken, async (req, res) => {
+    try {
+        const db = await getDb();
+        const { scope, emails } = await resolveDashboardScope(db, req.user);
+        if (scope === 'none') {
+            return res.status(403).json({ error: 'Management dashboard access required' });
+        }
+        const includeInactive = req.query.include_inactive === 'true' && scope === 'all';
+        const payload = { scope, asOf: new Date().toISOString().slice(0, 10), includeInactive };
+
+        const activeJoin = includeInactive
+            ? 'LEFT JOIN user_roles ur ON LOWER(ur.email) = LOWER(s.email)'
+            : 'INNER JOIN user_roles ur ON LOWER(ur.email) = LOWER(s.email) AND ur.is_active = 1';
+        const scopeEmails = emails; // may be null
+        const sc = scopeClause(scopeEmails, 's');
+        const params = scopeEmails || [];
+
+        // Headcount
+        const [hcRows] = await db.query(
+            `SELECT s.department AS department, COUNT(*) AS total,
+                    SUM(ur.is_active = 1) AS active, SUM(ur.is_active = 0) AS inactive
+             FROM staff s ${activeJoin}
+             WHERE (s.department IS NOT NULL AND s.department <> '') ${sc}
+             GROUP BY s.department ORDER BY active DESC, total DESC`,
+            params
+        );
+        const [roleRows] = await db.query(
+            `SELECT ur.role, COUNT(*) AS count FROM staff s ${activeJoin}
+             WHERE ur.role IS NOT NULL ${sc}
+             GROUP BY ur.role ORDER BY count DESC`,
+            params
+        );
+        const [totalRows] = await db.query(
+            `SELECT COUNT(*) AS total, SUM(ur.is_active = 1) AS active, SUM(ur.is_active = 0) AS inactive
+             FROM staff s ${activeJoin} WHERE 1=1 ${sc}`,
+            params
+        );
+        const hc = totalRows[0];
+        payload.headcount = {
+            total: hc.total, active: Number(hc.active) || 0, inactive: Number(hc.inactive) || 0,
+            byDepartment: hcRows.map(r => ({ department: r.department, total: r.total, active: Number(r.active) || 0, inactive: Number(r.inactive) || 0 })),
+            byRole: roleRows.map(r => ({ role: r.role, count: r.count }))
+        };
+
+        // Org structure
+        const [mgrRows] = await db.query(
+            `SELECT s.manager_name AS name, COUNT(*) AS directReports,
+                    COUNT(DISTINCT s.department) AS departments
+             FROM staff s ${activeJoin}
+             WHERE s.manager_name IS NOT NULL AND s.manager_name <> '' ${sc}
+             GROUP BY s.manager_name ORDER BY directReports DESC LIMIT 20`,
+            params
+        );
+        const [orphanRows] = await db.query(
+            `SELECT SUM(m.email IS NULL) AS orphans,
+                    SUM(s.manager_name IS NULL OR s.manager_name = '') AS noManager
+             FROM staff s ${activeJoin}
+             LEFT JOIN staff m ON m.name = s.manager_name AND m.email <> s.email
+             WHERE 1=1 ${sc}`,
+            params
+        );
+        payload.org = {
+            managers: mgrRows,
+            orphans: Number(orphanRows[0].orphans) || 0,
+            noManager: Number(orphanRows[0].noManager) || 0,
+            topSpan: mgrRows.length ? mgrRows[0].directReports : 0
+        };
+
+        // Profile completeness (per active staff)
+        const [compRows] = await db.query(
+            `SELECT s.email, s.name, s.department,
+                    (cp.id IS NOT NULL) AS hasProfile,
+                    (cp.summary IS NOT NULL AND cp.summary <> '') AS hasSummary,
+                    (SELECT COUNT(*) FROM submission_skills sk
+                       JOIN submissions su ON su.id = sk.submission_id
+                      WHERE LOWER(su.staff_email) = LOWER(s.email)) AS skillCount,
+                    (SELECT COUNT(*) FROM education e WHERE LOWER(e.staff_email) = LOWER(s.email)) AS eduCount,
+                    (SELECT COUNT(*) FROM certifications c WHERE LOWER(c.staff_email) = LOWER(s.email)) AS certCount,
+                    (SELECT COUNT(*) FROM work_history w WHERE LOWER(w.staff_email) = LOWER(s.email)) AS whCount,
+                    (SELECT COUNT(*) FROM cv_past_projects p WHERE LOWER(p.staff_email) = LOWER(s.email)) AS ppCount,
+                    COALESCE(su.updated_by_staff, 0) AS updatedByStaff
+             FROM staff s ${activeJoin}
+             LEFT JOIN cv_profiles cp ON LOWER(cp.staff_email) = LOWER(s.email)
+             LEFT JOIN submissions su ON LOWER(su.staff_email) = LOWER(s.email)
+             WHERE 1=1 ${sc}`,
+            params
+        );
+        const buckets = { '0-20': 0, '21-40': 0, '41-60': 0, '61-80': 0, '81-100': 0 };
+        let staffWithProfile = 0, staffWithSummary = 0, zeroSkill = 0, skillTotal = 0;
+        const completenessRows = [];
+        for (const r of compRows) {
+            // Weighted: profile row 20, summary 20, skills 20, edu 10, certs 10, work history 10, past projects 10
+            const score = Math.min(100,
+                (r.hasProfile ? 20 : 0) + (r.hasSummary ? 20 : 0)
+                + (r.skillCount > 0 ? 20 : 0) + (r.eduCount > 0 ? 10 : 0)
+                + (r.certCount > 0 ? 10 : 0) + (r.whCount > 0 ? 10 : 0)
+                + (r.ppCount > 0 ? 10 : 0));
+            const key = score <= 20 ? '0-20' : score <= 40 ? '21-40' : score <= 60 ? '41-60' : score <= 80 ? '61-80' : '81-100';
+            buckets[key]++;
+            if (r.hasProfile) staffWithProfile++;
+            if (r.hasSummary) staffWithSummary++;
+            if (!r.skillCount) zeroSkill++;
+            skillTotal += Number(r.skillCount) || 0;
+            completenessRows.push({ name: r.name, email: r.email, department: r.department, score, updatedByStaff: r.updatedByStaff === 1 || r.updatedByStaff === true });
+        }
+        payload.completeness = {
+            staffWithProfile, staffWithSummary,
+            avgSkillCount: compRows.length ? +(skillTotal / compRows.length).toFixed(1) : 0,
+            zeroSkillStaff: zeroSkill,
+            buckets: Object.entries(buckets).map(([bucket, count]) => ({ bucket, count })),
+            lowest: completenessRows.sort((a, b) => a.score - b.score).slice(0, 10).map(({ name, email, score }) => ({ name, email, score }))
+        };
+
+        // Engagement
+        const [engRows] = await db.query(
+            `SELECT COUNT(*) AS updatedCount FROM submissions su
+             JOIN staff s ON LOWER(s.email) = LOWER(su.staff_email)
+             ${includeInactive ? '' : "JOIN user_roles ur ON LOWER(ur.email) = LOWER(su.staff_email) AND ur.is_active = 1"}
+             WHERE su.updated_by_staff = 1 ${sc}`,
+            params
+        );
+        const [seriesRows] = await db.query(
+            `SELECT DATE(created_at) AS d, COUNT(*) AS c
+             FROM profile_audit_log
+             WHERE created_at >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)
+             GROUP BY DATE(created_at) ORDER BY d`,
+            []
+        );
+        payload.engagement = {
+            staffUpdatedCount: engRows[0] ? engRows[0].updatedCount : 0,
+            edits30d: seriesRows.reduce((sum, r) => sum + r.c, 0),
+            series: seriesRows.map(r => ({ date: formatDate(r.d), count: r.c }))
+        };
+
+        // Skills (top N by staff count, normalized case/whitespace like /reports/skills)
+        const [skillRows] = await db.query(
+            `SELECT REGEXP_REPLACE(TRIM(sk.skill), '[[:space:]]+', ' ') AS norm,
+                    COUNT(DISTINCT LOWER(su.staff_email)) AS staffCount
+             FROM submission_skills sk
+             JOIN submissions su ON su.id = sk.submission_id
+             JOIN staff s ON LOWER(s.email) = LOWER(su.staff_email)
+             ${includeInactive ? '' : 'JOIN user_roles ur ON LOWER(ur.email) = LOWER(su.staff_email) AND ur.is_active = 1'}
+             WHERE 1=1 ${sc}
+             GROUP BY norm ORDER BY staffCount DESC LIMIT 10`,
+            params
+        );
+        payload.skills = { top: skillRows.map(r => ({ name: r.norm, staff: r.staffCount })) };
+
+        // Projects
+        const [catRows] = await db.query(`SELECT COUNT(*) AS n FROM projects_catalog`, []);
+        const [manRows] = await db.query(`SELECT COUNT(*) AS n FROM managed_projects`, []);
+        const [projCovRows] = await db.query(
+            `SELECT COUNT(DISTINCT LOWER(su.staff_email)) AS staffWithProjects,
+                    COUNT(DISTINCT sp.id) AS projectLinks
+             FROM submission_projects sp
+             JOIN submissions su ON su.id = sp.submission_id
+             JOIN staff s ON LOWER(s.email) = LOWER(su.staff_email)
+             ${includeInactive ? '' : 'JOIN user_roles ur ON LOWER(ur.email) = LOWER(su.staff_email) AND ur.is_active = 1'}
+             WHERE 1=1 ${sc}`,
+            params
+        );
+        payload.projects = {
+            catalogTotal: catRows[0].n,
+            managedTotal: manRows[0].n,
+            staffWithProjects: projCovRows[0] ? projCovRows[0].staffWithProjects : 0,
+            projectLinks: projCovRows[0] ? projCovRows[0].projectLinks : 0
+        };
+
+        // Certifications (expiry status — same day-boundary logic as /reports/certifications)
+        const [certRows] = await db.query(
+            `SELECT COUNT(*) AS total,
+                    SUM(c.expiry_date IS NOT NULL AND c.expiry_date < CURDATE()) AS expired,
+                    SUM(c.expiry_date IS NOT NULL AND c.expiry_date BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 90 DAY)) AS expiring90d
+             FROM certifications c
+             JOIN staff s ON LOWER(s.email) = LOWER(c.staff_email)
+             ${includeInactive ? '' : 'JOIN user_roles ur ON LOWER(ur.email) = LOWER(c.staff_email) AND ur.is_active = 1'}
+             WHERE 1=1 ${sc}`,
+            params
+        );
+        const cr = certRows[0] || { total: 0, expired: 0, expiring90d: 0 };
+        payload.certifications = {
+            total: Number(cr.total) || 0,
+            expired: Number(cr.expired) || 0,
+            expiring90d: Number(cr.expiring90d) || 0
+        };
+
+        res.json(payload);
+    } catch (err) {
+        console.error('GET /reports/dashboard error:', err);
+        res.status(500).json({ error: 'Failed to fetch dashboard' });
+    }
+});
+
 export { router };
