@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>StaffTrack — Reporting Dashboard</title>
+    <link rel="stylesheet" href="/css/main.css?v=20260826a">
+    <script src="/theme.js?v=20260826a"></script>
+    <style>
+        /* ── Dashboard layout ─────────────────────────────────────────── */
+        .dash-card {
+            background: var(--color-bg-surface);
+            border: 1px solid var(--color-border);
+            border-radius: var(--radius-lg);
+            padding: var(--space-5);
+            margin-bottom: var(--space-5);
+        }
+
+        .dash-card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: var(--space-3);
+            margin-bottom: var(--space-4);
+        }
+
+        .dash-card-header h2 {
+            font-size: var(--font-size-lg);
+            font-weight: var(--font-weight-semibold);
+            color: var(--color-text-primary);
+            margin: 0;
+        }
+
+        .dash-card-header .dash-link {
+            font-size: var(--font-size-sm);
+            color: var(--color-primary);
+            text-decoration: none;
+        }
+
+        .dash-card-header .dash-link:hover {
+            text-decoration: underline;
+        }
+
+        .dash-muted {
+            font-size: var(--font-size-sm);
+            color: var(--color-text-muted);
+        }
+
+        /* ── KPI cards ────────────────────────────────────────────────── */
+        .kpi-row {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+            gap: var(--space-4);
+            margin-bottom: var(--space-5);
+        }
+
+        .kpi-card {
+            background: var(--color-bg-surface);
+            border: 1px solid var(--color-border);
+            border-radius: var(--radius-lg);
+            padding: var(--space-4) var(--space-5);
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+
+        .kpi-value {
+            font-size: 1.9rem;
+            font-weight: var(--font-weight-bold);
+            color: var(--color-primary);
+            line-height: 1.1;
+        }
+
+        .kpi-label {
+            font-size: var(--font-size-xs);
+            color: var(--color-text-secondary);
+        }
+
+        .kpi-hint {
+            font-size: var(--font-size-xs);
+            color: var(--color-text-muted);
+        }
+
+        /* ── Horizontal bars ──────────────────────────────────────────── */
+        .bar-row {
+            display: grid;
+            grid-template-columns: minmax(120px, 1fr) 2.2fr 44px;
+            align-items: center;
+            gap: var(--space-3);
+            padding: 3px 0;
+        }
+
+        .bar-label {
+            font-size: var(--font-size-sm);
+            color: var(--color-text-primary);
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .bar-track {
+            background: var(--color-bg-muted);
+            border-radius: var(--radius-full);
+            height: 10px;
+            overflow: hidden;
+        }
+
+        .bar-fill {
+            height: 100%;
+            background: var(--color-primary);
+            border-radius: var(--radius-full);
+            transition: width 0.4s ease;
+            min-width: 2px;
+        }
+
+        .bar-count {
+            font-size: var(--font-size-xs);
+            color: var(--color-text-muted);
+            text-align: right;
+        }
+
+        /* ── Tables ───────────────────────────────────────────────────── */
+        .dash-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: var(--font-size-sm);
+        }
+
+        .dash-table th {
+            text-align: left;
+            font-size: var(--font-size-xs);
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+            color: var(--color-text-muted);
+            padding: 6px var(--space-3);
+            border-bottom: 1px solid var(--color-border);
+        }
+
+        .dash-table td {
+            padding: 7px var(--space-3);
+            border-bottom: 1px solid var(--color-border);
+            color: var(--color-text-primary);
+        }
+
+        .dash-table tr:last-child td {
+            border-bottom: none;
+        }
+
+        .dash-table .num {
+            text-align: right;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .dash-table a {
+            color: var(--color-primary);
+            text-decoration: none;
+        }
+
+        .dash-table a:hover {
+            text-decoration: underline;
+        }
+
+        /* ── Score badges ─────────────────────────────────────────────── */
+        .score-badge {
+            display: inline-flex;
+            align-items: center;
+            padding: 1px 8px;
+            border-radius: var(--radius-full);
+            font-size: 0.68rem;
+            font-weight: var(--font-weight-semibold);
+            line-height: 1.5;
+        }
+
+        .score-badge.low {
+            background: rgba(220, 38, 38, 0.12);
+            color: #dc2626;
+        }
+
+        .score-badge.mid {
+            background: rgba(217, 119, 6, 0.14);
+            color: #b45309;
+        }
+
+        .score-badge.high {
+            background: rgba(16, 185, 129, 0.12);
+            color: #059669;
+        }
+
+        /* ── Alert banners ────────────────────────────────────────────── */
+        .dash-alert {
+            display: flex;
+            align-items: center;
+            gap: var(--space-3);
+            padding: var(--space-3) var(--space-4);
+            border-radius: var(--radius-md);
+            font-size: var(--font-size-sm);
+            margin-bottom: var(--space-3);
+        }
+
+        .dash-alert.danger {
+            background: rgba(220, 38, 38, 0.08);
+            border: 1px solid rgba(220, 38, 38, 0.25);
+            color: #dc2626;
+        }
+
+        .dash-alert.warning {
+            background: rgba(217, 119, 6, 0.10);
+            border: 1px solid rgba(217, 119, 6, 0.28);
+            color: #b45309;
+        }
+
+        .dash-alert.success {
+            background: rgba(16, 185, 129, 0.08);
+            border: 1px solid rgba(16, 185, 129, 0.25);
+            color: #059669;
+        }
+
+        .dash-alert a {
+            color: inherit;
+            font-weight: var(--font-weight-semibold);
+        }
+
+        /* ── Stat tiles (projects) ────────────────────────────────────── */
+        .stat-tiles {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+            gap: var(--space-3);
+        }
+
+        .stat-tile {
+            background: var(--color-bg-muted);
+            border-radius: var(--radius-md);
+            padding: var(--space-3) var(--space-4);
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+
+        .stat-tile .num {
+            font-size: 1.4rem;
+            font-weight: var(--font-weight-bold);
+            color: var(--color-text-primary);
+        }
+
+        .stat-tile .lbl {
+            font-size: var(--font-size-xs);
+            color: var(--color-text-secondary);
+        }
+
+        /* ── Engagement SVG ───────────────────────────────────────────── */
+        .eng-chart {
+            width: 100%;
+            height: 90px;
+            display: block;
+        }
+
+        .eng-bar {
+            fill: var(--color-primary);
+            opacity: 0.85;
+        }
+
+        .eng-bar:hover {
+            opacity: 1;
+        }
+
+        /* ── Scope banner ─────────────────────────────────────────────── */
+        #scope-banner {
+            display: inline-flex;
+            align-items: center;
+        }
+
+        @media (max-width: 768px) {
+            .bar-row {
+                grid-template-columns: minmax(90px, 1fr) 1.8fr 40px;
+                gap: var(--space-2);
+            }
+
+            .dash-card {
+                padding: var(--space-4);
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="app-layout">
+        <!-- ═══ Sidebar ═══════════════════════════════════════════════════════ -->
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-header">
+                <div class="sidebar-logo">📊</div>
+                <span class="sidebar-title">StaffTrack</span>
+            </div>
+
+            <nav class="sidebar-nav" id="sidebar-nav">
+                <!-- Navigation rendered by JS -->
+            </nav>
+
+            <div class="sidebar-footer">
+                <div class="user-card" id="sidebar-user-card">
+                    <!-- User info rendered by JS -->
+                </div>
+            </div>
+
+            <button class="sidebar-toggle" id="sidebarToggle">◀</button>
+        </aside>
+
+        <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+        <!-- ═══ Main Content ═════════════════════════════════════════════════ -->
+        <div class="main-content">
+            <!-- Page Header -->
+            <header class="page-header">
+                <div class="page-header-top">
+                    <div style="display:flex; align-items:center; gap:12px;">
+                        <button class="mobile-menu-btn" id="mobileMenuBtn">☰</button>
+                        <div>
+                            <h1 class="page-title">Reporting Dashboard</h1>
+                            <p class="page-subtitle">Organisation-wide KPIs for management</p>
+                        </div>
+                    </div>
+                    <div class="page-actions">
+                        <span class="badge badge-info" id="scope-banner" hidden></span>
+                        <label class="toggle" id="inactive-toggle-wrap" hidden title="Include inactive staff in the numbers">
+                            <input type="checkbox" id="toggle-inactive">
+                            <span class="toggle-track">
+                                <span class="toggle-thumb"></span>
+                            </span>
+                            <span class="toggle-label">Include inactive</span>
+                        </label>
+                        <button class="btn btn-secondary" id="theme-toggle" data-theme-toggle>
+                            <span class="theme-icon">🌙</span>
+                            <span class="theme-label">Dark</span>
+                        </button>
+                    </div>
+                </div>
+            </header>
+
+            <!-- Content Area -->
+            <main class="content-area">
+                <div id="dash-error" class="empty-state" hidden>
+                    <div class="empty-state-icon">🚫</div>
+                    <div class="empty-state-title">Access restricted</div>
+                    <div class="empty-state-text" id="dash-error-text">The reporting dashboard is available to
+                        management and team leads only.</div>
+                    <a class="btn btn-primary" href="/cv-profile.html" style="margin-top:var(--space-4)">Go to My CV</a>
+                </div>
+
+                <div id="dash-body" hidden>
+                    <div class="loading-state" id="dash-loading">
+                        <div class="spinner"></div>
+                        <p>Loading dashboard…</p>
+                    </div>
+
+                    <div id="dash-content" hidden>
+                        <!-- KPI row -->
+                        <div class="kpi-row" id="dash-kpis"></div>
+
+                        <!-- Team structure -->
+                        <section class="dash-card" id="dash-org-card">
+                            <div class="dash-card-header">
+                                <h2>Team structure</h2>
+                                <a class="dash-link" href="/orgchart.html">Open org chart →</a>
+                            </div>
+                            <div id="dash-org"></div>
+                        </section>
+
+                        <!-- Profile completeness -->
+                        <section class="dash-card" id="dash-completeness-card">
+                            <div class="dash-card-header">
+                                <h2>Profile completeness</h2>
+                                <a class="dash-link" href="/staff-view.html">All staff →</a>
+                            </div>
+                            <div id="dash-completeness"></div>
+                        </section>
+
+                        <!-- Top skills -->
+                        <section class="dash-card" id="dash-skills-card">
+                            <div class="dash-card-header">
+                                <h2>Top skills</h2>
+                                <a class="dash-link" href="/skills.html">Skills catalog →</a>
+                            </div>
+                            <div id="dash-skills"></div>
+                        </section>
+
+                        <!-- Project coverage -->
+                        <section class="dash-card" id="dash-projects-card">
+                            <div class="dash-card-header">
+                                <h2>Project coverage</h2>
+                                <a class="dash-link" href="/projects.html">Projects →</a>
+                            </div>
+                            <div id="dash-projects"></div>
+                        </section>
+
+                        <!-- Certification health -->
+                        <section class="dash-card" id="dash-certs-card">
+                            <div class="dash-card-header">
+                                <h2>Certification health</h2>
+                                <a class="dash-link" href="/certifications.html">Certifications →</a>
+                            </div>
+                            <div id="dash-certs"></div>
+                        </section>
+
+                        <!-- Engagement -->
+                        <section class="dash-card" id="dash-engagement-card">
+                            <div class="dash-card-header">
+                                <h2>Staff activity (last 30 days)</h2>
+                            </div>
+                            <div id="dash-engagement"></div>
+                        </section>
+                    </div>
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <!-- Toast Container -->
+    <div id="toast-container" class="toast-container"></div>
+
+    <script src="/auth.js?v=20260826a"></script>
+    <script src="/menu.js?v=20260826a"></script>
+    <script src="/sidebar.js?v=20260826a"></script>
+    <script src="/toast.js?v=20260826a"></script>
+    <script src="/reporting.js?v=20260826a"></script>
+</body>
+
+</html>

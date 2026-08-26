@@ -42,6 +42,10 @@ function renderNav(activeTab) {
     // Common links
     html += `<a href="/projects.html" class="nav-link ${activeTab === 'projects' ? 'active' : ''}">🗂 Projects</a>`;
     html += `<a href="/orgchart.html" class="nav-link ${activeTab === 'orgchart' ? 'active' : ''}">🌳 Org Chart</a>`;
+    // Reporting Dashboard - admin, HR, coordinator, or users with subordinates
+    if (hasFullAccess || subordinateCount > 0) {
+        html += `<a href="/reporting.html" class="nav-link ${activeTab === 'reporting' ? 'active' : ''}">📊 Dashboard</a>`;
+    }
     if (showStaff) {
         html += `<a href="/gantt.html" class="nav-link ${activeTab === 'gantt' ? 'active' : ''}">📊 Gantt Charts</a>`;
     }

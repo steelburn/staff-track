@@ -140,6 +140,9 @@ const Sidebar = {
         const isCoordinator = user.is_coordinator === true || user.is_coordinator === 1;
         const hasFullAccess = isAdmin || isHR || isCoordinator;
         const showStaff = isAdmin || isHR;
+        // Cached by fetchSubordinateCount() (menu.js) on login/page load; used to
+        // surface manager-only nav items without an extra fetch on every render.
+        const subordinateCount = parseInt(sessionStorage.getItem('st_subordinate_count') || '0', 10);
 
         let html = '';
 
@@ -151,6 +154,7 @@ const Sidebar = {
                 ${this.renderNavItem('🗂', 'Projects', '/projects.html', activeTab === 'projects', '', 'projects')}
                 ${this.renderNavItem('📊', 'Skills', '/skills.html', activeTab === 'skills')}
                 ${this.renderNavItem('🌳', 'Org Chart', '/orgchart.html', activeTab === 'orgchart')}
+                ${subordinateCount > 0 && !hasFullAccess ? this.renderNavItem('📈', 'Dashboard', '/reporting.html', activeTab === 'reporting') : ''}
                 ${hasFullAccess ? this.renderNavItem('📈', 'Gantt Charts', '/gantt.html', activeTab === 'gantt') : ''}
             </div>
         `;
@@ -161,6 +165,7 @@ const Sidebar = {
             html += `
                 <div class="nav-section">
                     <div class="nav-section-label">Management</div>
+                    ${(showStaff || hasFullAccess) ? this.renderNavItem('📊', 'Dashboard', '/reporting.html', activeTab === 'reporting') : ''}
                     ${showStaff ? this.renderNavItem('👥', 'All Staff', '/staff-view.html', activeTab === 'staff', '', 'staff') : ''}
                     ${showStaff ? this.renderNavItem('🏅', 'Certifications', '/certifications.html', activeTab === 'certifications') : ''}
                     ${isAdmin ? this.renderNavItem('⚙️', 'Catalog', '/catalog.html', activeTab === 'catalog') : ''}
@@ -186,6 +191,8 @@ const Sidebar = {
 
         // Populate the badges with live counts (fire-and-forget)
         this.refreshBadges(user);
+        // Managers (no full access) may not have the cached subordinate count yet — probe once
+        this.probeManagerNav(user, activeTab);
     },
 
     /**
@@ -221,6 +228,43 @@ const Sidebar = {
         } catch (err) {
             // Badges stay hidden if the fetch fails — never break the page
             console.error('Sidebar badge refresh failed:', err);
+        }
+    },
+
+    /**
+     * Managers without full access get the Dashboard nav item only when they
+     * actually have subordinates. st_subordinate_count is cached by
+     * fetchSubordinateCount() (menu.js); if it is missing/stale, probe the API
+     * once and inject the item when the count resolves (fire-and-forget).
+     */
+    async probeManagerNav(user, activeTab) {
+        if (!user) return;
+        const isAdmin = user.isAdmin === true;
+        const isHR = user.is_hr === true || user.is_hr === 1;
+        const isCoordinator = user.is_coordinator === true || user.is_coordinator === 1;
+        if (isAdmin || isHR || isCoordinator) return;
+        const cached = parseInt(sessionStorage.getItem('st_subordinate_count') || '0', 10);
+        if (cached > 0) return; // already rendered by render()
+        try {
+            const res = await window.StaffTrackAuth.apiFetch('/api/reports/my-subordinates');
+            if (!res.ok) return;
+            const data = await res.json();
+            const count = data.count || 0;
+            sessionStorage.setItem('st_subordinate_count', String(count));
+            if (count > 0) {
+                const nav = document.getElementById('sidebar-nav');
+                const existing = nav && nav.querySelector('a[href="/reporting.html"]');
+                if (nav && !existing) {
+                    const section = nav.querySelector('.nav-section');
+                    if (section) {
+                        section.insertAdjacentHTML('beforeend',
+                            this.renderNavItem('📈', 'Dashboard', '/reporting.html', activeTab === 'reporting'));
+                    }
+                }
+            }
+        } catch (err) {
+            // Nav item just stays hidden — never break the page
+            console.error('Sidebar manager probe failed:', err);
         }
     },
 
