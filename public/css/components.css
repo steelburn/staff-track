@@ -1791,3 +1791,115 @@ mark {
     color: var(--color-text-secondary);
     text-align: center;
 }
+
+/* ─── Skill Consolidation (System page) ─────────────────────────────────── */
+.skill-variants {
+    font-size: 0.72rem;
+    color: var(--color-text-secondary);
+    margin-top: 2px;
+}
+
+.skill-variants b {
+    color: var(--color-text-secondary);
+    font-weight: 600;
+}
+
+.dup-badge {
+    font-size: 0.7rem;
+    opacity: 0.8;
+    cursor: help;
+}
+
+.dupe-group {
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    padding: var(--space-3) var(--space-4);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    background: var(--color-bg-surface);
+}
+
+.dupe-group-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: var(--space-3);
+    flex-wrap: wrap;
+}
+
+.dupe-group-members {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    align-items: center;
+    flex: 1;
+    min-width: 0;
+}
+
+.dupe-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    padding: 0.2rem 0.55rem;
+    background: var(--bg-hover);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-full);
+    font-size: 0.78rem;
+    color: var(--color-text-primary);
+    white-space: nowrap;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.dupe-chip b {
+    font-weight: 600;
+}
+
+.dupe-chip em {
+    font-style: normal;
+    font-size: 0.68rem;
+    color: var(--color-text-secondary);
+    background: var(--color-bg-surface);
+    border-radius: var(--radius-sm);
+    padding: 0 0.3rem;
+}
+
+.dupe-chip-target {
+    background: var(--accent-blue);
+    color: #fff;
+    border-color: var(--accent-blue);
+}
+
+.dupe-chip-target em {
+    color: rgba(255, 255, 255, 0.85);
+    background: rgba(255, 255, 255, 0.15);
+}
+
+.dupe-group-foot {
+    font-size: 0.75rem;
+    color: var(--color-text-secondary);
+}
+
+.skill-chip-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+}
+
+.preview-summary {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    font-size: var(--font-size-sm);
+    padding: var(--space-3);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    background: var(--bg-hover);
+}
+
+.preview-warn {
+    color: var(--color-warning);
+    font-size: 0.75rem;
+}

@@ -116,23 +116,30 @@ Improve the accuracy of skill reporting and provide powerful search capabilities
 
 ### Technical Implementation
 
-#### 1. Database Schema Changes (`backend/src/db.js`)
-- **Add new tables for Skill Consolidation (Data Governance):**
-  - `skills_catalog`: Canonical list of skills (`id`, `name` (UNIQUE), `category`, `aliases`, `is_active`).
-  - `skill_merge_log`: Audit trail for merge, split, and rename operations (`id`, `from_name`, `to_name`, `affected_count`, `merged_by`, `merged_at`).
+#### 1. Skill Consolidation (Backend & Frontend) — System page
 
-#### 2. Skill Consolidation (Backend & Frontend)
-- **Backend API (`backend/src/routes/admin.js`):**
-  - **GET `/api/admin/skills`**: Returns aggregated skill usage statistics.
-  - **POST `/api/admin/skills/merge`**: Merges duplicate/variant skills into a target canonical skill.
-  - **POST `/api/admin/skills/split`**: Splits a single skill into multiple distinct skills for all affected staff.
-  - **POST `/api/admin/skills/rename`**: Bulk renames a specific skill.
-- **Frontend UI (`system.html` & `system.js`):**
-  - Add "Skill Consolidation" section in System Management.
-  - table-based management with bulk actions: **Merge**, **Split**, **Rename**, and **Delete**.
+- **`backend/src/utils/skillMatching.js`**: pure-function similarity engine.
+  - `skillCharNorm()` — grouping key (lowercase, keep a-z0-9#+, strip the rest): "Node.js" / "Nodejs" / "Node JS" collapse into one group.
+  - `pairScore()` — Levenshtein ratio on char-norm keys + token overlap (max-denominator; min-denominator lets single-word skills like ".NET"/"Database" chain unrelated skills into one giant component). Guards: digit-only diffs (SharePoint Designer 2010/2013, ESXi 7.0/8.0, HTML/HTML5), negation pairs (Spatial/Non-Spatial), ≤2-char names (C/C#/C++).
+  - `buildProposals()` — union-find components → proposal groups; recommended target = generic fewest-token name for subset relations, else most-used name.
+- **Backend API (`backend/src/routes/admin.js`)**:
+  - **GET `/api/admin/skills`** → `{skills, proposals}`: skills grouped by normalized spelling (`name` = most common variant, `variants[]`, `count` = distinct submissions, `instances` = rows) + machine-suggested duplicate groups for human review.
+  - **POST `/api/admin/skills/preview`**: dry-run merge — affected staff rows + dedupe collisions (submissions holding both a source and the target).
+  - **POST `/api/admin/skills/merge`**: 1+ sources (target auto-excluded, case-insensitive); updates rows, then dedupes same-submission duplicates (keep highest rating, tie = lowest id).
+  - **POST `/api/admin/skills/rename`**: guards "target already exists" → suggests merge instead.
+  - **POST `/api/admin/skills/split`**: round-robin distribution across the new names.
+  - **DELETE `/api/admin/skills`**: removes every instance of one skill.
+  - **GET/POST `/api/admin/skills/undo`**: every op snapshots affected rows (`id, submission_id, skill, rating`) into `skill_undo_log` (migration 0009) before writing; undo restores by id (re-INSERTs deleted rows). One undo level per actor, survives restart.
+  - All ops write `profile_audit_log` rows (section `skills_admin`, action = op or undo).
+- **Frontend UI (`system.html` & `system.js`)**:
+  - Skills table: spelling variants inline, instance counts, 🔁 badge on skills that appear in proposal groups.
+  - **Find Duplicates** panel: suggestion cards (members with counts + similarity %, recommended merge target, "Merge group" button).
+  - Merge modal with live preview of affected staff (dedupe rows flagged ⚠), target autocomplete; Rename/Split/Delete modals; **↩️ Undo** button (state persisted per actor, survives reload).
+  - Toolbar: Merge requires ≥2 selections; Rename/Split/Delete exactly 1.
 
-#### 3. Skill Search/Sort (Backend & Frontend)
+#### 2. Skill Search/Sort (Backend & Frontend)
 - **Backend API (`backend/src/routes/reports.js`):**
+  - **GET `/api/reports/skills`**: groups case- and whitespace-insensitively (label = most common spelling, staff lists merged).
   - **GET `/api/reports/staff-search`**: Multi-criteria skill matching (e.g., "Python ≥ 4 AND AWS ≥ 3").
 - **Frontend UI (`skills.html` & `skills.js`):**
   - Redesign Skills dashboard with an **Advanced Skill Filter**.

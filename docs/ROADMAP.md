@@ -252,7 +252,7 @@ Plus schema changes to `submission_projects`: add `start_date`, `description`, `
 
 ### 8. 🧩 Skill Consolidation (Data Governance) — ✅ COMPLETED
 
-**What**: Admin/HR tool to clean up free-form skill entries — merge duplicates, rename, split compound skills, and maintain a canonical skill catalog.
+**What**: Admin/HR tool to clean up free-form skill entries — normalized variant grouping, fuzzy duplicate proposals (typos, word order, subset names), merge with live staff preview + same-submission dedupe, rename, split, delete, one-level undo (per actor, survives restart), and audit trail (profile_audit_log, section `skills_admin`).
 **Status**: Implemented and verified.
 
 ---

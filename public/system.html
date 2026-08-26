@@ -5,8 +5,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>StaffTrack — System Management</title>
-    <link rel="stylesheet" href="/css/main.css?v=20260824d">
-    <script src="/theme.js?v=20260824d"></script>
+    <link rel="stylesheet" href="/css/main.css?v=20260826a">
+    <script src="/theme.js?v=20260826a"></script>
 </head>
 
 <body>
@@ -107,19 +107,34 @@
                 <div class="section-header" style="margin-top: var(--space-8);">
                     <div>
                         <h2 class="section-title">Skill Consolidation (Data Governance)</h2>
-                        <p class="section-count">Merge duplicates, rename, or delete skills across all staff submissions.</p>
+                        <p class="section-count" id="skills-summary">Loading skill catalog…</p>
                     </div>
                     <div style="display: flex; gap: var(--space-2); align-items: center; flex-wrap: wrap;">
                         <div class="search-box" style="width: 200px; flex: none;">
                             <span class="search-icon">🔍</span>
                             <input type="text" id="skill-search" class="input input-sm" placeholder="Search skills...">
                         </div>
-                        <button class="btn btn-secondary btn-sm" id="btn-propose-merges">🔎 Propose Merges</button>
+                        <button class="btn btn-secondary btn-sm" id="btn-find-duplicates">🔎 Find Duplicates</button>
                         <div style="width: 1px; height: 24px; background: var(--color-border);"></div>
                         <button class="btn btn-secondary btn-sm" id="btn-rename-skill" disabled>✏️ Rename</button>
                         <button class="btn btn-primary btn-sm" id="btn-merge-skills" disabled>🔗 Merge</button>
                         <button class="btn btn-secondary btn-sm" id="btn-split-skill" disabled>✂️ Split</button>
                         <button class="btn btn-danger btn-sm" id="btn-delete-skill" disabled>🗑️ Delete</button>
+                        <button class="btn btn-secondary btn-sm" id="btn-undo-skill" disabled title="No operation to undo">↩️ Undo</button>
+                    </div>
+                </div>
+
+                <!-- Duplicate Proposals Panel -->
+                <div class="card" id="duplicates-panel" style="margin-top: var(--space-4); display: none;">
+                    <div class="card-header">
+                        <div>
+                            <div class="card-title">🔎 Suggested Duplicate Groups</div>
+                            <div class="card-subtitle" id="duplicates-subtitle">Machine-suggested merges — review each group before applying.</div>
+                        </div>
+                        <button class="btn btn-secondary btn-sm" id="btn-close-duplicates">✕ Close</button>
+                    </div>
+                    <div class="card-body" id="duplicates-list" style="display: flex; flex-direction: column; gap: var(--space-3);">
+                        <!-- Proposal cards injected here -->
                     </div>
                 </div>
 
@@ -131,12 +146,13 @@
                                 <tr>
                                     <th style="width: 40px;"></th>
                                     <th>Skill Name</th>
-                                    <th style="width: 150px;">Submissions Count</th>
+                                    <th style="width: 140px;">Submissions</th>
+                                    <th style="width: 110px;">Instances</th>
                                 </tr>
                             </thead>
                             <tbody id="skills-catalog-tbody">
                                 <tr>
-                                    <td colspan="3">
+                                    <td colspan="4">
                                         <div class="loading-state">
                                             <div class="spinner"></div>
                                             <p>Loading skills...</p>
@@ -151,14 +167,114 @@
         </div>
     </div>
 
+    <!-- ═══ Merge Modal ═══════════════════════════════════════════════════ -->
+    <div class="modal-backdrop" id="merge-modal">
+        <div class="modal" role="dialog" aria-modal="true">
+            <div class="modal-header">
+                <div class="modal-title">🔗 Merge Skills</div>
+                <button class="modal-close" data-close-modal="merge-modal">✕</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group" style="margin-bottom: var(--space-4);">
+                    <label>Sources (will be merged away)</label>
+                    <div id="merge-sources" class="skill-chip-row"></div>
+                </div>
+                <div class="form-group" style="margin-bottom: var(--space-4);">
+                    <label for="merge-target">Target skill (canonical name)</label>
+                    <input type="text" id="merge-target" class="input" list="merge-target-datalist" placeholder="e.g. JavaScript">
+                    <datalist id="merge-target-datalist"></datalist>
+                </div>
+                <div id="merge-preview">
+                    <div class="loading-state" style="padding: var(--space-4);">
+                        <div class="spinner"></div>
+                        <p>Loading preview…</p>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" data-close-modal="merge-modal">Cancel</button>
+                <button class="btn btn-primary" id="btn-apply-merge">Apply Merge</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ═══ Rename Modal ══════════════════════════════════════════════════ -->
+    <div class="modal-backdrop" id="rename-modal">
+        <div class="modal" role="dialog" aria-modal="true">
+            <div class="modal-header">
+                <div class="modal-title">✏️ Rename Skill</div>
+                <button class="modal-close" data-close-modal="rename-modal">✕</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group" style="margin-bottom: var(--space-4);">
+                    <label>Current name</label>
+                    <div id="rename-old" class="skill-chip-row"></div>
+                </div>
+                <div class="form-group" style="margin-bottom: var(--space-4);">
+                    <label for="rename-new">New name</label>
+                    <input type="text" id="rename-new" class="input" placeholder="e.g. JavaScript">
+                </div>
+                <p class="form-hint" id="rename-hint"></p>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" data-close-modal="rename-modal">Cancel</button>
+                <button class="btn btn-primary" id="btn-apply-rename">Rename</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ═══ Split Modal ═══════════════════════════════════════════════════ -->
+    <div class="modal-backdrop" id="split-modal">
+        <div class="modal" role="dialog" aria-modal="true">
+            <div class="modal-header">
+                <div class="modal-title">✂️ Split Skill</div>
+                <button class="modal-close" data-close-modal="split-modal">✕</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group" style="margin-bottom: var(--space-4);">
+                    <label>Skill to split</label>
+                    <div id="split-original" class="skill-chip-row"></div>
+                </div>
+                <div class="form-group" style="margin-bottom: var(--space-4);">
+                    <label for="split-new">New skills (comma separated)</label>
+                    <textarea id="split-new" class="input" rows="3" placeholder="e.g. Frontend Development, Backend Development"></textarea>
+                </div>
+                <p class="form-hint">Existing instances are distributed round-robin across the new skills.</p>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" data-close-modal="split-modal">Cancel</button>
+                <button class="btn btn-primary" id="btn-apply-split">Split</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ═══ Delete Modal ══════════════════════════════════════════════════ -->
+    <div class="modal-backdrop" id="delete-modal">
+        <div class="modal" role="dialog" aria-modal="true">
+            <div class="modal-header">
+                <div class="modal-title">🗑️ Delete Skill</div>
+                <button class="modal-close" data-close-modal="delete-modal">✕</button>
+            </div>
+            <div class="modal-body">
+                <p>Delete all instances of this skill from every submission:</p>
+                <div id="delete-name" class="skill-chip-row" style="margin: var(--space-3) 0;"></div>
+                <p class="form-hint" id="delete-hint"></p>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" data-close-modal="delete-modal">Cancel</button>
+                <button class="btn btn-danger" id="btn-apply-delete">Delete</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Toast Container -->
     <div id="toast-container" class="toast-container"></div>
 
-    <script src="/auth.js?v=20260824d"></script>
-    <script src="/menu.js?v=20260824d"></script>
-    <script src="/sidebar.js?v=20260824d"></script>
-    <script src="/toast.js?v=20260824d"></script>
-    <script src="/system.js?v=20260824d"></script>
+    <script src="/auth.js?v=20260826a"></script>
+    <script src="/menu.js?v=20260826a"></script>
+    <script src="/sidebar.js?v=20260826a"></script>
+    <script src="/toast.js?v=20260826a"></script>
+    <script src="/system.js?v=20260826a"></script>
 </body>
 
 </html>

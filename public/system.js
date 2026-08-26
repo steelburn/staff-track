@@ -12,7 +12,13 @@ function showToast(msg, isErr = false) {
     t.className = 'toast' + (isErr ? ' toast-err' : '');
     t.textContent = msg;
     document.body.appendChild(t);
-    setTimeout(() => { t.classList.add('hide'); setTimeout(() => t.remove(), 400); }, 2800);
+    setTimeout(() => { t.classList.add('hide'); setTimeout(() => t.remove(), 400); }, 3200);
+}
+
+function esc(s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+    })[c]);
 }
 
 async function handleSyncStaff() {
@@ -38,17 +44,17 @@ async function handleSyncStaff() {
         if (data.started) {
             if (statusDiv) statusDiv.textContent = 'Syncing staff... please wait';
             btn.textContent = '⏳ Syncing...';
-            
+
             // Poll for status until complete
             let pollCount = 0;
             const maxPolls = 180; // 3 minutes max
             while (pollCount < maxPolls) {
                 await new Promise(r => setTimeout(r, 1000));
-                
+
                 const statusRes = await window.StaffTrackAuth.apiFetch('/api/admin/sync-staff/status');
                 if (statusRes.ok) {
                     const status = await statusRes.json();
-                    
+
                     if (status.completed) {
                         const result = status.result;
                         if (result.success) {
@@ -80,7 +86,7 @@ async function handleSyncStaff() {
                 }
                 pollCount++;
             }
-            
+
             if (pollCount >= maxPolls && !status.completed) {
                 showToast('Sync timed out. Check status later.', true);
             }
@@ -147,7 +153,7 @@ async function handleSyncProjects() {
         if (data.success) {
             showToast(data.message || 'Sync complete');
             if (statusDiv) statusDiv.textContent = `Last sync: ${new Date().toLocaleString()}`;
-            
+
             const statsCard = document.getElementById('import-stats-card');
             const resultsBody = document.getElementById('import-results-body');
             if (statsCard) statsCard.style.display = 'block';
@@ -174,14 +180,16 @@ async function handleSyncProjects() {
 }
 
 // ── Skill Consolidation Logic ─────────────────────────────────────────────────
-let catalogSkills = [];
-
-async function initSkillConsolidation() {
-    await loadCatalogSkills();
-    setupSkillActions();
-}
-
+let catalog = { skills: [], proposals: [] }; // GET /api/admin/skills payload
 let skillSearchQ = '';
+let selectedSkills = new Set();              // checked skill names (main table)
+let undoInfo = null;                         // GET /api/admin/skills/undo payload
+
+const catalogIndex = new Map();              // name -> skill entry (by display name)
+
+function getSkill(name) {
+    return catalogIndex.get(name);
+}
 
 async function loadCatalogSkills() {
     const tbody = document.getElementById('skills-catalog-tbody');
@@ -190,58 +198,443 @@ async function loadCatalogSkills() {
     try {
         const res = await window.StaffTrackAuth.apiFetch('/api/admin/skills');
         if (!res.ok) throw new Error('Failed to load skills');
-        catalogSkills = await res.json();
+        catalog = await res.json();
+        catalog.skills = catalog.skills || [];
+        catalog.proposals = catalog.proposals || [];
+        catalogIndex.clear();
+        catalog.skills.forEach(s => catalogIndex.set(s.name, s));
         renderCatalogSkills();
+        renderDuplicatesPanel();
+        updateSummary();
+        await refreshUndoState();
     } catch (e) {
         showToast(e.message, true);
-        tbody.innerHTML = `<tr><td colspan="3" style="padding:1rem;color:var(--danger)">Error loading skills.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="4" style="padding:1rem;color:var(--danger)">Error loading skills.</td></tr>`;
     }
+}
+
+function updateSummary() {
+    const el = document.getElementById('skills-summary');
+    if (!el) return;
+    const variantCount = catalog.skills.reduce((n, s) => n + s.variants.length, 0);
+    const propCount = catalog.proposals.length;
+    el.textContent = `${catalog.skills.length} skills · ${variantCount} spelling variants · ${propCount} suggested merge groups.`;
+}
+
+// A skill participates in a suggested merge group (for the 🔁 badge).
+function inProposal(name) {
+    return catalog.proposals.some(p => p.members.some(m => m.name === name));
 }
 
 function renderCatalogSkills() {
     const tbody = document.getElementById('skills-catalog-tbody');
     if (!tbody) return;
 
-    let list = catalogSkills;
+    let list = catalog.skills;
     const q = skillSearchQ.toLowerCase();
 
     if (q) {
-        list = list.filter(s => (s.name || '').toLowerCase().includes(q));
+        list = list.filter(s => (s.name || '').toLowerCase().includes(q)
+            || (s.variants || []).some(v => v.name.toLowerCase().includes(q)));
     }
 
     if (!list.length) {
-        tbody.innerHTML = `<tr><td colspan="3" style="padding:1rem;color:var(--text-muted);text-align:center">${skillSearchQ ? 'No matching skills found.' : 'No skills found.'}</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="4" style="padding:1rem;color:var(--text-muted);text-align:center">${skillSearchQ ? 'No matching skills found.' : 'No skills found.'}</td></tr>`;
         updateSkillButtons();
         return;
     }
 
-    tbody.innerHTML = list.map((s, i) => `
+    tbody.innerHTML = list.map(s => {
+        const variants = (s.variants || []).length
+            ? `<div class="skill-variants">variants: ${s.variants.map(v => `${esc(v.name)} <b>×${v.instances}</b>`).join(' · ')}</div>`
+            : '';
+        const dupBadge = inProposal(s.name)
+            ? '<span class="dup-badge" title="Appears in a suggested merge group">🔁</span>'
+            : '';
+        return `
         <tr style="border-bottom:1px solid var(--border)">
-            <td style="padding:.5rem"><input type="checkbox" class="chk-skill" data-name="${s.name.replace(/"/g, '&quot;')}"></td>
-            <td style="padding:.5rem;font-weight:500">${s.name}</td>
+            <td style="padding:.5rem"><input type="checkbox" class="chk-skill" data-name="${esc(s.name)}" ${selectedSkills.has(s.name) ? 'checked' : ''}></td>
+            <td style="padding:.5rem">
+                <div style="font-weight:500;display:flex;align-items:center;gap:.35rem">${esc(s.name)} ${dupBadge}</div>
+                ${variants}
+            </td>
             <td style="padding:.5rem"><span class="skill-count-pill" style="display:inline-block;padding:.1rem .5rem;background:var(--bg-hover);border-radius:1rem;font-size:.75rem">${s.count}</span></td>
-        </tr>
-    `).join('');
+            <td style="padding:.5rem;color:var(--color-text-secondary);font-size:.8rem">${s.instances}</td>
+        </tr>`;
+    }).join('');
 
     document.querySelectorAll('.chk-skill').forEach(chk => {
-        chk.addEventListener('change', updateSkillButtons);
+        chk.addEventListener('change', () => {
+            if (chk.checked) selectedSkills.add(chk.dataset.name);
+            else selectedSkills.delete(chk.dataset.name);
+            updateSkillButtons();
+        });
     });
     updateSkillButtons();
 }
 
 function getSelectedSkills() {
-    return Array.from(document.querySelectorAll('.chk-skill:checked')).map(chk => chk.dataset.name);
+    return [...selectedSkills];
 }
 
 function updateSkillButtons() {
-    const sel = getSelectedSkills();
-    const len = sel.length;
-    document.getElementById('btn-rename-skill').disabled = (len !== 1);
-    document.getElementById('btn-merge-skills').disabled = (len < 1); // Can technically "merge" 1 to itself/rename, but usually N>1
-    document.getElementById('btn-split-skill').disabled = (len !== 1);
-    document.getElementById('btn-delete-skill').disabled = (len !== 1);
+    const n = selectedSkills.size;
+    document.getElementById('btn-rename-skill').disabled = (n !== 1);
+    document.getElementById('btn-merge-skills').disabled = (n < 2);
+    document.getElementById('btn-split-skill').disabled = (n !== 1);
+    document.getElementById('btn-delete-skill').disabled = (n !== 1);
 }
 
+// ── Modals ───────────────────────────────────────────────────────────────────
+function openModal(id) {
+    const el = document.getElementById(id);
+    if (el) el.classList.add('active');
+}
+
+function closeModal(id) {
+    const el = document.getElementById(id);
+    if (el) el.classList.remove('active');
+}
+
+function closeAllModals() {
+    document.querySelectorAll('.modal-backdrop.active').forEach(el => el.classList.remove('active'));
+}
+
+// ── Duplicate proposals panel ────────────────────────────────────────────────
+function renderDuplicatesPanel() {
+    const panel = document.getElementById('duplicates-panel');
+    if (!panel) return;
+    if (panel.style.display === 'none') return;
+
+    const list = document.getElementById('duplicates-list');
+    const subtitle = document.getElementById('duplicates-subtitle');
+
+    if (!catalog.proposals.length) {
+        subtitle.textContent = 'No duplicate groups found — the catalog is clean.';
+        list.innerHTML = '';
+        return;
+    }
+
+    subtitle.textContent = `${catalog.proposals.length} machine-suggested groups (${catalog.proposals.reduce((n, p) => n + p.members.length, 0)} skill names). Review each group, then merge.`;
+    list.innerHTML = catalog.proposals.map((p, i) => {
+        const memberChips = p.members.map(m => {
+            const pct = Math.round((m.score || 1) * 100);
+            return m.isTarget
+                ? `<span class="dupe-chip dupe-chip-target" title="Merge target (canonical name)">${esc(m.name)} <b>×${m.instances}</b></span>`
+                : `<span class="dupe-chip" title="~${pct}% similar">${esc(m.name)} <b>×${m.instances}</b> <em>${pct}%</em></span>`;
+        }).join('');
+        return `
+        <div class="dupe-group">
+            <div class="dupe-group-head">
+                <div class="dupe-group-members">${memberChips}</div>
+                <div style="display:flex;gap:var(--space-2);align-items:center;flex:none;">
+                    <button class="btn btn-primary btn-sm btn-merge-group" data-group="${i}">🔗 Merge group</button>
+                </div>
+            </div>
+            <div class="dupe-group-foot">Merge into <b>${esc(p.target)}</b> — ${p.groupCount} submissions · ${p.groupInstances} instances affected</div>
+        </div>`;
+    }).join('');
+
+    list.querySelectorAll('.btn-merge-group').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const p = catalog.proposals[+btn.dataset.group];
+            if (!p) return;
+            // Sources = non-target members; target stays in the target field.
+            openMergeModal(p.members.filter(m => !m.isTarget).map(m => m.name), p.target);
+        });
+    });
+}
+
+// ── Merge modal ──────────────────────────────────────────────────────────────
+let mergeSources = [];
+let mergePreviewTimer = null;
+
+function openMergeModal(sources, target) {
+    mergeSources = [...new Set(sources.map(s => s.trim()).filter(Boolean))];
+    const chipsEl = document.getElementById('merge-sources');
+    const targetEl = document.getElementById('merge-target');
+    const datalist = document.getElementById('merge-target-datalist');
+
+    if (chipsEl) {
+        chipsEl.innerHTML = mergeSources.map(s => {
+            const skill = getSkill(s);
+            return `<span class="dupe-chip">${esc(s)} <b>×${skill ? skill.instances : '?'}</b></span>`;
+        }).join('');
+    }
+    if (datalist) {
+        datalist.innerHTML = catalog.skills.map(s => `<option value="${esc(s.name)}"></option>`).join('');
+    }
+    if (targetEl) {
+        targetEl.value = target || (getSkill(mergeSources[0]) ? mergeSources[0] : '');
+    }
+
+    openModal('merge-modal');
+    loadMergePreview();
+}
+
+async function loadMergePreview() {
+    const target = (document.getElementById('merge-target')?.value || '').trim();
+    const previewEl = document.getElementById('merge-preview');
+    if (!previewEl) return;
+
+    if (!target || mergeSources.length === 0) {
+        previewEl.innerHTML = '<p class="form-hint">Enter a target skill name to preview what will change.</p>';
+        return;
+    }
+
+    previewEl.innerHTML = '<div class="loading-state" style="padding: var(--space-4);"><div class="spinner"></div><p>Loading preview…</p></div>';
+
+    try {
+        const res = await window.StaffTrackAuth.apiFetch('/api/admin/skills/preview', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ sourceSkills: mergeSources, targetSkill: target })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Preview failed');
+
+        const s = data.summary;
+        let html = `<div class="preview-summary">`;
+        html += `<span>⬆️ <b>${s.affectedRows}</b> skill instance${s.affectedRows === 1 ? '' : 's'} across <b>${s.affectedSubmissions}</b> submission${s.affectedSubmissions === 1 ? '' : 's'}</span>`;
+        if (s.dedupeRows > 0) {
+            html += `<span class="preview-warn">⚠️ <b>${s.dedupeRows}</b> duplicate row${s.dedupeRows === 1 ? '' : 's'} will be collapsed (staff who already have the target keep the highest rating)</span>`;
+        }
+        html += `</div>`;
+
+        if (data.rows.length > 0) {
+            const MAX_ROWS = 40;
+            const shown = data.rows.slice(0, MAX_ROWS);
+            html += `<div class="table-scroll" style="max-height:260px;overflow-y:auto;margin-top:var(--space-3);"><table class="table table-sm">`;
+            html += `<thead><tr><th>Staff</th><th>Current Skill</th><th>Rating</th><th></th><th>Target</th></tr></thead><tbody>`;
+            html += shown.map(r => `
+                <tr>
+                    <td>${esc(r.staffName || r.staffEmail)}</td>
+                    <td>${esc(r.skill)}</td>
+                    <td>${r.rating || '—'}</td>
+                    <td style="color:var(--color-text-secondary)">→</td>
+                    <td>${esc(r.newSkill)}${r.willDedupe ? ' <span class="preview-warn" title="This submission also has the target skill — rows will be deduped">⚠</span>' : ''}</td>
+                </tr>`).join('');
+            if (data.rows.length > MAX_ROWS) {
+                html += `<tr><td colspan="5" style="color:var(--color-text-secondary)">…and ${data.rows.length - MAX_ROWS} more</td></tr>`;
+            }
+            html += `</tbody></table></div>`;
+        } else {
+            html += '<p class="form-hint" style="margin-top:var(--space-2)">No existing instances of the source skills — nothing will change.</p>';
+        }
+        previewEl.innerHTML = html;
+    } catch (e) {
+        previewEl.innerHTML = `<p class="form-hint" style="color:var(--danger)">${esc(e.message)}</p>`;
+    }
+}
+
+async function applyMerge() {
+    const target = (document.getElementById('merge-target')?.value || '').trim();
+    if (!target) {
+        showToast('Enter a target skill name.', true);
+        return;
+    }
+    const btn = document.getElementById('btn-apply-merge');
+    btn.disabled = true;
+    const original = btn.textContent;
+    btn.textContent = '⏳ Merging...';
+
+    try {
+        const res = await window.StaffTrackAuth.apiFetch('/api/admin/skills/merge', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ targetSkill: target, sourceSkills: mergeSources })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Merge failed');
+
+        showToast(`${data.message} — ↩️ Undo available`);
+        closeModal('merge-modal');
+        await loadCatalogSkills();
+    } catch (e) {
+        showToast(e.message, true);
+    } finally {
+        btn.disabled = false;
+        btn.textContent = original;
+    }
+}
+
+// ── Rename modal ─────────────────────────────────────────────────────────────
+let renameOldName = '';
+
+function openRenameModal(name) {
+    renameOldName = name;
+    const oldEl = document.getElementById('rename-old');
+    const newEl = document.getElementById('rename-new');
+    const hint = document.getElementById('rename-hint');
+    if (oldEl) oldEl.innerHTML = `<span class="dupe-chip">${esc(name)} <b>×${getSkill(name)?.instances || '?'}</b></span>`;
+    if (newEl) { newEl.value = name; newEl.focus(); newEl.select(); }
+    if (hint) hint.textContent = `Renaming updates all ${getSkill(name)?.count || 0} submissions using this skill.`;
+    openModal('rename-modal');
+}
+
+async function applyRename() {
+    const oldName = renameOldName;
+    const newName = (document.getElementById('rename-new')?.value || '').trim();
+    if (!newName) {
+        showToast('Enter a new name.', true);
+        return;
+    }
+    const btn = document.getElementById('btn-apply-rename');
+    btn.disabled = true;
+    const original = btn.textContent;
+    btn.textContent = '⏳ Renaming...';
+
+    try {
+        const res = await window.StaffTrackAuth.apiFetch('/api/admin/skills/rename', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ oldName, newName })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Rename failed');
+
+        showToast(`${data.message} — ↩️ Undo available`);
+        closeModal('rename-modal');
+        await loadCatalogSkills();
+    } catch (e) {
+        showToast(e.message, true);
+    } finally {
+        btn.disabled = false;
+        btn.textContent = original;
+    }
+}
+
+// ── Split modal ──────────────────────────────────────────────────────────────
+let splitOriginalName = '';
+
+function openSplitModal(name) {
+    splitOriginalName = name;
+    const origEl = document.getElementById('split-original');
+    const newEl = document.getElementById('split-new');
+    if (origEl) origEl.innerHTML = `<span class="dupe-chip">${esc(name)} <b>×${getSkill(name)?.instances || '?'}</b></span>`;
+    if (newEl) { newEl.value = ''; newEl.focus(); }
+    openModal('split-modal');
+}
+
+async function applySplit() {
+    const originalName = splitOriginalName;
+    const raw = (document.getElementById('split-new')?.value || '');
+    const newSkills = raw.split(',').map(s => s.trim()).filter(Boolean);
+    if (newSkills.length < 2) {
+        showToast('Provide at least two comma-separated skill names.', true);
+        return;
+    }
+    const btn = document.getElementById('btn-apply-split');
+    btn.disabled = true;
+    const original = btn.textContent;
+    btn.textContent = '⏳ Splitting...';
+
+    try {
+        const res = await window.StaffTrackAuth.apiFetch('/api/admin/skills/split', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ originalSkill: originalName, newSkills })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Split failed');
+
+        showToast(`${data.message} — ↩️ Undo available`);
+        closeModal('split-modal');
+        await loadCatalogSkills();
+    } catch (e) {
+        showToast(e.message, true);
+    } finally {
+        btn.disabled = false;
+        btn.textContent = original;
+    }
+}
+
+// ── Delete modal ─────────────────────────────────────────────────────────────
+let deleteSkillName = '';
+
+function openDeleteModal(name) {
+    deleteSkillName = name;
+    const nameEl = document.getElementById('delete-name');
+    const hint = document.getElementById('delete-hint');
+    const skill = getSkill(name);
+    if (nameEl) nameEl.innerHTML = `<span class="dupe-chip">${esc(name)} <b>×${skill?.instances || '?'}</b></span>`;
+    if (hint) hint.textContent = `Deletes ${skill?.count || 0} submission instance${skill?.count === 1 ? '' : 's'}. ↩️ Undo can restore it.`;
+    openModal('delete-modal');
+}
+
+async function applyDelete() {
+    const skillName = deleteSkillName;
+    const btn = document.getElementById('btn-apply-delete');
+    btn.disabled = true;
+    const original = btn.textContent;
+    btn.textContent = '⏳ Deleting...';
+
+    try {
+        const res = await window.StaffTrackAuth.apiFetch('/api/admin/skills', {
+            method: 'DELETE',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ skillName })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Delete failed');
+
+        showToast(`${data.message} — ↩️ Undo available`);
+        closeModal('delete-modal');
+        await loadCatalogSkills();
+    } catch (e) {
+        showToast(e.message, true);
+    } finally {
+        btn.disabled = false;
+        btn.textContent = original;
+    }
+}
+
+// ── Undo ─────────────────────────────────────────────────────────────────────
+async function refreshUndoState() {
+    const btn = document.getElementById('btn-undo-skill');
+    if (!btn) return;
+    try {
+        const res = await window.StaffTrackAuth.apiFetch('/api/admin/skills/undo');
+        if (!res.ok) { btn.disabled = true; return; }
+        undoInfo = await res.json();
+        btn.disabled = !undoInfo.available;
+        btn.title = undoInfo.available
+            ? `Undo: ${undoInfo.summary || undoInfo.action} (${undoInfo.affected} records)`
+            : 'No operation to undo';
+    } catch {
+        btn.disabled = true;
+    }
+}
+
+async function doUndo() {
+    if (!undoInfo || !undoInfo.available) return;
+    if (!confirm(`Undo the last skill consolidation operation?\n\n${undoInfo.summary || undoInfo.action} (${undoInfo.affected} records)`)) return;
+
+    const btn = document.getElementById('btn-undo-skill');
+    btn.disabled = true;
+    const original = btn.textContent;
+    btn.textContent = '⏳ Restoring...';
+
+    try {
+        const res = await window.StaffTrackAuth.apiFetch('/api/admin/skills/undo', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' }
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Undo failed');
+
+        showToast(data.message);
+        await loadCatalogSkills();
+    } catch (e) {
+        showToast(e.message, true);
+    } finally {
+        btn.disabled = false;
+        btn.textContent = original;
+        refreshUndoState();
+    }
+}
+
+// ── Wiring ───────────────────────────────────────────────────────────────────
 function setupSkillActions() {
     // Search
     document.getElementById('skill-search')?.addEventListener('input', e => {
@@ -249,147 +642,82 @@ function setupSkillActions() {
         renderCatalogSkills();
     });
 
-    // Propose Merges
-    document.getElementById('btn-propose-merges')?.addEventListener('click', () => {
-        // Normalize skill name for grouping: trim, collapse spaces, lowercase
-        function normalizeForGrouping(name) {
-            return name.trim().replace(/\s+/g, ' ').toLowerCase();
-        }
-        
-        const map = new Map(); // normalized -> array of original names
-        catalogSkills.forEach(s => {
-            const key = normalizeForGrouping(s.name);
-            if (!map.has(key)) map.set(key, []);
-            map.get(key).push(s.name);
-        });
+    // Find Duplicates: toggle the proposals panel
+    document.getElementById('btn-find-duplicates')?.addEventListener('click', () => {
+        const panel = document.getElementById('duplicates-panel');
+        if (!panel) return;
+        const isHidden = panel.style.display === 'none';
+        panel.style.display = isHidden ? 'block' : 'none';
+        if (isHidden) renderDuplicatesPanel();
+        const btn = document.getElementById('btn-find-duplicates');
+        if (btn) btn.textContent = isHidden ? '🔍 Hide Duplicates' : '🔎 Find Duplicates';
+    });
+    document.getElementById('btn-close-duplicates')?.addEventListener('click', () => {
+        const panel = document.getElementById('duplicates-panel');
+        if (panel) panel.style.display = 'none';
+        const btn = document.getElementById('btn-find-duplicates');
+        if (btn) btn.textContent = '🔎 Find Duplicates';
+    });
 
-        const toCheck = new Set();
-        let proposedGroups = 0;
+    // Rename
+    document.getElementById('btn-rename-skill')?.addEventListener('click', () => {
+        if (selectedSkills.size !== 1) return;
+        openRenameModal([...selectedSkills][0]);
+    });
 
-        for (const [low, names] of map.entries()) {
-            if (names.length > 1) {
-                names.forEach(n => toCheck.add(n));
-                proposedGroups++;
-            }
-        }
+    // Merge (toolbar — needs 2+ checked)
+    document.getElementById('btn-merge-skills')?.addEventListener('click', () => {
+        if (selectedSkills.size < 2) return;
+        const sources = getSelectedSkills();
+        // Default target = the most-used selected skill
+        const target = sources.slice().sort((a, b) =>
+            (getSkill(b)?.instances || 0) - (getSkill(a)?.instances || 0))[0];
+        openMergeModal(sources, target);
+    });
 
-        if (proposedGroups === 0) {
-            showToast('No case-based duplicates found.');
+    // Split
+    document.getElementById('btn-split-skill')?.addEventListener('click', () => {
+        if (selectedSkills.size !== 1) return;
+        openSplitModal([...selectedSkills][0]);
+    });
+
+    // Delete
+    document.getElementById('btn-delete-skill')?.addEventListener('click', () => {
+        if (selectedSkills.size !== 1) return;
+        openDeleteModal([...selectedSkills][0]);
+    });
+
+    // Undo
+    document.getElementById('btn-undo-skill')?.addEventListener('click', doUndo);
+
+    // Modal close wiring (delegated)
+    document.addEventListener('click', e => {
+        const closer = e.target.closest('[data-close-modal]');
+        if (closer) {
+            closeModal(closer.dataset.closeModal);
             return;
         }
-
-        let checkedCount = 0;
-        document.querySelectorAll('.chk-skill').forEach(chk => {
-            if (toCheck.has(chk.dataset.name)) {
-                chk.checked = true;
-                checkedCount++;
-            } else {
-                chk.checked = false;
-            }
-        });
-
-        updateSkillButtons();
-        showToast(`Proposed ${proposedGroups} groups for merging (${checkedCount} skills selected)`);
-    });
-
-    document.getElementById('btn-rename-skill')?.addEventListener('click', async () => {
-        const sel = getSelectedSkills();
-        if (sel.length !== 1) return;
-        const oldName = sel[0];
-        const newName = prompt(`Rename "${oldName}" to:`, oldName);
-        if (!newName || newName.trim() === '' || newName === oldName) return;
-
-        try {
-            const res = await window.StaffTrackAuth.apiFetch('/api/admin/skills/rename', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ oldName, newName: newName.trim() })
-            });
-            const data = await res.json();
-            if (data.success) {
-                showToast(`Renamed "${oldName}" to "${newName}" (${data.affectedCount} submissions updated)`);
-                loadCatalogSkills();
-            } else throw new Error(data.error);
-        } catch (e) {
-            showToast(e.message, true);
+        // Click on the backdrop (not the modal card) closes it
+        if (e.target.classList.contains('modal-backdrop')) {
+            e.target.classList.remove('active');
         }
     });
-
-    document.getElementById('btn-merge-skills')?.addEventListener('click', async () => {
-        const sel = getSelectedSkills();
-        if (sel.length < 1) return;
-        const targetSkill = prompt(`Merge ${sel.length} skills into which canonical name?`, sel[0]);
-        if (!targetSkill || targetSkill.trim() === '') return;
-
-        if (!confirm(`Are you sure you want to merge:\n\n${sel.join('\n')}\n\nInto: "${targetSkill}"?`)) return;
-
-        try {
-            const res = await window.StaffTrackAuth.apiFetch('/api/admin/skills/merge', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ targetSkill: targetSkill.trim(), sourceSkills: sel })
-            });
-            const data = await res.json();
-            if (data.success) {
-                showToast(`Merged into "${targetSkill}" (${data.affectedCount} specific skill updates made)`);
-                loadCatalogSkills();
-            } else throw new Error(data.error);
-        } catch (e) {
-            showToast(e.message, true);
-        }
+    document.addEventListener('keydown', e => {
+        if (e.key === 'Escape') closeAllModals();
     });
 
-    document.getElementById('btn-split-skill')?.addEventListener('click', async () => {
-        const sel = getSelectedSkills();
-        if (sel.length !== 1) return;
-        const originalSkill = sel[0];
-
-        const newSkillsStr = prompt(`Split "${originalSkill}" into multiple skills (comma separated):`);
-        if (!newSkillsStr) return;
-
-        const newSkills = newSkillsStr.split(',').map(s => s.trim()).filter(s => s);
-        if (newSkills.length < 2) {
-            showToast('Please provide at least two skills separated by commas.', true);
-            return;
-        }
-
-        if (!confirm(`Are you sure you want to split "${originalSkill}" into:\n\n${newSkills.map(s => '- ' + s).join('\n')}\n?`)) return;
-
-        try {
-            const res = await window.StaffTrackAuth.apiFetch('/api/admin/skills/split', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ originalSkill, newSkills })
-            });
-            const data = await res.json();
-            if (data.success) {
-                showToast(`Split "${originalSkill}" into ${newSkills.length} skills (${data.affectedCount} specific instances updated)`);
-                loadCatalogSkills();
-            } else throw new Error(data.error);
-        } catch (e) {
-            showToast(e.message, true);
-        }
+    // Merge modal: live preview on target change
+    document.getElementById('merge-target')?.addEventListener('input', () => {
+        clearTimeout(mergePreviewTimer);
+        mergePreviewTimer = setTimeout(loadMergePreview, 400);
     });
+    document.getElementById('btn-apply-merge')?.addEventListener('click', applyMerge);
+    document.getElementById('btn-apply-rename')?.addEventListener('click', applyRename);
+    document.getElementById('btn-apply-split')?.addEventListener('click', applySplit);
+    document.getElementById('btn-apply-delete')?.addEventListener('click', applyDelete);
+}
 
-    document.getElementById('btn-delete-skill')?.addEventListener('click', async () => {
-        const sel = getSelectedSkills();
-        if (sel.length !== 1) return;
-        const skillName = sel[0];
-        if (!confirm(`Are you sure you want to DELETE all instances of "${skillName}"? This cannot be undone.`)) return;
-
-        try {
-            const res = await window.StaffTrackAuth.apiFetch('/api/admin/skills', {
-                method: 'DELETE',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ skillName })
-            });
-            const data = await res.json();
-            if (data.success) {
-                showToast(`Deleted "${skillName}" (${data.deletedCount} instances removed)`);
-                loadCatalogSkills();
-            } else throw new Error(data.error);
-        } catch (e) {
-            showToast(e.message, true);
-        }
-    });
+async function initSkillConsolidation() {
+    setupSkillActions();
+    await loadCatalogSkills();
 }

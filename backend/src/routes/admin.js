@@ -3,6 +3,8 @@ import { getDb } from '../db.js';
 import { verifyToken, requireRole } from './auth.js';
 import { v4 as uuidv4 } from 'uuid';
 import axios from 'axios';
+import { logAudit } from '../utils/audit.js';
+import { skillCharNorm, buildProposals } from '../utils/skillMatching.js';
 
 const router = express.Router();
 
@@ -99,30 +101,186 @@ router.post('/roles', verifyToken, requireRole('admin'), async (req, res) => {
     }
 });
 
+// ── Skill consolidation helpers ──────────────────────────────────────────────
+// NOTE: db.query() wraps mysql2 connection.execute() (prepared statements),
+// which does NOT expand arrays for `IN (?)` — build the placeholders manually.
+function inPlaceholders(arr) {
+    return arr.map(() => '?').join(',');
+}
+
+// Snapshot the full before-state of affected rows so the latest op per actor
+// can be rolled back exactly (see GET/POST /admin/skills/undo below).
+async function snapshotSkillRows(db, skillNames, actorEmail, action, summary) {
+    const [rows] = await db.query(
+        `SELECT id, submission_id, skill, rating FROM submission_skills
+         WHERE skill IN (${inPlaceholders(skillNames)})`,
+        skillNames
+    );
+    await db.query(
+        `INSERT INTO skill_undo_log (actor_email, action, summary, before_state, created_at)
+         VALUES (?, ?, ?, ?, ?)`,
+        [(actorEmail || '').toLowerCase(), action, summary || null,
+         JSON.stringify(rows), new Date().toISOString().slice(0, 19).replace('T', ' ')]
+    );
+    return rows.length;
+}
+
+async function restoreSnapshot(db, beforeState) {
+    for (const row of beforeState) {
+        const [exists] = await db.query('SELECT id FROM submission_skills WHERE id = ?', [row.id]);
+        if (exists.length > 0) {
+            await db.query('UPDATE submission_skills SET skill = ?, rating = ? WHERE id = ?',
+                [row.skill, row.rating, row.id]);
+        } else {
+            await db.query(
+                'INSERT INTO submission_skills (id, submission_id, skill, rating) VALUES (?, ?, ?, ?)',
+                [row.id, row.submission_id, row.skill, row.rating]
+            );
+        }
+    }
+}
+
+// Collapse duplicate (submission_id, skill) rows left behind by a merge:
+// keep the highest rating per submission, ties keep the lowest id.
+async function dedupeSkillRows(db, skillName) {
+    const [result] = await db.query(
+        `DELETE d FROM submission_skills d
+         JOIN submission_skills k
+           ON k.submission_id = d.submission_id AND k.skill = d.skill
+           AND (k.rating > d.rating OR (k.rating = d.rating AND k.id < d.id))
+         WHERE d.skill = ?`,
+        [skillName]
+    );
+    return result.affectedRows;
+}
+
 // ── GET /admin/skills ────────────────────────────────────────────────────────
-// Get all unique skills with counts for skill management UI
-// Allows both admin and HR users to view and manage skills
+// Full skill catalog for the consolidation UI: every distinct skill grouped by
+// normalized spelling (variants listed), plus machine-suggested duplicate
+// groups for human review.
 router.get('/skills', verifyToken, requireRole('admin', 'hr'), async (req, res) => {
     try {
         const db = await getDb();
-        const query = `
-            SELECT 
-                sk.skill as name,
-                COUNT(DISTINCT sk.submission_id) as count
-            FROM submission_skills sk
-            GROUP BY sk.skill
-            ORDER BY count DESC, sk.skill ASC
-        `;
-        const [rows] = await db.query(query);
-        res.json(rows);
+        const [rows] = await db.query('SELECT skill, submission_id FROM submission_skills');
+
+        // Group by char-normalized key; variants = alternate spellings.
+        const groupsMap = new Map(); // key -> { key, variants: Map<name,instances>, subs: Set, instances }
+        for (const row of rows) {
+            const key = skillCharNorm(row.skill);
+            let g = groupsMap.get(key);
+            if (!g) {
+                g = { key, variants: new Map(), subs: new Set(), instances: 0 };
+                groupsMap.set(key, g);
+            }
+            g.instances++;
+            g.variants.set(row.skill, (g.variants.get(row.skill) || 0) + 1);
+            g.subs.add(row.submission_id);
+        }
+
+        const skills = [...groupsMap.values()].map(g => {
+            const variants = [...g.variants.entries()]
+                .sort((a, b) => b[1] - a[1] || a[0].length - b[0].length);
+            const [label] = variants[0];
+            return {
+                name: label,
+                count: g.subs.size,
+                instances: g.instances,
+                variants: variants.slice(1).map(([name, n]) => ({ name, instances: n }))
+            };
+        }).sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
+
+        const groupRecords = [...groupsMap.values()].map(g => {
+            const variants = [...g.variants.entries()]
+                .sort((a, b) => b[1] - a[1] || a[0].length - b[0].length);
+            return { key: g.key, label: variants[0][0], count: g.subs.size, instances: g.instances };
+        });
+
+        const proposals = buildProposals(Object.fromEntries(groupRecords.map(g => [g.key, g])));
+
+        res.json({ skills, proposals });
     } catch (err) {
         console.error('GET /admin/skills error:', err);
         res.status(500).json({ error: 'Failed to fetch skills' });
     }
 });
 
+// ── POST /admin/skills/preview ───────────────────────────────────────────────
+// Dry-run for a merge: which staff submissions would change and which would
+// collide (dedupe). Powers the confirmation modal on the System page.
+router.post('/skills/preview', verifyToken, requireRole('admin', 'hr'), async (req, res) => {
+    try {
+        const { sourceSkills, targetSkill } = req.body;
+        if (!targetSkill || !targetSkill.trim()) {
+            return res.status(400).json({ error: 'targetSkill is required' });
+        }
+        if (!Array.isArray(sourceSkills) || sourceSkills.length === 0) {
+            return res.status(400).json({ error: 'sourceSkills array is required' });
+        }
+
+        const db = await getDb();
+        const target = targetSkill.trim();
+        const sources = [...new Set(sourceSkills.map(s => s.trim())
+            .filter(s => s && s.toLowerCase() !== target.toLowerCase()))];
+        if (sources.length === 0) {
+            return res.status(400).json({ error: 'No source skills to merge (all equal the target)' });
+        }
+
+        const [rows] = await db.query(
+            `SELECT sk.id, sk.submission_id, sk.skill, sk.rating,
+                    s.staff_name, s.staff_email
+             FROM submission_skills sk
+             JOIN submissions s ON sk.submission_id = s.id
+             WHERE sk.skill IN (${inPlaceholders(sources)})
+             ORDER BY sk.skill, s.staff_name`,
+            sources
+        );
+
+        // Submissions that also carry the target (or two source skills) will
+        // produce duplicate rows after the merge and get deduped.
+        const [targetRows] = await db.query(
+            'SELECT DISTINCT submission_id FROM submission_skills WHERE skill = ?', [target]
+        );
+        const targetSubs = new Set(targetRows.map(r => r.submission_id));
+
+        const bySub = new Map();
+        rows.forEach(r => {
+            if (!bySub.has(r.submission_id)) bySub.set(r.submission_id, []);
+            bySub.get(r.submission_id).push(r);
+        });
+
+        let dedupeRows = 0;
+        for (const [subId, subRows] of bySub) {
+            const totalAfter = subRows.length + (targetSubs.has(subId) ? 1 : 0);
+            if (totalAfter > 1) dedupeRows += totalAfter - 1;
+        }
+
+        const outRows = rows.map(r => ({
+            submissionId: r.submission_id,
+            staffName: r.staff_name,
+            staffEmail: r.staff_email,
+            skill: r.skill,
+            rating: r.rating,
+            newSkill: target,
+            willDedupe: (bySub.get(r.submission_id).length > 1 || targetSubs.has(r.submission_id))
+        }));
+
+        res.json({
+            success: true,
+            rows: outRows,
+            summary: {
+                sourceCount: sources.length,
+                affectedRows: outRows.length,
+                affectedSubmissions: bySub.size,
+                dedupeRows
+            }
+        });
+    } catch (err) {
+        console.error('POST /admin/skills/preview error:', err);
+        res.status(500).json({ error: 'Failed to preview merge: ' + err.message });
+    }
+});
+
 // ── POST /admin/skills/merge ─────────────────────────────────────────────────
-// Merge multiple skills into a single target skill
 router.post('/skills/merge', verifyToken, requireRole('admin', 'hr'), async (req, res) => {
     try {
         const { targetSkill, sourceSkills } = req.body;
@@ -136,30 +294,48 @@ router.post('/skills/merge', verifyToken, requireRole('admin', 'hr'), async (req
 
         const db = await getDb();
         const trimmedTarget = targetSkill.trim();
+        const sources = [...new Set(sourceSkills.map(s => s.trim())
+            .filter(s => s && s.toLowerCase() !== trimmedTarget.toLowerCase()))];
+
+        if (sources.length === 0) {
+            return res.status(400).json({ error: 'No source skills to merge (all equal the target)' });
+        }
+
+        const [existRows] = await db.query(
+            `SELECT DISTINCT skill FROM submission_skills WHERE skill IN (${inPlaceholders(sources)})`,
+            sources
+        );
+        if (existRows.length === 0) {
+            return res.status(404).json({ error: 'None of the selected skills exist.' });
+        }
+
+        const actor = (req.user || {}).email || 'unknown';
+        await snapshotSkillRows(db, [...sources, trimmedTarget], actor, 'merge',
+            `Merged ${sources.length} skills into "${trimmedTarget}"`);
+
         let totalAffected = 0;
-
-        // For each source skill, update all submission_skills to point to the target skill
-        for (const sourceSkill of sourceSkills) {
-            const trimmedSource = sourceSkill.trim();
-            
-            // Skip if source equals target (case-insensitive)
-            if (trimmedSource.toLowerCase() === trimmedTarget.toLowerCase()) {
-                continue;
-            }
-
-            // Update all submission_skills entries from source to target
+        for (const sourceSkill of sources) {
             const [result] = await db.query(
                 'UPDATE submission_skills SET skill = ? WHERE skill = ?',
-                [trimmedTarget, trimmedSource]
+                [trimmedTarget, sourceSkill]
             );
             totalAffected += result.affectedRows;
         }
+        const deduped = await dedupeSkillRows(db, trimmedTarget);
 
-        console.log(`Merged ${sourceSkills.length} skills into "${trimmedTarget}": ${totalAffected} records updated`);
-        res.json({ 
-            success: true, 
+        await logAudit(db, {
+            staffEmail: null, actorEmail: actor, section: 'skills_admin', action: 'merge',
+            summary: `Merged ${sources.length} skills into "${trimmedTarget}" (${totalAffected} rows, ${deduped} deduped)`,
+            details: { sourceSkills: sources, targetSkill: trimmedTarget, affectedCount: totalAffected, dedupedCount: deduped }
+        });
+
+        console.log(`Merged ${sources.length} skills into "${trimmedTarget}": ${totalAffected} records updated, ${deduped} deduped`);
+        res.json({
+            success: true,
             affectedCount: totalAffected,
-            message: `Merged into "${trimmedTarget}" (${totalAffected} records updated)`
+            dedupedCount: deduped,
+            undoAvailable: true,
+            message: `Merged into "${trimmedTarget}" (${totalAffected} records updated${deduped ? `, ${deduped} duplicate rows removed` : ''})`
         });
     } catch (err) {
         console.error('POST /admin/skills/merge error:', err);
@@ -168,7 +344,6 @@ router.post('/skills/merge', verifyToken, requireRole('admin', 'hr'), async (req
 });
 
 // ── POST /admin/skills/rename ────────────────────────────────────────────────
-// Rename a skill
 router.post('/skills/rename', verifyToken, requireRole('admin', 'hr'), async (req, res) => {
     try {
         const { oldName, newName } = req.body;
@@ -184,11 +359,11 @@ router.post('/skills/rename', verifyToken, requireRole('admin', 'hr'), async (re
         const trimmedOld = oldName.trim();
         const trimmedNew = newName.trim();
 
-        if (trimmedOld === trimmedNew) {
+        if (trimmedOld.toLowerCase() === trimmedNew.toLowerCase()) {
             return res.status(400).json({ error: 'Old name and new name are the same' });
         }
 
-        // Check if new name already exists
+        // Check if new name already exists (case-insensitive collation)
         const [existing] = await db.query(
             'SELECT COUNT(*) as cnt FROM submission_skills WHERE skill = ?',
             [trimmedNew]
@@ -197,16 +372,26 @@ router.post('/skills/rename', verifyToken, requireRole('admin', 'hr'), async (re
             return res.status(400).json({ error: `Skill "${trimmedNew}" already exists. Use merge instead.` });
         }
 
-        // Update all submission_skills entries
+        const actor = (req.user || {}).email || 'unknown';
+        await snapshotSkillRows(db, [trimmedOld], actor, 'rename',
+            `Renamed "${trimmedOld}" to "${trimmedNew}"`);
+
         const [result] = await db.query(
             'UPDATE submission_skills SET skill = ? WHERE skill = ?',
             [trimmedNew, trimmedOld]
         );
 
+        await logAudit(db, {
+            staffEmail: null, actorEmail: actor, section: 'skills_admin', action: 'rename',
+            summary: `Renamed "${trimmedOld}" to "${trimmedNew}" (${result.affectedRows} rows)`,
+            details: { oldName: trimmedOld, newName: trimmedNew, affectedCount: result.affectedRows }
+        });
+
         console.log(`Renamed skill "${trimmedOld}" to "${trimmedNew}": ${result.affectedRows} records updated`);
-        res.json({ 
-            success: true, 
+        res.json({
+            success: true,
             affectedCount: result.affectedRows,
+            undoAvailable: true,
             message: `Renamed "${trimmedOld}" to "${trimmedNew}" (${result.affectedRows} records updated)`
         });
     } catch (err) {
@@ -236,7 +421,6 @@ router.post('/skills/split', verifyToken, requireRole('admin', 'hr'), async (req
             return res.status(400).json({ error: 'Please provide at least two valid new skill names' });
         }
 
-        // Get all submissions with the original skill
         const [submissions] = await db.query(
             'SELECT id, submission_id, rating FROM submission_skills WHERE skill = ?',
             [trimmedOriginal]
@@ -246,12 +430,13 @@ router.post('/skills/split', verifyToken, requireRole('admin', 'hr'), async (req
             return res.status(404).json({ error: `No submissions found with skill "${trimmedOriginal}"` });
         }
 
-        let totalAffected = 0;
+        const actor = (req.user || {}).email || 'unknown';
+        await snapshotSkillRows(db, [trimmedOriginal], actor, 'split',
+            `Split "${trimmedOriginal}" into ${trimmedNewSkills.length} skills`);
 
-        // Distribute submissions round-robin among new skills
+        let totalAffected = 0;
         for (let i = 0; i < submissions.length; i++) {
             const newSkillName = trimmedNewSkills[i % trimmedNewSkills.length];
-            
             await db.query(
                 'UPDATE submission_skills SET skill = ? WHERE id = ?',
                 [newSkillName, submissions[i].id]
@@ -259,10 +444,17 @@ router.post('/skills/split', verifyToken, requireRole('admin', 'hr'), async (req
             totalAffected++;
         }
 
+        await logAudit(db, {
+            staffEmail: null, actorEmail: actor, section: 'skills_admin', action: 'split',
+            summary: `Split "${trimmedOriginal}" into ${trimmedNewSkills.length} skills (${totalAffected} rows)`,
+            details: { originalSkill: trimmedOriginal, newSkills: trimmedNewSkills, affectedCount: totalAffected }
+        });
+
         console.log(`Split skill "${trimmedOriginal}" into ${trimmedNewSkills.length} skills: ${totalAffected} records updated`);
-        res.json({ 
-            success: true, 
+        res.json({
+            success: true,
             affectedCount: totalAffected,
+            undoAvailable: true,
             message: `Split "${trimmedOriginal}" into ${trimmedNewSkills.length} skills (${totalAffected} records updated)`
         });
     } catch (err) {
@@ -284,21 +476,109 @@ router.delete('/skills', verifyToken, requireRole('admin', 'hr'), async (req, re
         const db = await getDb();
         const trimmedName = skillName.trim();
 
-        // Delete all submission_skills entries with this skill name
+        const actor = (req.user || {}).email || 'unknown';
+        await snapshotSkillRows(db, [trimmedName], actor, 'delete',
+            `Deleted "${trimmedName}"`);
+
         const [result] = await db.query(
             'DELETE FROM submission_skills WHERE skill = ?',
             [trimmedName]
         );
 
+        await logAudit(db, {
+            staffEmail: null, actorEmail: actor, section: 'skills_admin', action: 'delete',
+            summary: `Deleted "${trimmedName}" (${result.affectedRows} rows)`,
+            details: { skillName: trimmedName, deletedCount: result.affectedRows }
+        });
+
         console.log(`Deleted skill "${trimmedName}": ${result.affectedRows} records removed`);
-        res.json({ 
-            success: true, 
+        res.json({
+            success: true,
             deletedCount: result.affectedRows,
+            undoAvailable: true,
             message: `Deleted "${trimmedName}" (${result.affectedRows} records removed)`
         });
     } catch (err) {
         console.error('DELETE /admin/skills error:', err);
         res.status(500).json({ error: 'Failed to delete skill: ' + err.message });
+    }
+});
+
+// ── GET /admin/skills/undo ───────────────────────────────────────────────────
+// Is there a skill consolidation operation to undo for this actor?
+router.get('/skills/undo', verifyToken, requireRole('admin', 'hr'), async (req, res) => {
+    try {
+        const db = await getDb();
+        const actor = (req.user || {}).email || 'unknown';
+        const [rows] = await db.query(
+            `SELECT id, action, summary, JSON_LENGTH(before_state) AS affected, created_at
+             FROM skill_undo_log
+             WHERE actor_email = ?
+             ORDER BY id DESC LIMIT 1`,
+            [actor.toLowerCase()]
+        );
+        if (rows.length === 0) return res.json({ available: false });
+        res.json({
+            available: true,
+            id: rows[0].id,
+            action: rows[0].action,
+            summary: rows[0].summary,
+            affected: rows[0].affected,
+            createdAt: rows[0].created_at
+        });
+    } catch (err) {
+        console.error('GET /admin/skills/undo error:', err);
+        res.status(500).json({ error: 'Failed to fetch undo state' });
+    }
+});
+
+// ── POST /admin/skills/undo ──────────────────────────────────────────────────
+// Roll back the most recent skill consolidation op for this actor.
+router.post('/skills/undo', verifyToken, requireRole('admin', 'hr'), async (req, res) => {
+    try {
+        const db = await getDb();
+        const actor = (req.user || {}).email || 'unknown';
+        const [rows] = await db.query(
+            'SELECT * FROM skill_undo_log WHERE actor_email = ? ORDER BY id DESC LIMIT 1',
+            [actor.toLowerCase()]
+        );
+        if (rows.length === 0) {
+            return res.status(400).json({ error: 'Nothing to undo' });
+        }
+
+        const undo = rows[0];
+        // mysql2 auto-parses JSON columns — before_state may already be an object.
+        let beforeState = undo.before_state;
+        if (typeof beforeState === 'string') {
+            try {
+                beforeState = JSON.parse(beforeState);
+            } catch {
+                return res.status(500).json({ error: 'Stored undo snapshot is corrupt' });
+            }
+        }
+        if (!Array.isArray(beforeState)) {
+            return res.status(500).json({ error: 'Stored undo snapshot is corrupt' });
+        }
+
+        await restoreSnapshot(db, beforeState);
+        await db.query('DELETE FROM skill_undo_log WHERE id = ?', [undo.id]);
+
+        await logAudit(db, {
+            staffEmail: null, actorEmail: actor, section: 'skills_admin', action: 'undo',
+            summary: `Undid ${undo.action}: ${undo.summary}`,
+            details: { restored: beforeState.length, action: undo.action }
+        });
+
+        console.log(`Undid ${undo.action} (${undo.summary}): ${beforeState.length} records restored`);
+        res.json({
+            success: true,
+            restored: beforeState.length,
+            action: undo.action,
+            message: `Undid ${undo.action} — ${beforeState.length} records restored`
+        });
+    } catch (err) {
+        console.error('POST /admin/skills/undo error:', err);
+        res.status(500).json({ error: 'Failed to undo: ' + err.message });
     }
 });
 
