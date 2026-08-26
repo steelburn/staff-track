@@ -4,6 +4,13 @@ const authUser = requireAuth();
 
 // ── Utility ────
 function showToast(msg, isErr = false) {
+    // Prefer the shared Toast component (toast.js) — its container is a visible
+    // fixed bottom-right stack. The legacy bare <div class="toast"> fallback
+    // below is only for pages where toast.js failed to load.
+    if (typeof Toast !== 'undefined') {
+        Toast.show({ type: isErr ? 'error' : 'success', title: msg, closable: true });
+        return;
+    }
     const t = document.createElement('div');
     t.className = 'toast';
     if (isErr) {
@@ -13,6 +20,24 @@ function showToast(msg, isErr = false) {
     t.textContent = msg;
     document.body.appendChild(t);
     setTimeout(() => { t.classList.add('hide'); setTimeout(() => t.remove(), 400); }, 2500);
+}
+
+// Refresh the open edit form's proof section after an upload/remove, so it never
+// shows a stale "Current: <file>" for a proof that was just changed.
+function refreshFormProofState(prefix, entryId, proofPath) {
+    // prefix: 'edu' | 'cert' | 'award'
+    const existing = document.getElementById(`${prefix}-proof-existing`);
+    if (!existing) return;
+    const typeMap = { edu: 'education', cert: 'certification', award: 'award' };
+    const deleteFnMap = { edu: deleteEducationProof, cert: deleteCertificationProof, award: deleteAwardProof };
+    if (proofPath) {
+        existing.style.display = '';
+        existing.innerHTML = `<span style="font-size:0.82rem; color:var(--accent-amber);">📎 Current: <a href="${proofPath}" target="_blank" style="color:var(--accent-amber);">${proofPath.split('/').pop()}</a></span> <button class="btn-remove" data-proof-id="${entryId}" data-proof-type="${typeMap[prefix]}" style="width:auto; padding:0.2rem 0.5rem; font-size:0.75rem; margin-left:0.5rem;">✕ Remove</button>`;
+        existing.querySelector(`[data-proof-type="${typeMap[prefix]}"]`)?.addEventListener('click', () => deleteFnMap[prefix](entryId));
+    } else {
+        existing.style.display = 'none';
+        existing.innerHTML = '';
+    }
 }
 
 // Guard: if auth failed, requireAuth already redirected to login.
@@ -27,6 +52,8 @@ let targetProfileEmail = authUser.email;
 let isViewOnly = false; // true when viewing another staff member's profile
 let certificationsData = [];
 let certificationsLoaded = false;
+let awardsData = [];
+let awardsLoaded = false;
 let workHistoryData = [];
 let workHistoryLoaded = false;
 let pastProjectsData = [];
@@ -87,7 +114,7 @@ function applyViewOnlyMode() {
     // Disable all input fields in the main form sections
     const readOnlySections = [
         '#my-submission-tab', '#education-tab', '#certifications-tab',
-        '#work-history-tab', '#skills-tab', '#active-projects-tab',
+        '#awards-tab', '#work-history-tab', '#skills-tab', '#active-projects-tab',
         '#past-projects-tab'
     ];
     readOnlySections.forEach(sel => {
@@ -105,6 +132,7 @@ function applyViewOnlyMode() {
     // Hide edit/delete buttons on existing cards
     document.querySelectorAll(`.btn-edit-education, .btn-delete-education,
         .btn-edit-certification, .btn-delete-certification,
+        .btn-edit-award, .btn-delete-award,
         .btn-edit-work-history, .btn-delete-work-history,
         .btn-edit-past-project, .btn-delete-past-project,
         .btn-edit-project, .btn-delete-project,
@@ -183,6 +211,7 @@ const AUDIT_SECTION_LABELS = {
     'photo': 'Photo',
     'education': 'Education',
     'certifications': 'Certifications',
+    'awards': 'Awards & Accomplishments',
     'work_history': 'Work History',
     'past_projects': 'Past Projects'
 };
@@ -1063,6 +1092,10 @@ async function loadProfile() {
             renderCertificationsList();
             certificationsLoaded = true;
 
+            awardsData = data.awards || [];
+            renderAwardsList();
+            awardsLoaded = true;
+
             workHistoryData = data.workHistory || [];
             pastProjectsData = data.pastProjects || [];
             renderWorkHistoryList();
@@ -1096,15 +1129,18 @@ function updateProfileSidebar(data) {
     const projects = AppState.projects?.length || 0;
     const education = data.education?.length || 0;
     const certs = data.certifications?.length || 0;
+    const awards = data.awards?.length || 0;
 
     const statSkills = document.getElementById('stat-skills');
     const statProjects = document.getElementById('stat-projects');
     const statEducation = document.getElementById('stat-education');
     const statCerts = document.getElementById('stat-certs');
+    const statAwards = document.getElementById('stat-awards');
     if (statSkills) statSkills.textContent = skills;
     if (statProjects) statProjects.textContent = projects;
     if (statEducation) statEducation.textContent = education;
     if (statCerts) statCerts.textContent = certs;
+    if (statAwards) statAwards.textContent = awards;
 
     // Calculate completion percentage
     // Criteria: photo(15%), name(10%), summary(15%), phone(10%), skills(15%), projects(15%), education(10%), certs(10%)
@@ -1133,15 +1169,18 @@ function refreshSidebarCompletion() {
     const projects = AppState.projects?.length || 0;
     const education = educationData?.length || 0;
     const certs = certificationsData?.length || 0;
+    const awards = awardsData?.length || 0;
 
     const statSkills = document.getElementById('stat-skills');
     const statProjects = document.getElementById('stat-projects');
     const statEducation = document.getElementById('stat-education');
     const statCerts = document.getElementById('stat-certs');
+    const statAwards = document.getElementById('stat-awards');
     if (statSkills) statSkills.textContent = skills;
     if (statProjects) statProjects.textContent = projects;
     if (statEducation) statEducation.textContent = education;
     if (statCerts) statCerts.textContent = certs;
+    if (statAwards) statAwards.textContent = awards;
 
     let score = 0;
     const avatarImg = document.querySelector('#profile-avatar img');
@@ -1554,7 +1593,9 @@ async function uploadEducationProof(id) {
             method: 'POST', body: formData
         });
         if (res.ok) {
+            const data = await res.json().catch(() => ({}));
             showToast('Proof uploaded successfully');
+            refreshFormProofState('edu', id, data.proof_path);
             educationLoaded = false;
             loadEducation();
         } else {
@@ -1574,6 +1615,7 @@ async function deleteEducationProof(id) {
         const res = await window.StaffTrackAuth.apiFetch(`/api/cv-profiles/${email}/education/${id}/proof`, { method: 'DELETE' });
         if (res.ok) {
             showToast('Proof removed');
+            refreshFormProofState('edu', id, null);
             educationLoaded = false;
             loadEducation();
         } else {
@@ -1888,7 +1930,9 @@ async function uploadCertificationProof(id) {
             method: 'POST', body: formData
         });
         if (res.ok) {
+            const data = await res.json().catch(() => ({}));
             showToast('Proof uploaded successfully');
+            refreshFormProofState('cert', id, data.proof_path);
             certificationsLoaded = false;
             loadCertifications();
         } else {
@@ -1908,6 +1952,7 @@ async function deleteCertificationProof(id) {
         const res = await window.StaffTrackAuth.apiFetch(`/api/cv-profiles/${email}/certifications/${id}/proof`, { method: 'DELETE' });
         if (res.ok) {
             showToast('Proof removed');
+            refreshFormProofState('cert', id, null);
             certificationsLoaded = false;
             loadCertifications();
         } else {
@@ -1916,6 +1961,310 @@ async function deleteCertificationProof(id) {
         }
     } catch (e) {
         console.error('Error removing certification proof:', e);
+        showToast('Failed to remove proof', true);
+    }
+}
+
+// ── Awards & Accomplishments Functions ───
+async function loadAwards() {
+    const email = targetProfileEmail;
+    try {
+        const res = await window.StaffTrackAuth.apiFetch(`/api/cv-profiles/${email}`);
+        if (!res.ok) {
+            if (res.status === 404) {
+                awardsData = [];
+            } else {
+                throw new Error('Failed to fetch awards');
+            }
+        } else {
+            const data = await res.json();
+            awardsData = data.awards || [];
+        }
+    } catch (err) {
+        console.error('Error loading awards:', err);
+        awardsData = [];
+    }
+    renderAwardsList();
+}
+
+function renderAwardsList() {
+    const emptyState = document.getElementById('awards-empty');
+    const list = document.getElementById('awards-list');
+
+    // Toggle empty state vs list
+    if (emptyState && list) {
+        if (awardsData.length === 0) {
+            emptyState.style.display = 'block';
+            list.style.display = 'none';
+        } else {
+            emptyState.style.display = 'none';
+            list.style.display = 'grid';
+        }
+    }
+
+    // Render award entries (sorted by date_received DESC, nulls last)
+    if (list) {
+        const sortedAwards = [...awardsData].sort((a, b) => {
+            if (!a.date_received && !b.date_received) return 0;
+            if (!a.date_received) return 1;
+            if (!b.date_received) return -1;
+            return b.date_received.localeCompare(a.date_received);
+        });
+        let html = '';
+        sortedAwards.forEach(entry => {
+            const title = entry.title || '—';
+            const issuer = entry.issuer || '';
+            const dateReceived = entry.date_received || '';
+            const description = entry.description || '';
+            const proofPath = entry.proof_path || '';
+
+            html += `
+                <div class="section-card" style="padding:1.25rem; position:relative;" data-id="${entry.id}">
+                    <div style="font-weight:700; font-size:1rem; margin-bottom:0.25rem;">🏆 ${title}</div>
+                    ${issuer ? `<div style="color:var(--accent-blue); font-size:0.9rem; margin-bottom:0.25rem;">${issuer}</div>` : ''}
+                    ${dateReceived ? `<div style="color:var(--text-secondary); font-size:0.82rem; margin-bottom:0.25rem;">Received: ${dateReceived}</div>` : ''}
+                    ${description ? `<div class="preserve-newlines" style="font-size:0.85rem; color:var(--text-secondary); margin-top:0.5rem;">${description}</div>` : ''}
+                    ${proofPath ? `<div style="margin-top:0.5rem;"><a href="${proofPath}" target="_blank" style="font-size:0.78rem; color:var(--accent-amber); text-decoration:none;">📎 View Proof</a></div>` : ''}
+                    ${isViewOnly ? '' : `<div style="display:flex; gap:0.5rem; margin-top:1rem;">
+                        <button class="btn-secondary btn-edit-award" data-id="${entry.id}" style="padding:0.35rem 0.75rem; font-size:0.8rem;">✏️ Edit</button>
+                        <button class="btn-remove btn-delete-award" data-id="${entry.id}" style="width:auto; padding:0.35rem 0.75rem; font-size:0.8rem;">🗑 Delete</button>
+                    </div>`}
+                </div>
+            `;
+        });
+        list.innerHTML = html;
+
+        // Wire up edit buttons
+        document.querySelectorAll('.btn-edit-award').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const id = btn.dataset.id;
+                const entry = awardsData.find(e => e.id == id);
+                if (entry) showAwardForm(entry);
+            });
+        });
+
+        // Wire up delete buttons
+        document.querySelectorAll('.btn-delete-award').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const id = btn.dataset.id;
+                deleteAward(id);
+            });
+        });
+    }
+    refreshSidebarCompletion();
+}
+
+function showAwardForm(entry = null) {
+    const form = document.getElementById('award-form');
+    const title = document.getElementById('award-form-title');
+    const idInput = document.getElementById('award-id');
+    const titleInput = document.getElementById('award-title');
+    const issuerInput = document.getElementById('award-issuer');
+    const dateReceivedInput = document.getElementById('award-date-received');
+    const descriptionInput = document.getElementById('award-description');
+
+    const proofSection = document.getElementById('award-proof-section');
+    const proofExisting = document.getElementById('award-proof-existing');
+    const proofFileInput = document.getElementById('award-proof');
+
+    if (entry) {
+        // Edit mode
+        if (title) title.textContent = 'Edit Award';
+        if (idInput) idInput.value = entry.id;
+        if (titleInput) titleInput.value = entry.title || '';
+        if (issuerInput) issuerInput.value = entry.issuer || '';
+        if (dateReceivedInput) dateReceivedInput.value = entry.date_received || '';
+        if (descriptionInput) descriptionInput.value = entry.description || '';
+
+        // Show proof section for existing entries
+        if (proofSection) proofSection.style.display = '';
+        if (proofFileInput) proofFileInput.value = '';
+        if (proofExisting) {
+            if (entry.proof_path) {
+                proofExisting.style.display = '';
+                proofExisting.innerHTML = `<span style="font-size:0.82rem; color:var(--accent-amber);">📎 Current: <a href="${entry.proof_path}" target="_blank" style="color:var(--accent-amber);">${entry.proof_path.split('/').pop()}</a></span> <button class="btn-remove" data-proof-id="${entry.id}" data-proof-type="award" style="width:auto; padding:0.2rem 0.5rem; font-size:0.75rem; margin-left:0.5rem;">✕ Remove</button>`;
+                proofExisting.querySelector('[data-proof-type="award"]')?.addEventListener('click', () => deleteAwardProof(entry.id));
+            } else {
+                proofExisting.style.display = 'none';
+                proofExisting.innerHTML = '';
+            }
+        }
+    } else {
+        // Add mode
+        if (title) title.textContent = 'Add Award';
+        if (idInput) idInput.value = '';
+        if (titleInput) titleInput.value = '';
+        if (issuerInput) issuerInput.value = '';
+        if (dateReceivedInput) dateReceivedInput.value = '';
+        if (descriptionInput) descriptionInput.value = '';
+
+        // Show proof section for new entries so user can attach proof immediately
+        if (proofSection) proofSection.style.display = '';
+        const awardHint = document.getElementById('award-proof-hint');
+        if (awardHint) awardHint.style.display = 'none';
+        if (proofFileInput) proofFileInput.value = '';
+        if (proofExisting) { proofExisting.style.display = 'none'; proofExisting.innerHTML = ''; }
+    }
+
+    if (form) form.style.display = '';
+    if (form) form.scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
+function hideAwardForm() {
+    const form = document.getElementById('award-form');
+    const titleInput = document.getElementById('award-title');
+    const issuerInput = document.getElementById('award-issuer');
+    const dateReceivedInput = document.getElementById('award-date-received');
+    const descriptionInput = document.getElementById('award-description');
+
+    const proofSection = document.getElementById('award-proof-section');
+    const proofExisting = document.getElementById('award-proof-existing');
+    const proofFileInput = document.getElementById('award-proof');
+
+    if (form) form.style.display = 'none';
+    if (titleInput) titleInput.value = '';
+    if (issuerInput) issuerInput.value = '';
+    if (dateReceivedInput) dateReceivedInput.value = '';
+    if (descriptionInput) descriptionInput.value = '';
+    if (proofSection) proofSection.style.display = 'none';
+    if (proofExisting) { proofExisting.style.display = 'none'; proofExisting.innerHTML = ''; }
+    if (proofFileInput) proofFileInput.value = '';
+}
+
+async function saveAward() {
+    const title = document.getElementById('award-title')?.value?.trim() || '';
+    const issuer = document.getElementById('award-issuer')?.value?.trim() || '';
+    const dateReceived = document.getElementById('award-date-received')?.value?.trim() || '';
+    const description = document.getElementById('award-description')?.value?.trim() || '';
+    const id = document.getElementById('award-id')?.value?.trim() || '';
+
+    if (!title) {
+        showToast('Award title is required', true);
+        return;
+    }
+
+    const body = {
+        title,
+        issuer,
+        date_received: dateReceived || null,
+        description
+    };
+
+    const email = targetProfileEmail;
+    try {
+        let res;
+        if (id) {
+            res = await window.StaffTrackAuth.apiFetch(`/api/cv-profiles/${email}/awards/${id}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(body)
+            });
+        } else {
+            res = await window.StaffTrackAuth.apiFetch(`/api/cv-profiles/${email}/awards`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(body)
+            });
+        }
+
+        if (res.ok) {
+            showToast('Award saved successfully');
+            const savedData = await res.json().catch(() => ({}));
+            const savedId = id || savedData.id;
+            // Upload proof if a file was selected during add
+            if (!id) {
+                const proofFile = document.getElementById('award-proof')?.files?.[0];
+                if (proofFile && savedId) {
+                    const proofFormData = new FormData();
+                    proofFormData.append('proof', proofFile);
+                    try {
+                        const proofRes = await window.StaffTrackAuth.apiFetch(`/api/cv-profiles/${email}/awards/${savedId}/proof`, {
+                            method: 'POST', body: proofFormData
+                        });
+                        if (proofRes.ok) showToast('Proof uploaded successfully');
+                    } catch (e) { console.error('Error uploading proof:', e); }
+                }
+            }
+            awardsLoaded = false;
+            loadAwards();
+            hideAwardForm();
+        } else {
+            const errData = await res.json().catch(() => ({}));
+            showToast(errData.error || 'Failed to save award', true);
+        }
+    } catch (err) {
+        console.error('Error saving award:', err);
+        showToast('Failed to save award', true);
+    }
+}
+
+async function deleteAward(id) {
+    if (!confirm('Delete this award?')) return;
+
+    const email = targetProfileEmail;
+    try {
+        const res = await window.StaffTrackAuth.apiFetch(`/api/cv-profiles/${email}/awards/${id}`, {
+            method: 'DELETE'
+        });
+
+        if (res.ok) {
+            showToast('Award deleted successfully');
+            awardsLoaded = false;
+            loadAwards();
+        } else {
+            const errData = await res.json().catch(() => ({}));
+            showToast(errData.error || 'Failed to delete award', true);
+        }
+    } catch (err) {
+        console.error('Error deleting award:', err);
+        showToast('Failed to delete award', true);
+    }
+}
+
+async function uploadAwardProof(id) {
+    const email = targetProfileEmail;
+    const fileInput = document.getElementById('award-proof');
+    const file = fileInput?.files?.[0];
+    if (!file) { showToast('Please select a file first', true); return; }
+
+    const formData = new FormData();
+    formData.append('proof', file);
+    try {
+        const res = await window.StaffTrackAuth.apiFetch(`/api/cv-profiles/${email}/awards/${id}/proof`, {
+            method: 'POST', body: formData
+        });
+        if (res.ok) {
+            const data = await res.json().catch(() => ({}));
+            showToast('Proof uploaded successfully');
+            refreshFormProofState('award', id, data.proof_path);
+            awardsLoaded = false;
+            loadAwards();
+        } else {
+            const err = await res.json().catch(() => ({}));
+            showToast(err.error || 'Failed to upload proof', true);
+        }
+    } catch (e) {
+        console.error('Error uploading award proof:', e);
+        showToast('Failed to upload proof', true);
+    }
+}
+
+async function deleteAwardProof(id) {
+    if (!confirm('Remove the proof document from this award?')) return;
+    const email = targetProfileEmail;
+    try {
+        const res = await window.StaffTrackAuth.apiFetch(`/api/cv-profiles/${email}/awards/${id}/proof`, { method: 'DELETE' });
+        if (res.ok) {
+            showToast('Proof removed');
+            refreshFormProofState('award', id, null);
+            awardsLoaded = false;
+            loadAwards();
+        } else {
+            const err = await res.json().catch(() => ({}));
+            showToast(err.error || 'Failed to remove proof', true);
+        }
+    } catch (e) {
+        console.error('Error removing award proof:', e);
         showToast('Failed to remove proof', true);
     }
 }
@@ -3041,6 +3390,16 @@ async function init() {
     document.getElementById('btn-add-certification')?.addEventListener('click', () => showCertificationForm(null));
     document.getElementById('btn-save-certification')?.addEventListener('click', saveCertification);
     document.getElementById('btn-cancel-certification')?.addEventListener('click', hideCertificationForm);
+
+    // Awards tab buttons
+    document.getElementById('btn-add-award')?.addEventListener('click', () => showAwardForm(null));
+    document.getElementById('btn-save-award')?.addEventListener('click', saveAward);
+    document.getElementById('btn-cancel-award')?.addEventListener('click', hideAwardForm);
+    document.getElementById('btn-upload-award-proof')?.addEventListener('click', () => {
+        const id = document.getElementById('award-id')?.value;
+        if (id) uploadAwardProof(id);
+        else showToast('Please save the award entry first', true);
+    });
 
     // Work History tab buttons
     document.getElementById('btn-add-work-history')?.addEventListener('click', () => showWorkHistoryForm(null));

@@ -356,6 +356,18 @@ router.get('/:email', verifyToken, async (req, res) => {
             console.log('Certifications table query failed:', e.code);
         }
 
+        // Fetch awards & accomplishments
+        let awards = [];
+        try {
+            const [awardRows] = await db.query(
+                'SELECT id, title, issuer, date_received, description, proof_path FROM awards WHERE LOWER(staff_email) = ? ORDER BY date_received DESC',
+                [email.toLowerCase()]
+            );
+            awards = awardRows;
+        } catch (e) {
+            console.log('Awards table query failed:', e.code);
+        }
+
         // Fetch work history (using correct column names: employer, job_title)
         let workHistory = [];
         try {
@@ -384,6 +396,7 @@ router.get('/:email', verifyToken, async (req, res) => {
             profile,
             education,
             certifications: formatDatesInArray(certifications, ['date_obtained', 'expiry_date']),
+            awards: formatDatesInArray(awards, ['date_received']),
             workHistory: formatDatesInArray(workHistory, ['start_date', 'end_date']),
             pastProjects: formatDatesInArray(pastProjects, ['start_date', 'end_date'])
         });
@@ -695,6 +708,17 @@ router.post('/:email/generate', verifyToken, async (req, res) => {
             console.log('Certifications fetch failed:', e.code);
         }
 
+        let awards = [];
+        try {
+            const [awardRows] = await db.query(
+                'SELECT id, title, issuer, date_received, description, proof_path FROM awards WHERE LOWER(staff_email) = ? ORDER BY date_received DESC',
+                [email.toLowerCase()]
+            );
+            awards = awardRows || [];
+        } catch (e) {
+            console.log('Awards fetch failed:', e.code);
+        }
+
         let workHistory = [];
         try {
             const [histRows] = await db.query(
@@ -802,6 +826,7 @@ router.post('/:email/generate', verifyToken, async (req, res) => {
         // Format all date fields to YYYY-MM-DD strings for template display
         const formattedEducation = formatDatesInArray(education, ['start_year', 'end_year']);
         const formattedCertifications = formatDatesInArray(certifications, ['date_obtained', 'expiry_date']);
+        const formattedAwards = formatDatesInArray(awards, ['date_received']);
         const formattedWorkHistory = formatDatesInArray(workHistory, ['start_date', 'end_date']);
         const formattedPastProjects = formatDatesInArray(pastProjects, ['start_date', 'end_date']);
         const formattedSubmissionProjects = formatDatesInArray(submissionProjects, ['start_date', 'end_date']);
@@ -832,6 +857,14 @@ router.post('/:email/generate', verifyToken, async (req, res) => {
             return edu;
         });
 
+        // Convert award proof_path to absolute URLs
+        const absoluteAwards = formattedAwards.map(award => {
+            if (award.proof_path && !award.proof_path.startsWith('http')) {
+                return { ...award, proof_path: `${proto}://${host}${award.proof_path}` };
+            }
+            return award;
+        });
+
         const templateData = {
             name: staffName,
             email: profile.staff_email,
@@ -844,6 +877,7 @@ router.post('/:email/generate', verifyToken, async (req, res) => {
             generatedAt: new Date().toLocaleDateString(),
             education: absoluteEducation,
             certifications: absoluteCertifications,
+            awards: absoluteAwards,
             workHistory: formattedWorkHistory,
             projects: formattedSubmissionProjects.length > 0 ? formattedSubmissionProjects : formattedPastProjects,
             skills: submissionSkills,
@@ -1384,6 +1418,135 @@ router.delete('/:email/certifications/:id', verifyToken, async (req, res) => {
     }
 });
 
+// POST /:email/awards - Add award / accomplishment record
+router.post('/:email/awards', verifyToken, async (req, res) => {
+    try {
+        const { email } = req.params;
+
+        // Check authorization - only profile owner can modify
+        if (!canModifyProfile(req, email)) {
+            return res.status(403).json({ error: 'You can only edit your own profile' });
+        }
+
+        const { title, issuer, date_received, description } = req.body;
+
+        if (!title) {
+            return res.status(400).json({ error: 'Award title is required' });
+        }
+
+        // Date format validation
+        const dateErr = validateDateFormat(date_received, 'Date received');
+        if (dateErr) return res.status(400).json({ error: dateErr });
+
+        const db = await getDb();
+        const id = uuidv4();
+        const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
+        await db.query(
+            `INSERT INTO awards (id, staff_email, title, issuer, date_received, description, created_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?)`,
+            [id, email.toLowerCase(), title, issuer || null, date_received || null, description || null, now]
+        );
+
+        await logAudit(db, {
+            staffEmail: email,
+            actorEmail: req.user.email,
+            section: 'awards',
+            action: 'create',
+            summary: `Added award: ${title}`,
+            details: { title, issuer, date_received }
+        });
+        await markStaffUpdated(db, email);
+
+        res.json({ id });
+    } catch (err) {
+        console.error('Error adding award:', err);
+        res.status(500).json({ error: 'Failed to add award' });
+    }
+});
+
+// PUT /:email/awards/:id - Update award record
+router.put('/:email/awards/:id', verifyToken, async (req, res) => {
+    try {
+        const { email, id } = req.params;
+
+        // Check authorization - only profile owner can modify
+        if (!canModifyProfile(req, email)) {
+            return res.status(403).json({ error: 'You can only edit your own profile' });
+        }
+
+        const { title, issuer, date_received, description } = req.body;
+
+        if (!title) {
+            return res.status(400).json({ error: 'Award title is required' });
+        }
+
+        // Date format validation
+        const dateErr = validateDateFormat(date_received, 'Date received');
+        if (dateErr) return res.status(400).json({ error: dateErr });
+
+        const db = await getDb();
+        const [oldRows] = await db.query(
+            'SELECT title, issuer FROM awards WHERE id = ? AND LOWER(staff_email) = ?',
+            [id, email.toLowerCase()]
+        );
+        await db.query(
+            `UPDATE awards SET title = ?, issuer = ?, date_received = ?, description = ?
+             WHERE id = ? AND LOWER(staff_email) = ?`,
+            [title, issuer || null, date_received || null, description || null, id, email.toLowerCase()]
+        );
+
+        const oldRow = oldRows[0] || {};
+        await logAudit(db, {
+            staffEmail: email,
+            actorEmail: req.user.email,
+            section: 'awards',
+            action: 'update',
+            summary: `Updated award: ${oldRow.title || 'entry'}`,
+            details: { id, title, issuer, date_received }
+        });
+        await markStaffUpdated(db, email);
+
+        res.json({ success: true });
+    } catch (err) {
+        console.error('Error updating award:', err);
+        res.status(500).json({ error: 'Failed to update award' });
+    }
+});
+
+// DELETE /:email/awards/:id - Delete award record
+router.delete('/:email/awards/:id', verifyToken, async (req, res) => {
+    try {
+        const { email, id } = req.params;
+
+        // Check authorization - only profile owner can modify
+        if (!canModifyProfile(req, email)) {
+            return res.status(403).json({ error: 'You can only edit your own profile' });
+        }
+
+        const db = await getDb();
+        const [oldRows] = await db.query(
+            'SELECT title, issuer FROM awards WHERE id = ? AND LOWER(staff_email) = ?',
+            [id, email.toLowerCase()]
+        );
+        await db.query('DELETE FROM awards WHERE id = ? AND LOWER(staff_email) = ?', [id, email.toLowerCase()]);
+
+        const oldRow = oldRows[0] || {};
+        await logAudit(db, {
+            staffEmail: email,
+            actorEmail: req.user.email,
+            section: 'awards',
+            action: 'delete',
+            summary: `Removed award: ${oldRow.title || 'entry'}`,
+            details: { id }
+        });
+        await markStaffUpdated(db, email);
+        res.json({ success: true });
+    } catch (err) {
+        console.error('Error deleting award:', err);
+        res.status(500).json({ error: 'Failed to delete award' });
+    }
+});
+
 // POST /:email/work-history - Add work history record
 router.post('/:email/work-history', verifyToken, async (req, res) => {
     try {
@@ -1852,6 +2015,87 @@ router.delete('/:email/certifications/:id/proof', verifyToken, async (req, res) 
         res.json({ deleted: true });
     } catch (err) {
         console.error('Error deleting certification proof:', err);
+        res.status(500).json({ error: 'Failed to delete proof' });
+    }
+});
+
+// POST /:email/awards/:id/proof - Upload award proof
+router.post('/:email/awards/:id/proof', verifyToken, proofUpload.single('proof'), async (req, res) => {
+    try {
+        const { email, id } = req.params;
+
+        // Check authorization - only profile owner can modify
+        if (!canModifyProfile(req, email)) {
+            return res.status(403).json({ error: 'You can only edit your own profile' });
+        }
+
+        if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+
+        const proofPath = `/uploads/proofs/${req.file.filename}`;
+        const db = await getDb();
+
+        const [existing] = await db.query(
+            'SELECT id FROM awards WHERE id = ? AND LOWER(staff_email) = ?',
+            [id, email.toLowerCase()]
+        );
+        if (!existing || existing.length === 0)
+            return res.status(404).json({ error: 'Award record not found' });
+
+        await db.query('UPDATE awards SET proof_path = ? WHERE id = ?', [proofPath, id]);
+        console.log(`Award proof uploaded: ${proofPath} for ${email}`);
+        await logAudit(db, {
+            staffEmail: email,
+            actorEmail: req.user.email,
+            section: 'awards',
+            action: 'update',
+            summary: 'Uploaded award proof document',
+            details: { id, proof_path: proofPath }
+        });
+        await markStaffUpdated(db, email);
+        res.json({ proof_path: proofPath });
+    } catch (err) {
+        console.error('Error uploading award proof:', err);
+        res.status(500).json({ error: 'Failed to upload proof: ' + err.message });
+    }
+});
+
+// DELETE /:email/awards/:id/proof - Remove award proof
+router.delete('/:email/awards/:id/proof', verifyToken, async (req, res) => {
+    try {
+        const { email, id } = req.params;
+
+        // Check authorization - only profile owner can modify
+        if (!canModifyProfile(req, email)) {
+            return res.status(403).json({ error: 'You can only edit your own profile' });
+        }
+
+        const db = await getDb();
+
+        const [rows] = await db.query(
+            'SELECT proof_path FROM awards WHERE id = ? AND LOWER(staff_email) = ?',
+            [id, email.toLowerCase()]
+        );
+        if (!rows || rows.length === 0)
+            return res.status(404).json({ error: 'Award record not found' });
+
+        const proofPath = rows[0].proof_path;
+        if (proofPath) {
+            const fullPath = path.join('/data/uploads', proofPath.replace(/^\/uploads\//, ''));
+            if (fs.existsSync(fullPath)) fs.unlinkSync(fullPath);
+        }
+
+        await db.query('UPDATE awards SET proof_path = NULL WHERE id = ?', [id]);
+        await logAudit(db, {
+            staffEmail: email,
+            actorEmail: req.user.email,
+            section: 'awards',
+            action: 'update',
+            summary: 'Removed award proof document'
+        });
+        await markStaffUpdated(db, email);
+        res.json({ deleted: true });
+    } catch (err) {
+        console.error('Error deleting award proof:', err);
         res.status(500).json({ error: 'Failed to delete proof' });
     }
 });

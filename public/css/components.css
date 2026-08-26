@@ -882,6 +882,18 @@ tr.col-filters td {
     pointer-events: none;
 }
 
+/* Legacy bare toasts: pages whose per-file showToast() appends <div class="toast">
+   directly to <body> (no toast-container). style.css is no longer loaded anywhere,
+   so without this fallback they render inline at the bottom of the document flow —
+   below the fold and effectively invisible. The toast-container's own children are
+   NOT direct body children, so this selector never touches the shared component. */
+body > .toast {
+    position: fixed;
+    bottom: var(--space-6);
+    right: var(--space-6);
+    z-index: var(--z-toast);
+}
+
 .toast {
     display: flex;
     align-items: center;
