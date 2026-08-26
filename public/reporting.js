@@ -82,6 +82,10 @@ function syncDeptUrl() {
 // Populate the department dropdown from the payload. byDepartment is the org
 // map (never dept-filtered), so it stays complete while a sub-dashboard is on.
 // Hidden when the viewer has 0-1 departments in scope (no drill-down possible).
+// Matching is case/whitespace-insensitive: "PROJECT MANAGEMENT OFFICE" and
+// "Project Management Office" are the same department, so a ?dept= deep link
+// in any casing resolves to the canonical label.
+const normDept = (s) => String(s || '').trim().toLowerCase().replace(/\s+/g, ' ');
 function renderDeptSelector() {
     const sel = document.getElementById('dept-select');
     if (!sel) return;
@@ -90,11 +94,17 @@ function renderDeptSelector() {
     if (sel.hidden) return;
 
     // Selection no longer resolvable (e.g. bogus ?dept= param): reset and refetch.
-    if (selectedDept && !depts.some(d => d.department === selectedDept)) {
-        selectedDept = null;
-        syncDeptUrl();
-        if (payload.department) loadDashboard(); // bogus filter was applied server-side
-        return;
+    if (selectedDept) {
+        const match = depts.find(d => normDept(d.department) === normDept(selectedDept));
+        if (match) {
+            // Adopt the canonical spelling so the dropdown + banner agree
+            if (match.department !== selectedDept) { selectedDept = match.department; syncDeptUrl(); }
+        } else {
+            selectedDept = null;
+            syncDeptUrl();
+            if (payload.department) loadDashboard(); // bogus filter was applied server-side
+            return;
+        }
     }
 
     sel.innerHTML = '<option value="">All departments</option>' +

@@ -109,10 +109,18 @@ function scopeClause(scopeEmails, alias = 's') {
     return ` AND LOWER(${alias}.email) IN (${buildPlaceholders(scopeEmails)})`;
 }
 
+// Department key: case/whitespace-insensitive (mirrors the SQL REGEXP_REPLACE
+// normalization below, and the skills-catalog pattern). "PROJECT MANAGEMENT
+// OFFICE" and "Project Management Office" are the SAME department.
+function normDeptKey(dept) {
+    return String(dept || '').trim().toLowerCase().replace(/\s+/g, ' ');
+}
+
 // Department filter clause (staff aliased as s). null => all departments.
-function deptClause(dept) {
-    if (!dept) return '';
-    return ' AND s.department = ?';
+// Comparison is case/whitespace-insensitive; pass the NORMALIZED key as param.
+function deptClause(deptKey) {
+    if (!deptKey) return '';
+    return " AND LOWER(REGEXP_REPLACE(TRIM(s.department), '[[:space:]]+', ' ')) = ?";
 }
 
 // ── GET /reports/my-subordinates ─────────────────────────────────────────────
@@ -264,12 +272,14 @@ router.get('/projects', requireReporterOrManager, async (req, res) => {
         let query = `
       SELECT
         p.id as assignment_id, p.id as id, p.soc, p.project_name, p.customer, p.role, p.start_date, p.end_date as staff_end_date,
-        s.staff_name, s.staff_email, s.id as submission_id,
+        s.staff_name, s.staff_email, s.department, s.id as submission_id,
+        COALESCE(st.manager_name, s.manager_name) AS manager_name,
         mp.type_infra, mp.type_software, mp.type_infra_support, mp.type_software_support,
         mp.coordinator_email
       FROM submission_projects p
       JOIN submissions s ON p.submission_id = s.id
       ${activeJoin}
+      LEFT JOIN staff st ON LOWER(st.email) = LOWER(s.staff_email)
       LEFT JOIN managed_projects mp ON (mp.soc = p.soc OR (p.soc IS NULL AND mp.project_name = p.project_name))
     `;
 
@@ -675,21 +685,23 @@ router.get('/dashboard', verifyToken, async (req, res) => {
             return res.status(403).json({ error: 'Management dashboard access required' });
         }
         const includeInactive = req.query.include_inactive === 'true' && scope === 'all';
-        const dept = req.query.department ? String(req.query.department) : null;
-        const payload = { scope, asOf: new Date().toISOString().slice(0, 10), includeInactive, department: dept };
+        const deptRaw = req.query.department ? String(req.query.department) : null;
+        const deptKey = normDeptKey(deptRaw); // normalized for case-insensitive matching
+        const payload = { scope, asOf: new Date().toISOString().slice(0, 10), includeInactive, department: deptKey || null };
 
         const activeJoin = includeInactive
             ? 'LEFT JOIN user_roles ur ON LOWER(ur.email) = LOWER(s.email)'
             : 'INNER JOIN user_roles ur ON LOWER(ur.email) = LOWER(s.email) AND ur.is_active = 1';
         const scopeEmails = emails; // may be null
         const sc = scopeClause(scopeEmails, 's');
-        const dc = deptClause(dept);
-        const params = [...(scopeEmails || []), ...(dept ? [dept] : [])];
+        const dc = deptClause(deptKey);
+        const params = [...(scopeEmails || []), ...(deptKey ? [deptKey] : [])];
         const deptParams = scopeEmails || []; // dept list stays unfiltered even when scoped
 
         // Headcount. byDepartment deliberately NOT department-filtered — it is
         // the org map (dropdown + drill-down chart stay complete while a dept
-        // sub-dashboard is active). payload.departments reuses it.
+        // sub-dashboard is active). payload.departments reuses it. Case/space
+        // variants of the same dept are MERGED (label = most common spelling).
         const [hcRows] = await db.query(
             `SELECT s.department AS department, COUNT(*) AS total,
                     SUM(ur.is_active = 1) AS active, SUM(ur.is_active = 0) AS inactive
@@ -698,6 +710,28 @@ router.get('/dashboard', verifyToken, async (req, res) => {
              GROUP BY s.department ORDER BY active DESC, total DESC`,
             deptParams
         );
+        const byDept = new Map();
+        hcRows.forEach(r => {
+            const k = normDeptKey(r.department);
+            if (!byDept.has(k)) byDept.set(k, { department: r.department, total: 0, active: 0, inactive: 0 });
+            const e = byDept.get(k);
+            const prevTotal = e.total;
+            e.total += Number(r.total);
+            e.active += Number(r.active) || 0;
+            e.inactive += Number(r.inactive) || 0;
+            // most-common spelling wins the label (current row's count beats the
+            // accumulated others => this spelling is the most common so far)
+            if (Number(r.total) > prevTotal) e.department = r.department;
+        });
+        const byDepartment = [...byDept.values()]
+            .sort((a, b) => b.active - a.active || b.total - a.total);
+
+        // Resolve the requested dept to its canonical (most-common) spelling so
+        // the banner + dropdown agree even when ?dept= used different casing.
+        if (deptKey) {
+            const match = byDepartment.find(d => normDeptKey(d.department) === deptKey);
+            if (match) payload.department = match.department;
+        }
         const [roleRows] = await db.query(
             `SELECT ur.role, COUNT(*) AS count FROM staff s ${activeJoin}
              WHERE ur.role IS NOT NULL ${sc} ${dc}
@@ -712,7 +746,7 @@ router.get('/dashboard', verifyToken, async (req, res) => {
         const hc = totalRows[0];
         payload.headcount = {
             total: hc.total, active: Number(hc.active) || 0, inactive: Number(hc.inactive) || 0,
-            byDepartment: hcRows.map(r => ({ department: r.department, total: r.total, active: Number(r.active) || 0, inactive: Number(r.inactive) || 0 })),
+            byDepartment,
             byRole: roleRows.map(r => ({ role: r.role, count: r.count }))
         };
         payload.departments = payload.headcount.byDepartment;
@@ -720,7 +754,7 @@ router.get('/dashboard', verifyToken, async (req, res) => {
         // Org structure
         const [mgrRows] = await db.query(
             `SELECT s.manager_name AS name, COUNT(*) AS directReports,
-                    COUNT(DISTINCT s.department) AS departments
+                    COUNT(DISTINCT LOWER(REGEXP_REPLACE(TRIM(s.department), '[[:space:]]+', ' '))) AS departments
              FROM staff s ${activeJoin}
              WHERE s.manager_name IS NOT NULL AND s.manager_name <> '' ${sc} ${dc}
              GROUP BY s.manager_name ORDER BY directReports DESC LIMIT 20`,

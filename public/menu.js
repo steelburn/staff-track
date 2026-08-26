@@ -48,6 +48,7 @@ function renderNav(activeTab) {
     }
     if (showStaff) {
         html += `<a href="/gantt.html" class="nav-link ${activeTab === 'gantt' ? 'active' : ''}">📊 Gantt Charts</a>`;
+        html += `<a href="/dept-project-map.html" class="nav-link ${activeTab === 'dept-project-map' ? 'active' : ''}">🗺️ Department × Project Analysis</a>`;
     }
 
     // Skills link - visible to admin, HR, coordinator, or users with subordinates

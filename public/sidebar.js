@@ -166,6 +166,7 @@ const Sidebar = {
                 <div class="nav-section">
                     <div class="nav-section-label">Management</div>
                     ${(showStaff || hasFullAccess) ? this.renderNavItem('📊', 'Dashboard', '/reporting.html', activeTab === 'reporting') : ''}
+                    ${(showStaff || hasFullAccess) ? this.renderNavItem('🗺️', 'Department × Project Analysis', '/dept-project-map.html', activeTab === 'dept-project-map') : ''}
                     ${showStaff ? this.renderNavItem('👥', 'All Staff', '/staff-view.html', activeTab === 'staff', '', 'staff') : ''}
                     ${showStaff ? this.renderNavItem('🏅', 'Certifications', '/certifications.html', activeTab === 'certifications') : ''}
                     ${isAdmin ? this.renderNavItem('⚙️', 'Catalog', '/catalog.html', activeTab === 'catalog') : ''}
@@ -188,6 +189,18 @@ const Sidebar = {
                 }
             });
         });
+
+        // Theme toggle binding for the new layout (legacy renderNav in menu.js
+        // binds its own copy for old pages). Without this the [data-theme-toggle]
+        // button is DEAD on every sidebar page — the button existed but nothing
+        // ever wired its click (2026-08-26).
+        const themeBtn = document.querySelector('[data-theme-toggle]');
+        if (themeBtn && !themeBtn.dataset.stThemeBound) {
+            themeBtn.dataset.stThemeBound = '1';
+            themeBtn.addEventListener('click', () => {
+                if (typeof ThemeManager !== 'undefined') ThemeManager.toggle();
+            });
+        }
 
         // Populate the badges with live counts (fire-and-forget)
         this.refreshBadges(user);
