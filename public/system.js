@@ -468,27 +468,37 @@ async function loadMergePreview() {
         }
         html += `</div>`;
 
-        if (data.rows.length > 0) {
-            const MAX_ROWS = 40;
-            const shown = data.rows.slice(0, MAX_ROWS);
-            html += `<div class="table-scroll" style="max-height:260px;overflow-y:auto;margin-top:var(--space-3);"><table class="table table-sm">`;
-            html += `<thead><tr><th>Staff</th><th>Current Skill</th><th>Rating</th><th></th><th>Target</th></tr></thead><tbody>`;
-            html += shown.map(r => `
+        // One preview row (shared by the clamped table and its "…and N more" expansion)
+        const previewRowHTML = r => `
                 <tr>
                     <td>${esc(r.staffName || r.staffEmail)}</td>
                     <td>${esc(r.skill)}</td>
                     <td>${r.rating || '—'}</td>
                     <td style="color:var(--color-text-secondary)">→</td>
                     <td>${esc(r.newSkill)}${r.willDedupe ? ' <span class="preview-warn" title="This submission also has the target skill — rows will be deduped">⚠</span>' : ''}</td>
-                </tr>`).join('');
+                </tr>`;
+        const MAX_ROWS = 40;
+
+        if (data.rows.length > 0) {
+            const shown = data.rows.slice(0, MAX_ROWS);
+            html += `<div class="table-scroll" style="max-height:260px;overflow-y:auto;margin-top:var(--space-3);"><table class="table table-sm">`;
+            html += `<thead><tr><th>Staff</th><th>Current Skill</th><th>Rating</th><th></th><th>Target</th></tr></thead><tbody>`;
+            html += shown.map(previewRowHTML).join('');
             if (data.rows.length > MAX_ROWS) {
-                html += `<tr><td colspan="5" style="color:var(--color-text-secondary)">…and ${data.rows.length - MAX_ROWS} more</td></tr>`;
+                html += `<tr class="preview-more" style="cursor:pointer"><td colspan="5" style="color:var(--color-primary);font-weight:600;text-align:center">…and ${data.rows.length - MAX_ROWS} more — click to show all</td></tr>`;
             }
             html += `</tbody></table></div>`;
         } else {
             html += '<p class="form-hint" style="margin-top:var(--space-2)">No existing instances of the source skills — nothing will change.</p>';
         }
         previewEl.innerHTML = html;
+
+        // Expand "…and N more" preview rows
+        previewEl.querySelectorAll('.preview-more').forEach(row => {
+            row.addEventListener('click', () => {
+                row.outerHTML = data.rows.slice(MAX_ROWS).map(previewRowHTML).join('');
+            });
+        });
     } catch (e) {
         previewEl.innerHTML = `<p class="form-hint" style="color:var(--danger)">${esc(e.message)}</p>`;
     }

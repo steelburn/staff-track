@@ -152,7 +152,7 @@ function renderTable(q = '') {
         const projLabels = s.projects.length
             ? s.projects.slice(0, 3).map(p =>
                 `<span class="proj-pill" title="${p.soc || p.projectName || ''}">${hl(p.soc || p.projectName || '—', q)}</span>`
-            ).join('') + (s.projects.length > 3 ? `<span class="proj-pill muted">+${s.projects.length - 3} more</span>` : '')
+            ).join('') + (s.projects.length > 3 ? `<button type="button" class="proj-pill proj-more" data-idx="${i}" title="Show all projects">+${s.projects.length - 3} more</button>` : '')
             : `<span style="color:var(--text-muted);font-size:.8rem">—</span>`;
 
         const skillCount = s.skills.length
@@ -176,6 +176,19 @@ function renderTable(q = '') {
         row.addEventListener('click', () => {
             const s = list[+row.dataset.idx];
             showDetailPanel(s, q);
+        });
+    });
+
+    // Expand "+N more" project pills in the Projects column
+    tbody.querySelectorAll('.proj-more').forEach(btn => {
+        btn.addEventListener('click', e => {
+            e.stopPropagation(); // don't open the detail panel
+            const s = list[+btn.dataset.idx];
+            const cell = btn.closest('td');
+            if (!s || !cell) return;
+            cell.querySelector('.proj-pills').innerHTML = s.projects.map(p =>
+                `<span class="proj-pill" title="${p.soc || p.projectName || ''}">${hl(p.soc || p.projectName || '—', q)}</span>`
+            ).join('');
         });
     });
 }

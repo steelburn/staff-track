@@ -1712,6 +1712,18 @@ tr.col-filters td {
     border: 1px dashed var(--color-border);
 }
 
+.proj-pill.proj-more {
+    font-family: inherit;
+    cursor: pointer;
+    color: var(--color-primary);
+    background: var(--color-primary-lighter);
+    border: 1px dashed var(--color-primary);
+}
+
+.proj-pill.proj-more:hover {
+    background: var(--color-primary-light);
+}
+
 .skill-count-pill {
     display: inline-block;
     padding: 2px var(--space-2);

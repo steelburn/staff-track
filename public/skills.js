@@ -276,7 +276,10 @@ function renderStaffView() {
         return;
     }
 
-    grid.innerHTML = filtered.map(staff => `
+    grid.innerHTML = filtered.map((staff, idx) => {
+        const skills = (staff.skills || []).slice().sort((a, b) => b.rating - a.rating);
+        const hidden = skills.length - 5;
+        return `
         <div class="section-card" style="padding:1.25rem;">
             <h3 style="margin:0 0 0.25rem 0; font-size:1.1rem; color:var(--text-main)">${hl(staff.staffName, searchQuery)}</h3>
             <div style="font-size:0.85rem; color:var(--text-muted); margin-bottom:1rem">${hl(staff.title, searchQuery)} • ${hl(staff.department, searchQuery)}</div>
@@ -284,23 +287,36 @@ function renderStaffView() {
             <div style="border-top:1px solid var(--border); padding-top:0.75rem;">
                 <h4 style="margin:0 0 0.5rem 0; font-size:0.8rem; text-transform:uppercase; letter-spacing:0.05em; color:var(--text-secondary)">Top Skills</h4>
                 <div style="display:flex; flex-direction:column; gap:0.4rem;">
-                    ${(staff.skills || [])
-            .sort((a, b) => b.rating - a.rating)
-            .slice(0, 5) // Show top 5 skills
-            .map(s => {
-                // Highlight if it's one of the active filters
-                const isRequired = activeFilters.some(f => f.name.toLowerCase() === s.skill.toLowerCase());
-                return `
-                            <div style="display:flex; justify-content:space-between; align-items:center; ${isRequired ? 'background:var(--bg-hover); padding:2px 4px; border-radius:4px' : ''}">
-                                <span style="font-size:0.85rem; ${isRequired ? 'font-weight:600' : ''}">${hl(s.skill, searchQuery)}</span>
-                                ${renderStars(s.rating)}
-                            </div>
-                        `}).join('')}
-                    ${staff.skills?.length > 5 ? `<div style="font-size:0.75rem; color:var(--text-muted); text-align:center; margin-top:0.25rem">+ ${staff.skills.length - 5} more skills</div>` : ''}
+                    ${skills.slice(0, 5).map(skillRowHTML).join('')}
+                    ${hidden > 0 ? `<button type="button" class="staff-more skill-more" data-idx="${idx}" style="margin:0.25rem auto 0">＋${hidden} more skills</button>` : ''}
                 </div>
             </div>
         </div>
-    `).join('');
+    `;
+    }).join('');
+
+    // Expand "+N more skills" (By Staff view)
+    grid.querySelectorAll('.skill-more').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const staff = filtered[+btn.dataset.idx];
+            const area = btn.parentElement;
+            if (!staff || !area) return;
+            const all = (staff.skills || []).slice().sort((a, b) => b.rating - a.rating);
+            area.innerHTML = all.map(skillRowHTML).join('');
+        });
+    });
+}
+
+// One skill row (shared by the clamped "Top Skills" list and its "+N more" expansion)
+function skillRowHTML(s) {
+    // Highlight if it's one of the active filters
+    const isRequired = activeFilters.some(f => f.name.toLowerCase() === s.skill.toLowerCase());
+    return `
+        <div style="display:flex; justify-content:space-between; align-items:center; ${isRequired ? 'background:var(--bg-hover); padding:2px 4px; border-radius:4px' : ''}">
+            <span style="font-size:0.85rem; ${isRequired ? 'font-weight:600' : ''}">${hl(s.skill, searchQuery)}</span>
+            ${renderStars(s.rating)}
+        </div>
+    `;
 }
 
 function renderStars(rating) {
