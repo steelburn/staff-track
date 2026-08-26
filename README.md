@@ -64,6 +64,7 @@ docker compose up -d
   - `admin.html`: User permission and role management.
   - `catalog.html`: Global staff and project record maintenance.
   - `system.html`: BeeSuite staff/project sync cards, skill consolidation, and system stats.
+  - `reporting.html`: Management reporting dashboard — org KPIs (headcount, team structure, profile completeness, skills, projects, certs, activity). Full org for Admin/HR/coordinator; subordinates (direct + indirect) for managers; 403 otherwise.
 - **Standard Pages**:
   - `index.html`: My Submission / Home.
   - `cv-profile.html`: CV profile management.
