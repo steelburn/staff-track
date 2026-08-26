@@ -5,7 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>StaffTrack — Reporting Dashboard</title>
-    <link rel="stylesheet" href="/css/main.css?v=20260826a">
+    <link rel="stylesheet" href="/css/main.css?v=20260826b">
     <script src="/theme.js?v=20260826a"></script>
     <style>
         /* ── Dashboard layout ─────────────────────────────────────────── */
@@ -293,6 +293,56 @@
             align-items: center;
         }
 
+        /* ── Slim status strip (loading + error, ≤30px, top of dashboard) ── */
+        .dash-status-item {
+            display: flex;
+            align-items: center;
+            gap: var(--space-3);
+            height: 28px;
+            padding: 0 var(--space-4);
+            margin-bottom: var(--space-4);
+            border: 1px solid var(--color-border);
+            border-radius: var(--radius-md);
+            background: var(--color-bg-muted);
+            color: var(--color-text-secondary);
+            font-size: var(--font-size-sm);
+        }
+
+        /* hidden must win over the flex display above (UA [hidden] loses to author rules) */
+        .dash-status-item[hidden] {
+            display: none !important;
+        }
+
+        .dash-status-error {
+            background: rgba(220, 38, 38, 0.08);
+            border-color: rgba(220, 38, 38, 0.28);
+            color: #dc2626;
+        }
+
+        .dash-status-title {
+            font-weight: var(--font-weight-semibold);
+            white-space: nowrap;
+        }
+
+        .dash-status-msg {
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        #dash-status .spinner-sm {
+            flex: none;
+        }
+
+        #dash-retry {
+            margin-left: auto;
+            flex: none;
+            height: 22px;
+            padding: 0 var(--space-3);
+            font-size: var(--font-size-xs);
+            line-height: 1;
+        }
+
         @media (max-width: 768px) {
             .bar-row {
                 grid-template-columns: minmax(90px, 1fr) 1.8fr 40px;
@@ -339,11 +389,15 @@
                         <button class="mobile-menu-btn" id="mobileMenuBtn">☰</button>
                         <div>
                             <h1 class="page-title">Reporting Dashboard</h1>
-                            <p class="page-subtitle">Organisation-wide KPIs for management</p>
+                            <p class="page-subtitle">Organisation-wide KPIs for management — drill down by department</p>
                         </div>
                     </div>
                     <div class="page-actions">
                         <span class="badge badge-info" id="scope-banner" hidden></span>
+                        <select id="dept-select" class="input select" style="width: 280px; flex: none;" hidden
+                                title="Drill down to one department's dashboard">
+                            <option value="">All departments</option>
+                        </select>
                         <label class="toggle" id="inactive-toggle-wrap" hidden title="Include inactive staff in the numbers">
                             <input type="checkbox" id="toggle-inactive">
                             <span class="toggle-track">
@@ -361,20 +415,23 @@
 
             <!-- Content Area -->
             <main class="content-area">
-                <div id="dash-error" class="empty-state" hidden>
-                    <div class="empty-state-icon">🚫</div>
-                    <div class="empty-state-title">Access restricted</div>
-                    <div class="empty-state-text" id="dash-error-text">The reporting dashboard is available to
-                        management and team leads only.</div>
-                    <a class="btn btn-primary" href="/cv-profile.html" style="margin-top:var(--space-4)">Go to My CV</a>
+                <!-- Slim status strip: loading & error share ONE ≤30px area at the top.
+                     The dashboard content below stays visible; the strip collapses to
+                     nothing when neither state is active. -->
+                <div id="dash-status">
+                    <div class="dash-status-item" id="dash-loading" hidden>
+                        <span class="spinner spinner-sm"></span>
+                        <span>Loading dashboard…</span>
+                    </div>
+                    <div class="dash-status-item dash-status-error" id="dash-error" hidden>
+                        <span id="dash-error-icon">⚠️</span>
+                        <span class="dash-status-title" id="dash-error-title">Couldn't load dashboard</span>
+                        <span class="dash-status-msg" id="dash-error-text"></span>
+                        <button class="btn btn-sm" id="dash-retry" hidden>Try again</button>
+                    </div>
                 </div>
 
                 <div id="dash-body" hidden>
-                    <div class="loading-state" id="dash-loading">
-                        <div class="spinner"></div>
-                        <p>Loading dashboard…</p>
-                    </div>
-
                     <div id="dash-content" hidden>
                         <!-- KPI row -->
                         <div class="kpi-row" id="dash-kpis"></div>
@@ -468,7 +525,7 @@
     <script src="/sidebar.js?v=20260826b"></script>
     <script src="/toast.js?v=20260826b"></script>
     <script src="/vendor/echarts.min.js?v=20260826b"></script>
-    <script src="/reporting.js?v=20260826b"></script>
+    <script src="/reporting.js?v=20260826c"></script>
 </body>
 
 </html>

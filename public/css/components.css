@@ -1060,6 +1060,15 @@ body > .toast {
     color: var(--color-text-secondary);
 }
 
+/* The `hidden` attribute MUST win over the display rules above: author display
+   rules beat the UA [hidden] rule, so any .loading-state/.empty-state carrying
+   the attribute was permanently visible (dashboard spinner + error strip bug
+   2026-08-26 — JS toggled hidden but nothing ever hid on screen). */
+.loading-state[hidden],
+.empty-state[hidden] {
+    display: none !important;
+}
+
 /* ─── Stats Card ────────────────────────────────────────────────────────── */
 .stat-card {
     background: var(--color-bg-surface);

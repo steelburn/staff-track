@@ -5,7 +5,14 @@ const authUser = requireAuth();
 // ── State ─────────────────────────────────────────────────────────────────────
 let payload = null;          // GET /reports/dashboard response
 let includeInactive = false; // default: inactive staff filtered out (server default)
+let selectedDept = null;     // department sub-dashboard scope (null = all)
 const charts = {};           // id -> echarts instance
+
+// Restore department scope from the URL (?dept=...) on load/refresh.
+(function initDeptFromUrl() {
+    const deptParam = new URLSearchParams(location.search).get('dept');
+    if (deptParam) selectedDept = deptParam;
+})();
 
 // ── Initialization ────────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
@@ -25,7 +32,10 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     wireInactiveToggle();
+    wireDeptSelect();
     wireThemeCharts();
+    const retryBtn = document.getElementById('dash-retry');
+    if (retryBtn) retryBtn.addEventListener('click', () => loadDashboard());
     window.addEventListener('resize', () => {
         Object.values(charts).forEach(c => { try { c.resize(); } catch (e) { /* noop */ } });
     });
@@ -51,6 +61,47 @@ function wireThemeCharts() {
     }
 }
 
+// ── Department sub-dashboard scope ───────────────────────────────────────────
+function wireDeptSelect() {
+    const sel = document.getElementById('dept-select');
+    if (!sel) return;
+    sel.addEventListener('change', () => selectDept(sel.value || null));
+}
+
+function selectDept(dept) {
+    selectedDept = dept;
+    syncDeptUrl();
+    loadDashboard();
+}
+
+// Keep ?dept= in the URL so refresh / share / back-forward survive.
+function syncDeptUrl() {
+    history.replaceState(null, '', location.pathname + (selectedDept ? `?dept=${encodeURIComponent(selectedDept)}` : ''));
+}
+
+// Populate the department dropdown from the payload. byDepartment is the org
+// map (never dept-filtered), so it stays complete while a sub-dashboard is on.
+// Hidden when the viewer has 0-1 departments in scope (no drill-down possible).
+function renderDeptSelector() {
+    const sel = document.getElementById('dept-select');
+    if (!sel) return;
+    const depts = payload.headcount.byDepartment || [];
+    sel.hidden = depts.length <= 1;
+    if (sel.hidden) return;
+
+    // Selection no longer resolvable (e.g. bogus ?dept= param): reset and refetch.
+    if (selectedDept && !depts.some(d => d.department === selectedDept)) {
+        selectedDept = null;
+        syncDeptUrl();
+        if (payload.department) loadDashboard(); // bogus filter was applied server-side
+        return;
+    }
+
+    sel.innerHTML = '<option value="">All departments</option>' +
+        depts.map(d => `<option value="${escapeHtml(d.department)}">${escapeHtml(d.department)} (${d.active})</option>`).join('');
+    sel.value = selectedDept || '';
+}
+
 // ── Data loading ──────────────────────────────────────────────────────────────
 async function loadDashboard() {
     const loading = document.getElementById('dash-loading');
@@ -63,15 +114,25 @@ async function loadDashboard() {
     content.hidden = true;
     errorBox.hidden = true;
 
-    const url = `/api/reports/dashboard${includeInactive ? '?include_inactive=true' : ''}`;
+    const qs = new URLSearchParams();
+    if (includeInactive) qs.set('include_inactive', 'true');
+    if (selectedDept) qs.set('department', selectedDept);
+    const url = `/api/reports/dashboard${qs.toString() ? `?${qs.toString()}` : ''}`;
+
+    // Hard timeout: a hung in-flight fetch (tunnel keepalive, tab suspension,
+    // connection reset) would otherwise leave the spinner spinning forever.
+    // The timer guarantees the loading state ALWAYS resolves to content or error.
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 20000);
     try {
-        const res = await window.StaffTrackAuth.apiFetch(url);
+        const res = await window.StaffTrackAuth.apiFetch(url, { signal: controller.signal });
+        clearTimeout(timeoutId);
         if (res.status === 403) {
-            showError('The reporting dashboard is available to management and team leads only.');
+            showError('The reporting dashboard is available to management and team leads only.', false);
             return;
         }
         if (!res.ok) {
-            showError('Failed to load dashboard data. Please try again.');
+            showError('Failed to load dashboard data. Please try again.', true);
             return;
         }
         payload = await res.json();
@@ -79,12 +140,15 @@ async function loadDashboard() {
         content.hidden = false;
         renderAll();
     } catch (err) {
+        clearTimeout(timeoutId);
         console.error('Dashboard load failed:', err);
-        showError('Failed to load dashboard data. Please try again.');
+        showError(err && err.name === 'AbortError'
+            ? 'The dashboard request timed out. Please try again.'
+            : 'Failed to load dashboard data. Please try again.', true);
     }
 }
 
-function showError(text) {
+function showError(text, canRetry = false) {
     const loading = document.getElementById('dash-loading');
     const content = document.getElementById('dash-content');
     const body = document.getElementById('dash-body');
@@ -94,11 +158,21 @@ function showError(text) {
     body.hidden = false;
     errorBox.hidden = false;
     document.getElementById('dash-error-text').textContent = text;
+    // A 403 is the only true "no access" case. Timeouts / network / server errors
+    // are loading failures an authorized user can retry — never tell them they
+    // are "Access restricted".
+    const icon = document.getElementById('dash-error-icon');
+    const title = document.getElementById('dash-error-title');
+    if (icon) icon.textContent = canRetry ? '⚠️' : '🚫';
+    if (title) title.textContent = canRetry ? "Couldn't load dashboard" : 'Access restricted';
+    const retryBtn = document.getElementById('dash-retry');
+    if (retryBtn) retryBtn.hidden = !canRetry;
 }
 
 // ── Rendering ─────────────────────────────────────────────────────────────────
 function renderAll() {
     disposeCharts();
+    renderDeptSelector();
     renderScopeBanner();
     renderKpis();
     renderOrg();
@@ -121,6 +195,9 @@ function renderScopeBanner() {
     if (payload.scope === 'subordinates') {
         banner.hidden = false;
         banner.textContent = `Showing: your team (${payload.headcount.total} staff)`;
+    } else if (payload.department) {
+        banner.hidden = false;
+        banner.textContent = `Showing: ${payload.department} (${payload.headcount.total} staff)`;
     } else {
         banner.hidden = true;
     }
@@ -406,7 +483,8 @@ function renderDeptChart() {
             trigger: 'axis', axisPointer: { type: 'shadow' },
             formatter: (params) => {
                 const d = depts[params[0].dataIndex];
-                return `<strong>${escapeHtml(d.department)}</strong><br/>Active: ${d.active}<br/>Inactive: ${d.inactive}<br/>Total: ${d.total}`;
+                if (!d) return '';
+                return `<strong>${escapeHtml(d.department)}</strong><br/>Active: ${d.active}<br/>Inactive: ${d.inactive}<br/>Total: ${d.total}<br/><em>Click to ${d.department === selectedDept ? 'reset to all departments' : 'open this department\'s dashboard'}</em>`;
             }
         },
         grid: { left: 8, right: 24, top: 10, bottom: 8, containLabel: true },
@@ -419,11 +497,25 @@ function renderDeptChart() {
         },
         series: [{
             type: 'bar',
-            data: depts.map(d => d.active),
+            // Selected department is highlighted amber; others primary.
+            data: depts.map(d => ({
+                value: d.active,
+                itemStyle: {
+                    color: d.department === selectedDept ? col.warning : col.primary,
+                    borderRadius: [0, 6, 6, 0]
+                }
+            })),
             barWidth: 12,
-            itemStyle: { color: col.primary, borderRadius: [0, 6, 6, 0] },
             label: { show: true, position: 'right', color: col.muted, fontSize: 11 }
         }]
+    });
+    // Click a bar to scope the whole dashboard to that department; click the
+    // highlighted bar again to reset. Charts are disposed per render, so this
+    // handler never accumulates duplicates.
+    c.on('click', (params) => {
+        const d = depts[params.dataIndex];
+        if (!d) return;
+        selectDept(d.department === selectedDept ? null : d.department);
     });
 }
 
