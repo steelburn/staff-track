@@ -873,12 +873,37 @@ router.get('/dashboard', verifyToken, async (req, res) => {
         const sortByExpiry = (a, b) => (a.expiryDate < b.expiryDate ? -1 : 1);
         expiredCerts.sort(sortByExpiry);
         expiringCerts.sort(sortByExpiry);
+        // Popular certifications: normalize case/whitespace like /reports/certifications
+        // (label = most common spelling), count DISTINCT staff per normalized name.
+        const normCert = s => (s || '').trim().toLowerCase().replace(/\s+/g, ' ');
+        const certGroups = new Map(); // normKey -> { variants: Map<label,count>, staff: Set }
+        for (const r of certRows) {
+            const raw = (r.name || '').trim() || '(Untitled certification)';
+            const key = normCert(raw);
+            if (!certGroups.has(key)) certGroups.set(key, { variants: new Map(), staff: new Set() });
+            const g = certGroups.get(key);
+            g.variants.set(raw, (g.variants.get(raw) || 0) + 1);
+            g.staff.add(r.staff_email.toLowerCase());
+        }
+        const popular = [];
+        for (const [, g] of certGroups) {
+            let label = null, bestCount = -1;
+            for (const [variant, count] of g.variants) {
+                if (count > bestCount || (count === bestCount && (!label || variant.length < label.length))) {
+                    label = variant;
+                    bestCount = count;
+                }
+            }
+            popular.push({ name: label, staff: g.staff.size });
+        }
+        popular.sort((a, b) => b.staff - a.staff || a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }));
         payload.certifications = {
             total: certRows.length,
             expired: expiredCerts.length,
             expiring90d: expiringCerts.length,
             expiredCerts,
-            expiringCerts
+            expiringCerts,
+            popular: popular.slice(0, 10)
         };
 
         res.json(payload);

@@ -110,6 +110,7 @@ function renderAll() {
     renderProjectsChart();
     renderCerts();
     renderCertsChart();
+    renderPopularCertsChart();
     renderEngagement();
     renderEngagementChart();
 }
@@ -557,6 +558,31 @@ function renderEngagementChart() {
                     ]
                 }
             }
+        }]
+    });
+}
+
+function renderPopularCertsChart() {
+    const popular = (payload.certifications.popular || []).slice().reverse();
+    const c = mkChart('chart-popular-certs');
+    if (!c || popular.length === 0) return;
+    const col = chartColors();
+    c.setOption({
+        tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
+        grid: { left: 8, right: 24, top: 10, bottom: 8, containLabel: true },
+        xAxis: { type: 'value', ...axisColors(col) },
+        yAxis: {
+            type: 'category',
+            data: popular.map(s => s.name),
+            axisLabel: { color: col.text, fontSize: 11 },
+            axisLine: { lineStyle: { color: col.border } }
+        },
+        series: [{
+            type: 'bar',
+            data: popular.map(s => s.staff),
+            barWidth: 12,
+            itemStyle: { color: col.primary, borderRadius: [0, 6, 6, 0] },
+            label: { show: true, position: 'right', color: col.muted, fontSize: 11 }
         }]
     });
 }
