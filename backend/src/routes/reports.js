@@ -85,6 +85,28 @@ function hasReportAccess(user) {
     return isAdmin || isHR || isCoordinator;
 }
 
+// ── Helpers: dashboard scope ───────────────────────────────────────────────
+// mysql2 prepared statements do NOT expand arrays for IN (?); build placeholders.
+function buildPlaceholders(arr) {
+    return arr.map(() => '?').join(',');
+}
+
+// Resolve dashboard visibility. Returns { scope, emails } where emails is
+// null for full-org scope and an array (lowercased) for subordinates scope.
+async function resolveDashboardScope(db, user) {
+    const hasFullAccess = hasReportAccess(user);
+    if (hasFullAccess) return { scope: 'all', emails: null };
+    const emails = await getUserSubordinates(db, user.email.toLowerCase());
+    if (emails.length > 0) return { scope: 'subordinates', emails };
+    return { scope: 'none', emails: null };
+}
+
+// Scope WHERE clause fragment. scopeEmails null => full org.
+function scopeClause(scopeEmails, alias = 's') {
+    if (!scopeEmails) return '';
+    return ` AND LOWER(${alias}.email) IN (${buildPlaceholders(scopeEmails)})`;
+}
+
 // ── GET /reports/my-subordinates ─────────────────────────────────────────────
 // Returns list of subordinate emails for the current user
 router.get('/my-subordinates', verifyToken, async (req, res) => {
