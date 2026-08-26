@@ -24,6 +24,7 @@ let currentView = 'skills'; // 'skills' | 'staff'
 let activeFilters = []; // { name, minRating }
 let searchQuery = '';
 let currentData = [];
+let includeInactive = false; // default: inactive staff filtered out
 
 // ── Initialization ────────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', async () => {
@@ -83,6 +84,15 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
 
     await fetchDataAndRender();
+
+    // Include inactive staff toggle (default: filtered out)
+    const toggleInactive = document.getElementById('toggle-inactive');
+    if (toggleInactive) {
+        toggleInactive.addEventListener('change', async (e) => {
+            includeInactive = e.target.checked;
+            await fetchDataAndRender();
+        });
+    }
 });
 
 function toggleActiveBtn(activeBtn, inactiveBtn) {
@@ -153,15 +163,18 @@ async function fetchDataAndRender() {
     grid.innerHTML = '<p class="grid-empty">Fetching data...</p>';
 
     try {
+        // Extra query params shared by both views (subordinates_only, include_inactive)
+        const extraParams = [subordinatesOnlyParam, includeInactive ? 'include_inactive=true' : ''].filter(Boolean);
+
         if (currentView === 'skills') {
-            const qs = subordinatesOnlyParam ? `?${subordinatesOnlyParam}` : '';
+            const qs = extraParams.length ? `?${extraParams.join('&')}` : '';
             const res = await window.StaffTrackAuth.apiFetch(`/api/reports/skills${qs}`);
             if (!res.ok) throw new Error('Failed to load skills');
             currentData = await res.json();
         } else {
             let qs = activeFilters.length ? `skills=${encodeURIComponent(JSON.stringify(activeFilters))}` : '';
-            if (subordinatesOnlyParam) {
-                qs = qs ? `${qs}&${subordinatesOnlyParam}` : subordinatesOnlyParam;
+            if (extraParams.length) {
+                qs = qs ? `${qs}&${extraParams.join('&')}` : extraParams.join('&');
             }
             const url = qs ? `/api/reports/staff-search?${qs}` : '/api/reports/staff-search';
             const res = await window.StaffTrackAuth.apiFetch(url);

@@ -47,19 +47,26 @@ async function getUserSubordinates(db, userEmail) {
     const userName = userRows[0].name;
     if (!userName) return [];
 
-    // Recursive CTE to find all subordinates (direct and indirect)
+    // Recursive CTE to find all subordinates (direct and indirect).
+    // Inactive staff (user_roles.is_active = 0) are excluded from the tree.
+    // UNION (DISTINCT) doubles as a cycle guard — manager_name data contains
+    // cycles (orgchart's breakCycles exists for the same reason); UNION ALL
+    // loops forever and MySQL aborts at 1001 iterations (500 for any manager
+    // under Yap's tree). Deduping costs nothing: the result is an email set.
     const query = `
         WITH RECURSIVE subordinates AS (
             -- Base case: direct subordinates
-            SELECT email, name, manager_name
-            FROM staff
-            WHERE manager_name = ?
+            SELECT s.email, s.name, s.manager_name
+            FROM staff s
+            INNER JOIN user_roles ur ON s.email = ur.email AND ur.is_active = 1
+            WHERE s.manager_name = ?
             
-            UNION ALL
+            UNION
             
             -- Recursive case: subordinates of subordinates
             SELECT s.email, s.name, s.manager_name
             FROM staff s
+            INNER JOIN user_roles ur ON s.email = ur.email AND ur.is_active = 1
             INNER JOIN subordinates sub ON s.manager_name = sub.name
         )
         SELECT email FROM subordinates
@@ -216,6 +223,13 @@ router.get('/projects', requireReporterOrManager, async (req, res) => {
 
         const isAdminOrHR = req.user.isAdmin === true || req.user.is_hr === 1 || req.user.is_hr === true;
         const email = req.user.email.toLowerCase();
+        const includeInactive = req.query.include_inactive === 'true';
+
+        // Inactive staff (user_roles.is_active = 0) are excluded by default;
+        // pass include_inactive=true to include them.
+        const activeJoin = includeInactive
+            ? 'LEFT JOIN user_roles ur ON s.staff_email = ur.email'
+            : 'INNER JOIN user_roles ur ON s.staff_email = ur.email AND ur.is_active = 1';
 
         let query = `
       SELECT
@@ -225,6 +239,7 @@ router.get('/projects', requireReporterOrManager, async (req, res) => {
         mp.coordinator_email
       FROM submission_projects p
       JOIN submissions s ON p.submission_id = s.id
+      ${activeJoin}
       LEFT JOIN managed_projects mp ON (mp.soc = p.soc OR (p.soc IS NULL AND mp.project_name = p.project_name))
     `;
 
@@ -270,6 +285,7 @@ router.get('/skills', requireReporterOrManager, async (req, res) => {
     try {
         const db = await getDb();
         const subordinatesOnly = req.query.subordinates_only === 'true';
+        const includeInactive = req.query.include_inactive === 'true';
         
         // Check access: admin/hr/coordinator can see all, managers can only see subordinates
         const userHasFullAccess = hasReportAccess(req.user);
@@ -281,6 +297,12 @@ router.get('/skills', requireReporterOrManager, async (req, res) => {
                 return res.json([]);
             }
         }
+
+        // Inactive staff (user_roles.is_active = 0) are excluded by default;
+        // pass include_inactive=true to include them.
+        const activeJoin = includeInactive
+            ? 'LEFT JOIN user_roles ur ON s.staff_email = ur.email'
+            : 'INNER JOIN user_roles ur ON s.staff_email = ur.email AND ur.is_active = 1';
 
         // Get all unique skills with staff members who have them
         let query = `
@@ -294,6 +316,7 @@ router.get('/skills', requireReporterOrManager, async (req, res) => {
                 s.id as submission_id
             FROM submission_skills sk
             JOIN submissions s ON sk.submission_id = s.id
+            ${activeJoin}
         `;
         
         const params = [];
@@ -361,6 +384,14 @@ router.get('/certifications', verifyToken, async (req, res) => {
         }
 
         const db = await getDb();
+        const includeInactive = req.query.include_inactive === 'true';
+
+        // Inactive staff (user_roles.is_active = 0) are excluded by default;
+        // pass include_inactive=true to include them.
+        const activeJoin = includeInactive
+            ? 'LEFT JOIN user_roles ur ON ur.email = c.staff_email'
+            : 'INNER JOIN user_roles ur ON ur.email = c.staff_email AND ur.is_active = 1';
+
         const query = `
             SELECT
                 c.id,
@@ -377,6 +408,7 @@ router.get('/certifications', verifyToken, async (req, res) => {
                 COALESCE(st.title, s.title) AS title,
                 COALESCE(st.department, s.department) AS department
             FROM certifications c
+            ${activeJoin}
             LEFT JOIN staff st ON LOWER(st.email) = LOWER(c.staff_email)
             LEFT JOIN submissions s ON LOWER(s.staff_email) = LOWER(c.staff_email)
             ORDER BY c.name ASC, c.date_obtained DESC
@@ -436,6 +468,7 @@ router.get('/staff-search', requireReporterOrManager, async (req, res) => {
     try {
         const db = await getDb();
         const subordinatesOnly = req.query.subordinates_only === 'true';
+        const includeInactive = req.query.include_inactive === 'true';
         
         // Check access: admin/hr/coordinator can see all, managers can only see subordinates
         const userHasFullAccess = hasReportAccess(req.user);
@@ -456,6 +489,12 @@ router.get('/staff-search', requireReporterOrManager, async (req, res) => {
             ? ` LOWER(s.staff_email) IN (${subordinateEmails.map(() => '?').join(',')})`
             : null;
         
+        // Inactive staff (user_roles.is_active = 0) are excluded by default;
+        // pass include_inactive=true to include them.
+        const activeJoin = includeInactive
+            ? 'LEFT JOIN user_roles ur ON s.staff_email = ur.email'
+            : 'INNER JOIN user_roles ur ON s.staff_email = ur.email AND ur.is_active = 1';
+        
         if (skillFilters.length === 0) {
             // If no filters, return all staff with their skills
             let query = `
@@ -469,6 +508,7 @@ router.get('/staff-search', requireReporterOrManager, async (req, res) => {
                     sk.skill,
                     sk.rating
                 FROM submissions s
+                ${activeJoin}
                 LEFT JOIN submission_skills sk ON s.id = sk.submission_id
             `;
             
@@ -557,6 +597,7 @@ router.get('/staff-search', requireReporterOrManager, async (req, res) => {
                 sk.skill,
                 sk.rating
             FROM submissions s
+            ${activeJoin}
             LEFT JOIN submission_skills sk ON s.id = sk.submission_id
             WHERE ${whereClauses.join(' ')}
             ORDER BY s.staff_name ASC, sk.skill ASC

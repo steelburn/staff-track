@@ -14,6 +14,7 @@ let currentView = 'certs'; // 'certs' | 'staff'
 let searchQuery = '';
 let statusFilter = 'all'; // 'all' | 'valid' | 'expiring' | 'expired'
 let currentData = []; // [{ name, staff: [{id,email,name,title,department,issuer,dateObtained,expiryDate,credentialId,description,proofPath,visible}] }]
+let includeInactive = false; // default: inactive staff filtered out
 
 const DAY_MS = 86400000;
 
@@ -63,6 +64,15 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
 
     await fetchDataAndRender();
+
+    // Include inactive staff toggle (default: filtered out)
+    const toggleInactive = document.getElementById('toggle-inactive');
+    if (toggleInactive) {
+        toggleInactive.addEventListener('change', async (e) => {
+            includeInactive = e.target.checked;
+            await fetchDataAndRender();
+        });
+    }
 });
 
 function toggleActiveBtn(activeBtn, inactiveBtn) {
@@ -85,7 +95,8 @@ async function fetchDataAndRender() {
     grid.innerHTML = '<p class="grid-empty">Fetching data...</p>';
 
     try {
-        const res = await window.StaffTrackAuth.apiFetch('/api/reports/certifications');
+        const qs = includeInactive ? '?include_inactive=true' : '';
+        const res = await window.StaffTrackAuth.apiFetch(`/api/reports/certifications${qs}`);
         if (!res.ok) throw new Error('Failed to load certifications');
         currentData = await res.json();
         renderCurrentView();
