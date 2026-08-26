@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>StaffTrack — Certifications</title>
+    <link rel="stylesheet" href="/css/main.css?v=20260826a">
+    <script src="/theme.js?v=20260826a"></script>
+    <style>
+        .certs-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));
+            gap: var(--space-4);
+        }
+
+        .cert-group-card {
+            background: var(--color-bg-surface);
+            border: 1px solid var(--color-border);
+            border-radius: var(--radius-lg);
+            overflow: hidden;
+        }
+
+        .cert-group-header {
+            padding: var(--space-4) var(--space-5);
+            background: var(--color-bg-muted);
+            border-bottom: 1px solid var(--color-border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: var(--space-3);
+        }
+
+        .cert-group-header h3 {
+            font-size: var(--font-size-md);
+            font-weight: var(--font-weight-semibold);
+            color: var(--color-primary);
+            margin: 0;
+            word-break: break-word;
+        }
+
+        .cert-group-count {
+            font-size: var(--font-size-sm);
+            color: var(--color-text-muted);
+            white-space: nowrap;
+        }
+
+        .cert-staff-list {
+            max-height: 340px;
+            overflow-y: auto;
+        }
+
+        .cert-staff-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: var(--space-3);
+            padding: var(--space-3) var(--space-5);
+            border-bottom: 1px solid var(--color-border);
+            transition: background var(--transition-fast);
+        }
+
+        .cert-staff-row:last-child {
+            border-bottom: none;
+        }
+
+        .cert-staff-row:hover {
+            background: var(--color-bg-hover);
+        }
+
+        .cert-staff-info {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+            min-width: 0;
+        }
+
+        .cert-staff-name {
+            font-size: var(--font-size-base);
+            font-weight: var(--font-weight-medium);
+            color: var(--color-text-primary);
+        }
+
+        .cert-staff-name a {
+            color: inherit;
+            text-decoration: none;
+        }
+
+        .cert-staff-name a:hover {
+            color: var(--color-primary);
+            text-decoration: underline;
+        }
+
+        .cert-staff-meta {
+            font-size: var(--font-size-xs);
+            color: var(--color-text-secondary);
+        }
+
+        .cert-staff-dates {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+            gap: 3px;
+            font-size: var(--font-size-xs);
+            color: var(--color-text-muted);
+            white-space: nowrap;
+        }
+
+        .cert-staff-dates a {
+            color: var(--color-primary);
+            text-decoration: none;
+            font-size: var(--font-size-xs);
+        }
+
+        .cert-staff-dates a:hover {
+            text-decoration: underline;
+        }
+
+        .cert-issuer {
+            font-size: var(--font-size-xs);
+            color: var(--color-text-secondary);
+            margin-top: 1px;
+        }
+
+        /* Status badges */
+        .cert-badge {
+            display: inline-flex;
+            align-items: center;
+            padding: 1px 8px;
+            border-radius: var(--radius-full);
+            font-size: 0.68rem;
+            font-weight: var(--font-weight-semibold);
+            line-height: 1.5;
+        }
+
+        .cert-badge.expired {
+            background: rgba(220, 38, 38, 0.12);
+            color: #dc2626;
+        }
+
+        .cert-badge.expiring {
+            background: rgba(217, 119, 6, 0.14);
+            color: #b45309;
+        }
+
+        .cert-badge.valid {
+            background: rgba(16, 185, 129, 0.12);
+            color: #059669;
+        }
+
+        /* Staff cards view (By Staff) */
+        .staff-cert-list {
+            border-top: 1px solid var(--color-border);
+            padding-top: var(--space-3);
+            display: flex;
+            flex-direction: column;
+            gap: var(--space-3);
+            margin-top: var(--space-3);
+        }
+
+        .staff-cert-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: var(--space-3);
+        }
+
+        .staff-cert-item .cert-name {
+            font-size: var(--font-size-sm);
+            font-weight: var(--font-weight-medium);
+            color: var(--color-text-primary);
+        }
+
+        .staff-cert-item .cert-sub {
+            font-size: var(--font-size-xs);
+            color: var(--color-text-muted);
+            margin-top: 1px;
+        }
+
+        .filter-bar {
+            display: flex;
+            gap: var(--space-3);
+            flex-wrap: wrap;
+            margin-bottom: var(--space-6);
+        }
+
+        .filter-bar .input {
+            flex: 1;
+            min-width: 200px;
+        }
+
+        @media (max-width: 768px) {
+            .certs-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .filter-bar {
+                flex-direction: column;
+            }
+
+            .filter-bar .input {
+                min-width: 100%;
+            }
+
+            .cert-staff-dates {
+                align-items: flex-start;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="app-layout">
+        <!-- ═══ Sidebar ═══════════════════════════════════════════════════════ -->
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-header">
+                <div class="sidebar-logo">📋</div>
+                <span class="sidebar-title">StaffTrack</span>
+            </div>
+
+            <nav class="sidebar-nav" id="sidebar-nav">
+                <!-- Navigation rendered by JS -->
+            </nav>
+
+            <div class="sidebar-footer">
+                <div class="user-card" id="sidebar-user-card">
+                    <!-- User info rendered by JS -->
+                </div>
+            </div>
+
+            <button class="sidebar-toggle" id="sidebarToggle">◀</button>
+        </aside>
+
+        <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+        <!-- ═══ Main Content ═════════════════════════════════════════════════ -->
+        <div class="main-content">
+            <!-- Page Header -->
+            <header class="page-header">
+                <div class="page-header-top">
+                    <div style="display:flex; align-items:center; gap:12px;">
+                        <button class="mobile-menu-btn" id="mobileMenuBtn">☰</button>
+                        <div>
+                            <h1 class="page-title">Certifications</h1>
+                            <p class="page-subtitle">Certifications held across the organization</p>
+                        </div>
+                    </div>
+                    <div class="page-actions">
+                        <button class="btn btn-secondary" id="theme-toggle" data-theme-toggle>
+                            <span class="theme-icon">🌙</span>
+                            <span class="theme-label">Dark</span>
+                        </button>
+                    </div>
+                </div>
+            </header>
+
+            <!-- Content Area -->
+            <main class="content-area">
+                <!-- Filters -->
+                <div class="filter-bar">
+                    <div class="search-box" style="flex: 1; min-width: 200px;">
+                        <span class="search-icon">🔍</span>
+                        <input type="text" id="cert-search" class="input" placeholder="Search certification, issuer, or staff...">
+                    </div>
+                    <select id="status-select" class="input select" style="width: 180px; flex: none;">
+                        <option value="all">All certifications</option>
+                        <option value="expiring">Expiring ≤ 90 days</option>
+                        <option value="expired">Expired</option>
+                        <option value="valid">Valid / no expiry</option>
+                    </select>
+                </div>
+
+                <!-- View Toggle & Count -->
+                <div class="section-header">
+                    <div class="view-toggle">
+                        <button id="btn-view-certs" class="active">By Certification</button>
+                        <button id="btn-view-staff">By Staff</button>
+                    </div>
+                    <span class="section-count" id="certs-count">Loading...</span>
+                </div>
+
+                <!-- Certs Grid -->
+                <div id="certs-grid" class="certs-grid">
+                    <div class="loading-state" style="grid-column: 1 / -1;">
+                        <div class="spinner"></div>
+                        <p>Loading certifications...</p>
+                    </div>
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <!-- Toast Container -->
+    <div id="toast-container" class="toast-container"></div>
+
+    <script src="/auth.js?v=20260826a"></script>
+    <script src="/menu.js?v=20260826a"></script>
+    <script src="/sidebar.js?v=20260826a"></script>
+    <script src="/toast.js?v=20260826a"></script>
+    <script src="/certifications.js?v=20260826a"></script>
+</body>
+
+</html>

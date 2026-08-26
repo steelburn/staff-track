@@ -162,6 +162,7 @@ const Sidebar = {
                 <div class="nav-section">
                     <div class="nav-section-label">Management</div>
                     ${showStaff ? this.renderNavItem('👥', 'All Staff', '/staff-view.html', activeTab === 'staff', '', 'staff') : ''}
+                    ${showStaff ? this.renderNavItem('🏅', 'Certifications', '/certifications.html', activeTab === 'certifications') : ''}
                     ${isAdmin ? this.renderNavItem('⚙️', 'Catalog', '/catalog.html', activeTab === 'catalog') : ''}
                     ${isAdmin ? this.renderNavItem('📋', 'CV Templates', '/cv-template-editor.html', activeTab === 'cv-template-editor') : ''}
                     ${isAdmin ? this.renderNavItem('💻', 'System', '/system.html', activeTab === 'system') : ''}

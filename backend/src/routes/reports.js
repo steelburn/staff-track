@@ -349,6 +349,88 @@ router.get('/skills', requireReporterOrManager, async (req, res) => {
     }
 });
 
+// ── GET /reports/certifications ───────────────────────────────────────────────
+// Org-wide certification catalog, grouped by normalized cert name (mirrors
+// /reports/skills). HR and Admin only (server-enforced; managers/coordinators 403).
+router.get('/certifications', verifyToken, async (req, res) => {
+    try {
+        const isAdmin = req.user.isAdmin === true;
+        const isHR = req.user.is_hr === 1 || req.user.is_hr === true;
+        if (!isAdmin && !isHR) {
+            return res.status(403).json({ error: 'HR or Admin access required' });
+        }
+
+        const db = await getDb();
+        const query = `
+            SELECT
+                c.id,
+                c.staff_email,
+                c.name,
+                c.issuer,
+                c.date_obtained,
+                c.expiry_date,
+                c.credential_id,
+                c.description,
+                c.proof_path,
+                c.is_visible,
+                COALESCE(st.name, s.staff_name, c.staff_email) AS staff_name,
+                COALESCE(st.title, s.title) AS title,
+                COALESCE(st.department, s.department) AS department
+            FROM certifications c
+            LEFT JOIN staff st ON LOWER(st.email) = LOWER(c.staff_email)
+            LEFT JOIN submissions s ON LOWER(s.staff_email) = LOWER(c.staff_email)
+            ORDER BY c.name ASC, c.date_obtained DESC
+        `;
+        const [rows] = await db.query(query);
+
+        // Group by cert name, normalizing case + whitespace so "AWS SAA" / "aws saa"
+        // collapse into one catalog entry. Display label = most common spelling.
+        const normalizeCert = s => (s || '').trim().toLowerCase().replace(/\s+/g, ' ');
+
+        const certGroups = new Map(); // normKey -> { variants: Map<label,count>, staff: [] }
+        rows.forEach(row => {
+            const raw = (row.name || '').trim() || '(Untitled certification)';
+            const key = normalizeCert(raw);
+            if (!certGroups.has(key)) certGroups.set(key, { variants: new Map(), staff: [] });
+            const g = certGroups.get(key);
+            g.variants.set(raw, (g.variants.get(raw) || 0) + 1);
+            g.staff.push({
+                id: row.id,
+                email: row.staff_email,
+                name: row.staff_name,
+                title: row.title || '',
+                department: row.department || '',
+                issuer: row.issuer || '',
+                dateObtained: formatDate(row.date_obtained),
+                expiryDate: formatDate(row.expiry_date),
+                credentialId: row.credential_id || '',
+                description: row.description || '',
+                proofPath: row.proof_path || null,
+                visible: row.is_visible !== 0
+            });
+        });
+
+        const result = [];
+        for (const [key, g] of certGroups) {
+            let label = key;
+            let bestCount = -1;
+            for (const [variant, count] of g.variants) {
+                if (count > bestCount || (count === bestCount && variant.length < label.length)) {
+                    label = variant;
+                    bestCount = count;
+                }
+            }
+            result.push({ name: label, staff: g.staff });
+        }
+        result.sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }));
+
+        res.json(result);
+    } catch (err) {
+        console.error('GET /reports/certifications error:', err);
+        res.status(500).json({ error: 'Failed to fetch certifications report' });
+    }
+});
+
 // ── GET /reports/staff-search ──────────────────────────────────────────────────
 router.get('/staff-search', requireReporterOrManager, async (req, res) => {
     try {

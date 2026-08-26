@@ -51,6 +51,7 @@ docker compose up -d
 - **Project coordination**: Enhanced project management for coordinators, including filtered Gantt views and project assignment tools.
 - **Skill Consolidation**: Admin tools for skill governance including merge, split, and rename operations.
 - **Staff Search**: Advanced search functionality for finding staff by multiple skill criteria.
+- **Certification Catalog**: Organization-wide certification tracking with expiry monitoring (Expired / Expiring ≤ 90 days), By Certification / By Staff views, and proof links — Admin/HR only.
 
 ## 📁 Repository Structure
 
@@ -68,6 +69,7 @@ docker compose up -d
   - `projects.html`: Project-centric view with assignment tools.
   - `staff-view.html`: Organization-wide staff reporting.
   - `skills.html`: Skill aggregation and search.
+  - `certifications.html`: Organization-wide certification catalog (Admin/HR).
 
 ---
 ## 📑 Documentation

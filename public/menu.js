@@ -55,6 +55,7 @@ function renderNav(activeTab) {
     // All Staff link - visible to admin and HR
     if (showStaff) {
         html += `<a href="/staff-view.html" class="nav-link ${activeTab === 'staff' ? 'active' : ''}">👥 All Staff</a>`;
+        html += `<a href="/certifications.html" class="nav-link ${activeTab === 'certifications' ? 'active' : ''}">🏅 Certifications</a>`;
     }
 
     // Admin-only section (with visual separator)

@@ -74,6 +74,7 @@ Sidebar Navigation:
 ├── 🌳 Org Chart (orgchart.html)
 ├── 📊 Gantt Charts (gantt.html)        [Admin/HR/Coordinator]
 ├── 👥 All Staff (staff-view.html)       [Admin/HR]
+├── 🏅 Certifications (certifications.html) [Admin/HR]
 ├── ─────── Separator ───────
 ├── ⚙️ Catalog (catalog.html)           [Admin]
 ├── 📋 CV Templates (cv-template-editor.html) [Admin]
@@ -233,7 +234,18 @@ Every page follows this header template:
 - Skill comparison tool
 - Better search with instant results
 
-### 5.7 Admin Pages (admin, catalog, system)
+### 5.7 Certifications (certifications.html)
+
+**Current:** New page (2026-08-26)
+**Design:**
+- Org-wide certification catalog grouped by normalized cert name (case/whitespace-insensitive; display label = most common spelling), mirroring the Skills Catalog
+- Single API payload (`GET /reports/certifications`, Admin/HR only) drives both views
+- By Certification / By Staff toggle — staff view derived client-side from cert groups
+- Text search (cert name, issuer, staff, title, dept, credential ID) + status filter (Valid / Expiring ≤ 90 days / Expired)
+- Per-instance expiry badges (Expired / Expires in N days); proof links; staff names deep-link to read-only CV
+- Server-enforced role gate (HTTP 403 for non-Admin/HR) + frontend redirect
+
+### 5.8 Admin Pages (admin, catalog, system)
 
 **Current:** Basic tables
 **Redesign:**
