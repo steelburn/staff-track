@@ -823,8 +823,10 @@ router.post('/:email/generate', verifyToken, async (req, res) => {
         }
 
         // Prepare data object for template processing
-        // Format all date fields to YYYY-MM-DD strings for template display
-        const formattedEducation = formatDatesInArray(education, ['start_year', 'end_year']);
+        // Format all date fields to YYYY-MM-DD strings for template display.
+        // Education start_year/end_year are plain years (INT) — never run them
+        // through the date formatter (new Date(1999) → 1970-01-01).
+        const formattedEducation = education;
         const formattedCertifications = formatDatesInArray(certifications, ['date_obtained', 'expiry_date']);
         const formattedAwards = formatDatesInArray(awards, ['date_received']);
         const formattedWorkHistory = formatDatesInArray(workHistory, ['start_date', 'end_date']);
