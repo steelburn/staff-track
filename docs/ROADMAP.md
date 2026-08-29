@@ -206,13 +206,13 @@ Plus schema changes to `submission_projects`: add `start_date`, `description`, `
 | Phase | Work | Progress weight |
 |:---|:---|:---|
 | `login` | AppCore auth + staff list (`/api/users/staff`, tenant-filtered) | 0–5% |
-| `fetch-details` | Employment detail per staff (`/api/admin/user-info-details/employment-detail/{id}`) — **8-worker parallel pool**, 15s timeout, 3 attempts w/ 400ms×n backoff | 5–65% |
+| `fetch-details` | **Bulk**: single ZCS DreamFactory query (`/_table/user_info`, latest record per user — manager GUID→name + PROPERTIES_XML `dateOfResignation`) ~0.3s. Fallback: per-staff AppCore (`/api/admin/user-info-details/employment-detail/{id}`) — **8-worker parallel pool**, 15s timeout, 3 attempts w/ 400ms×n backoff — for staff the bulk dump misses or if the bulk call fails | 5–65% |
 | `update-db` | Sequential upserts: `staff` (name, title, department, manager_name) + `user_roles` (is_active reactivation) | 65–95% |
 | `deactivate` | `user_roles.is_active=0` for wrong-tenant / non-Active / resigned staff | 96–100% |
 
-**Fields synced**: `staff.name` ← employeeName, `staff.title` ← designation, `staff.department` ← department, `staff.manager_name` ← employmentDetail.reportingToName, `user_roles.is_active` ← status + dateOfResignation. Inactive/resigned staff are deactivated and skipped (their title/department are not overwritten). Failed detail fetches (after retries) keep the existing manager_name (`stats.detailFailures`).
+**Fields synced**: `staff.name` ← employeeName, `staff.title` ← designation, `staff.department` ← department, `staff.manager_name` ← DreamFactory bulk (manager GUID→latest user_info FULLNAME; verified 38/38 vs AppCore `reportingToName`), `user_roles.is_active` ← status + dateOfResignation (bulk: PROPERTIES_XML `<dateOfResignation>`, falling back to the `RESIGNATION_DATE` column; verified identical to AppCore on real-date rows). Inactive/resigned staff are deactivated and skipped (their title/department are not overwritten). Failed detail fetches (after retries) keep the existing manager_name (`stats.detailFailures`).
 
-**Timing**: 306 staff ≈ 50s end-to-end (was 4–6 min sequential with no timeout/retry — a single hung request could stall the sync indefinitely, and the frontend 3-min poll cap bailed mid-run).
+**Timing**: 309 staff ≈ 5s end-to-end (bulk fetch ~0.3s + sequential DB upserts ~4s; was ~50s per-staff AppCore fetch — a single hung request used to stall the sync, and the frontend 3-min poll cap bailed mid-run). Requires `ZCS_API_KEY` in the host `.env`; without it the sync falls back to the per-staff AppCore path automatically.
 
 **Frontend** (`system.html`/`system.js`): progress bar + phase label, 30-min poll budget, resumes monitoring on page load if a sync is already running.
 

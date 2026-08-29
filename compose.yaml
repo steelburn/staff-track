@@ -38,6 +38,8 @@ services:
       BEESUITE_API_URL: "https://appcore.beesuite.app"
       BEESUITE_EMAIL: "${BEESUITE_EMAIL:-email@example.com}"
       BEESUITE_PASSWORD: "${BEESUITE_PASSWORD:-encodedpassword}"
+      ZCS_API_URL: "https://api.zen.com.my/api/v2/zcs_v2"
+      ZCS_API_KEY: "${ZCS_API_KEY:-}"
       JWT_SECRET: "dev_secret_change_me_in_prod"
       ADMIN_PASSWORD: "secure_admin_password"
     ports:

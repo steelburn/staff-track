@@ -41,6 +41,10 @@ function formatDate(dateVal) {
 const requireAdmin = [verifyToken, requireRole('admin')];
 
 const BEESUITE_API_BASE = process.env.BEESUITE_API_URL || 'https://appcore.beesuite.app';
+// ZCS DreamFactory (same backend DB as AppCore, but a single bulk query replaces
+// ~306 per-staff employment-detail calls). Key lives in the host .env (ZCS_API_KEY).
+const ZCS_API_BASE = process.env.ZCS_API_URL || 'https://api.zen.com.my/api/v2/zcs_v2';
+const ZCS_API_KEY = process.env.ZCS_API_KEY || '';
 
 // ── GET /admin/roles ──────────────────────────────────────────────────────────
 // Get all users with their roles
@@ -728,26 +732,91 @@ router.post('/sync-staff', verifyToken, requireRole('admin'), async (req, res) =
 
             syncStatus.total = filteredStaffList.length;
 
-            // ── Phase 1: fetch employment details in parallel (8 workers, retried) ──
-            // 306 staff × ~800ms sequential ≈ 4+ min used to stall the sync; parallel
-            // fetch drops this to ~30-40s even if a few calls hang (timeout+retry).
+            // ── Phase 1: fetch employment details ──
+            // One DreamFactory bulk query returns the latest user_info for every
+            // staff (manager GUID → name + PROPERTIES_XML dateOfResignation) in
+            // ~0.3s, vs ~46s of per-staff AppCore employment-detail calls. Falls
+            // back to the per-staff AppCore path (8 workers, timeout + retry) when
+            // the bulk query is unavailable (no ZCS_API_KEY / API error) or for
+            // staff the bulk dump doesn't cover.
             syncStatus.phase = 'fetch-details';
-            const details = new Map(); // email(lowercase) -> employmentDetail
-            await mapLimit(filteredStaffList, 8, async (staff) => {
-                if (!staff.email) return;
-                syncStatus.currentStaff = staff.email;
-                syncStatus.progress++;
-                syncStatus.percent = 5 + Math.round((syncStatus.progress / Math.max(syncStatus.total, 1)) * 60);
+            const details = new Map(); // email(lowercase) -> {reportingToName, dateOfResignation}
+
+            const xmlResignationDate = (xml) => {
+                const m = String(xml || '').match(/<dateOfResignation>([^<]*)<\/dateOfResignation>/);
+                const v = m && m[1] ? m[1].trim() : '';
+                return (v && !/^invalid/i.test(v)) ? v : null;
+            };
+
+            let unmatchedStaff = filteredStaffList;
+            if (ZCS_API_KEY) {
                 try {
-                    const detail = await fetchEmploymentDetail(staff, accessToken);
-                    if (detail) details.set(staff.email.toLowerCase(), detail);
+                    const dfRes = await axios.get(`${ZCS_API_BASE}/_table/user_info`, {
+                        headers: { 'X-DreamFactory-API-Key': ZCS_API_KEY },
+                        params: {
+                            fields: 'USER_INFO_GUID,USER_GUID,FULLNAME,MANAGER_USER_GUID,RESIGNATION_DATE,UPDATE_TS,PROPERTIES_XML',
+                            limit: 2000
+                        },
+                        timeout: 60000
+                    });
+                    const rows = dfRes.data?.resource;
+                    if (Array.isArray(rows)) {
+                        const byInfoGuid = new Map();   // USER_INFO_GUID -> record (staff.id == USER_INFO_GUID)
+                        const latestByUser = new Map(); // USER_GUID -> latest record by UPDATE_TS
+                        for (const r of rows) {
+                            byInfoGuid.set(r.USER_INFO_GUID, r);
+                            const prev = latestByUser.get(r.USER_GUID);
+                            if (!prev || (r.UPDATE_TS || '') > (prev.UPDATE_TS || '')) latestByUser.set(r.USER_GUID, r);
+                        }
+                        unmatchedStaff = [];
+                        for (const staff of filteredStaffList) {
+                            if (!staff.email) continue;
+                            syncStatus.currentStaff = staff.email;
+                            syncStatus.progress++;
+                            syncStatus.percent = 5 + Math.round((syncStatus.progress / Math.max(syncStatus.total, 1)) * 60);
+                            const rec = byInfoGuid.get(staff.id);
+                            if (!rec) { unmatchedStaff.push(staff); continue; }
+                            const mgrGuid = rec.MANAGER_USER_GUID;
+                            const detail = {
+                                reportingToName: (mgrGuid && latestByUser.get(mgrGuid)?.FULLNAME) || null,
+                                dateOfResignation: xmlResignationDate(rec.PROPERTIES_XML) || rec.RESIGNATION_DATE || null
+                            };
+                            if (detail.reportingToName || detail.dateOfResignation) {
+                                details.set(staff.email.toLowerCase(), detail);
+                            } else {
+                                unmatchedStaff.push(staff); // nothing usable — let AppCore try
+                            }
+                        }
+                    }
                 } catch (err) {
-                    syncStatus.stats.detailFailures++;
+                    // bulk path failed — fall back to per-staff AppCore for everyone
+                    unmatchedStaff = filteredStaffList;
                     if (syncStatus.errors.length < 100) {
-                        syncStatus.errors.push({ staff: staff.email, error: `employment-detail: ${err.message}` });
+                        syncStatus.errors.push({ staff: 'bulk', error: `user_info bulk: ${err.message}` });
                     }
                 }
-            });
+            }
+
+            if (unmatchedStaff.length > 0) {
+                // Per-staff AppCore fallback (8 parallel workers, 15s timeout +
+                // 3 attempts + backoff). A hung BeeSuite call only occupies one
+                // worker instead of stalling the whole sync.
+                await mapLimit(unmatchedStaff, 8, async (staff) => {
+                    if (!staff.email) return;
+                    syncStatus.currentStaff = staff.email;
+                    syncStatus.progress++;
+                    syncStatus.percent = 5 + Math.round((syncStatus.progress / Math.max(syncStatus.total, 1)) * 60);
+                    try {
+                        const detail = await fetchEmploymentDetail(staff, accessToken);
+                        if (detail) details.set(staff.email.toLowerCase(), detail);
+                    } catch (err) {
+                        syncStatus.stats.detailFailures++;
+                        if (syncStatus.errors.length < 100) {
+                            syncStatus.errors.push({ staff: staff.email, error: `employment-detail: ${err.message}` });
+                        }
+                    }
+                });
+            }
 
             let added = 0, updated = 0, skipped = 0, inactiveSkipped = 0, resignedSkipped = 0, wrongTenantDeactivated = 0;
 
