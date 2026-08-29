@@ -425,7 +425,7 @@ function showLoadModal(submissions) {
           <div class="load-list">${rows}</div>
         </div>
         <div class="modal-footer">
-          <button class="btn-secondary modal-close-btn">Cancel</button>
+          <button class="btn btn-secondary modal-close-btn">Cancel</button>
         </div>
       </div>`;
     document.body.appendChild(backdrop);
@@ -709,8 +709,8 @@ function showSummaryModal() {
         <pre class="summary-pre" id="summary-text"></pre>
       </div>
       <div class="modal-footer">
-        <button class="btn-secondary" id="btn-copy-json">Copy JSON</button>
-        <button class="btn-primary" id="btn-copy-text">Copy Summary</button>
+        <button class="btn btn-secondary" id="btn-copy-json">Copy JSON</button>
+        <button class="btn btn-primary" id="btn-copy-text">Copy Summary</button>
       </div>
     </div>`;
 
@@ -2816,8 +2816,8 @@ function confirmPastProjectDates(body, id, employer, conflicts) {
           <p style="font-size:.9rem;margin-bottom:0">These dates will appear as-is on your CV, which may look inconsistent with the employer period. Save anyway?</p>
         </div>
         <div class="modal-footer">
-          <button class="btn-secondary modal-close-btn">Go Back</button>
-          <button class="btn-primary" id="btn-pp-save-anyway">💾 Save Anyway</button>
+          <button class="btn btn-secondary modal-close-btn">Go Back</button>
+          <button class="btn btn-primary" id="btn-pp-save-anyway">💾 Save Anyway</button>
         </div>
       </div>`;
     document.body.appendChild(backdrop);

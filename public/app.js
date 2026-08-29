@@ -601,8 +601,8 @@ function showSummaryModal() {
         <pre class="summary-pre" id="summary-text"></pre>
       </div>
       <div class="modal-footer">
-        <button class="btn-secondary" id="btn-copy-json">Copy JSON</button>
-        <button class="btn-primary" id="btn-copy-text">Copy Summary</button>
+        <button class="btn btn-secondary" id="btn-copy-json">Copy JSON</button>
+        <button class="btn btn-primary" id="btn-copy-text">Copy Summary</button>
       </div>
     </div>`;
 

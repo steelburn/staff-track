@@ -68,7 +68,7 @@ function renderCatalog() {
                 <td>${s.title}</td>
                 <td>${s.department}</td>
                 <td style="font-size:.8rem">${s.email}</td>
-                <td><button class="btn-danger" style="padding:.25rem .5rem;font-size:.7rem" onclick="deleteStaff('${s.email}')">Remove</button></td>
+                <td><button class="btn btn-danger" style="padding:.25rem .5rem;font-size:.7rem" onclick="deleteStaff('${s.email}')">Remove</button></td>
             </tr>
         `).join('');
     } else {
@@ -91,7 +91,7 @@ function renderCatalog() {
                 <td>${p.soc || '—'}</td>
                 <td>${p.project_name}</td>
                 <td>${p.customer}</td>
-                <td><button class="btn-danger" style="padding:.25rem .5rem;font-size:.7rem" onclick="deleteProject('${p.id}')">Remove</button></td>
+                <td><button class="btn btn-danger" style="padding:.25rem .5rem;font-size:.7rem" onclick="deleteProject('${p.id}')">Remove</button></td>
             </tr>
         `).join('');
     }

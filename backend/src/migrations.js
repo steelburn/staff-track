@@ -58,7 +58,10 @@ async function runMigrations(connection) {
 
       try {
         for (const statement of statements) {
-          await connection.execute(statement);
+          // query() = text protocol: needed for PREPARE/EXECUTE-style guarded DDL
+          // (execute() rejects those: "not supported in the prepared statement protocol yet").
+          // No migration statement uses '?' placeholders, so no escaping concerns.
+          await connection.query(statement);
         }
 
         // Record migration as executed

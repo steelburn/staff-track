@@ -26,6 +26,24 @@ function hl(text, q) {
   return text.slice(0, i) + `<mark>${text.slice(i, i + q.length)}</mark>` + text.slice(i + q.length);
 }
 
+// Normalize the technologies field to a comma-joined string.
+// managed_projects.technologies is a JSON column -> mysql2 returns an ARRAY;
+// submission/catalog rows carry plain strings (or nothing). Never call
+// .split()/.toLowerCase() on the raw value.
+function techStr(v) {
+  if (Array.isArray(v)) return v.join(', ');
+  return v || '';
+}
+
+// Normalize date-ish values (mysql2 DATE -> ISO "2024-07-15T00:00:00.000Z",
+// or "2024-07-15 00:00:00") to plain YYYY-MM-DD for display/inputs.
+function fmtDate(v) {
+  if (!v) return '';
+  if (typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v)) return v;
+  const m = String(v).match(/^(\d{4}-\d{2}-\d{2})/);
+  return m ? m[1] : '';
+}
+
 // ── Export CSV ────────────────────────────────────────────────────────────────
 function exportProjectsCSV() {
   const rows = [
@@ -35,7 +53,7 @@ function exportProjectsCSV() {
   combined.forEach(p => {
     const staffNames = p.staff.map(s => s.name).join(' | ');
     const roles = p.staff.map(s => s.role || '—').join(' | ');
-    const ends = p.staff.map(s => s.endDate || '—').join(' | ');
+    const ends = p.staff.map(s => fmtDate(s.endDate) || '—').join(' | ');
     rows.push([p.soc, p.project_name, p.customer, p.staff.length, staffNames, roles, ends]);
   });
   downloadCSV(rows, 'stafftrack-projects.csv');
@@ -134,7 +152,7 @@ function render() {
       (p.project_name || '').toLowerCase().includes(q) ||
       (p.soc || '').toLowerCase().includes(q) ||
       (p.customer || '').toLowerCase().includes(q) ||
-      (p.technologies || '').toLowerCase().includes(q) ||
+      techStr(p.technologies).toLowerCase().includes(q) ||
       p.staff.some(s => (s.name || '').toLowerCase().includes(q))
     );
   }
@@ -217,7 +235,7 @@ function staffBadgeHTML(s, q, canEditAssign, p) {
           <div class="staff-info">
             <span class="staff-badge-name">${hl(s.name, q)}</span>
             ${s.role ? `<span class="staff-badge-role">${hl(s.role, q)}</span>` : ''}
-            ${s.endDate ? `<span class="staff-badge-date">until ${s.endDate}</span>` : ''}
+            ${s.endDate ? `<span class="staff-badge-date">until ${fmtDate(s.endDate)}</span>` : ''}
           </div>
           ${canEditAssign ? `
           <div class="badge-actions">
@@ -259,7 +277,7 @@ function buildProjectCard(p, q, idx) {
 
   const classHtml = classBadges ? `<div class="project-classifications">${classBadges}</div>` : '';
 
-  const techTags = (managedObj?.technologies || p.technologies || '')
+  const techTags = techStr(managedObj?.technologies || p.technologies)
     .split(',')
     .map(t => t.trim())
     .filter(t => t)
@@ -270,8 +288,8 @@ function buildProjectCard(p, q, idx) {
   const dateHtml = (managedObj?.start_date || p.start_date) ? `
     <div class="project-card-dates">
       <span class="date-label">Schedule:</span> 
-      ${managedObj?.start_date || p.start_date || '—'} 
-      ${(managedObj?.end_date || p.end_date) ? ` → ${managedObj?.end_date || p.end_date}` : ''}
+      ${fmtDate(managedObj?.start_date || p.start_date) || '—'} 
+      ${(managedObj?.end_date || p.end_date) ? ` → ${fmtDate(managedObj?.end_date || p.end_date)}` : ''}
     </div>` : '';
 
   const briefHtml = (managedObj?.project_brief || p.project_brief) ? `<div class="project-card-brief">${hl(managedObj?.project_brief || p.project_brief, q)}</div>` : '';
@@ -286,9 +304,9 @@ function buildProjectCard(p, q, idx) {
     type_software: managedObj ? !!managedObj.type_software : false,
     type_infra_support: managedObj ? !!managedObj.type_infra_support : false,
     type_software_support: managedObj ? !!managedObj.type_software_support : false,
-    start_date: (managedObj ? managedObj.start_date : '') || '',
-    end_date: (managedObj ? managedObj.end_date : '') || '',
-    technologies: (managedObj ? managedObj.technologies : '') || '',
+    start_date: fmtDate(managedObj ? managedObj.start_date : (p.start_date || '')),
+    end_date: fmtDate(managedObj ? managedObj.end_date : (p.end_date || '')),
+    technologies: techStr(managedObj ? managedObj.technologies : ''),
     description: (managedObj ? (managedObj.description || managedObj.project_brief) : (p.description || p.project_brief)) || ''
   }).replace(/'/g, "&apos;")}'>✎</button>` : '';
 
@@ -373,8 +391,8 @@ function showCreateProjectModal() {
         </div>
       </div>
       <div class="modal-footer">
-        <button class="btn-secondary modal-close-btn">Cancel</button>
-        <button class="btn-primary" id="cp-submit">Create Project</button>
+        <button class="btn btn-secondary modal-close-btn">Cancel</button>
+        <button class="btn btn-primary" id="cp-submit">Create Project</button>
       </div>
     </div>`;
   document.body.appendChild(backdrop);
@@ -417,9 +435,9 @@ function showCreateProjectModal() {
         nameInput.value = p.project_name;
         socInput.value = p.soc || '';
         custInput.value = p.customer || '';
-        startInput.value = p.start_date || '';
-        endInput.value = p.end_date || '';
-        techInput.value = p.technologies || '';
+        startInput.value = fmtDate(p.start_date);
+        endInput.value = fmtDate(p.end_date);
+        techInput.value = techStr(p.technologies);
         descInput.value = p.description || p.project_brief || '';
         acDrop.innerHTML = '';
       });
@@ -494,7 +512,7 @@ function showEditProjectModal(id, p) {
         <div class="form-grid single">
           <div class="form-group full">
             <label>Project Name *</label>
-            <input type="text" id="ep-project_name" value="${p.project_name || p.name}" autocomplete="off">
+            <textarea id="ep-project_name" rows="1" style="resize:none;overflow-y:auto;min-height:38px;white-space:pre-wrap;word-wrap:break-word" placeholder="Project name">${p.project_name || p.name}</textarea>
           </div>
           <div class="form-group">
             <label>SOC Code</label>
@@ -523,7 +541,7 @@ function showEditProjectModal(id, p) {
           </div>
           <div class="form-group full">
             <label>Technologies (comma separated)</label>
-            <input type="text" id="ep-tech" value="${p.technologies}" placeholder="e.g. Node.js, SQLite, CSS">
+            <input type="text" id="ep-tech" value="${techStr(p.technologies)}" placeholder="e.g. Node.js, SQLite, CSS">
           </div>
           <div class="form-group full">
             <label>Description</label>
@@ -532,8 +550,8 @@ function showEditProjectModal(id, p) {
         </div>
       </div>
       <div class="modal-footer">
-        <button class="btn-secondary modal-close-btn">Cancel</button>
-        <button class="btn-primary" id="ep-submit">Save Changes</button>
+        <button class="btn btn-secondary modal-close-btn">Cancel</button>
+        <button class="btn btn-primary" id="ep-submit">Save Changes</button>
       </div>
     </div>`;
   document.body.appendChild(backdrop);
@@ -541,6 +559,15 @@ function showEditProjectModal(id, p) {
   const close = () => backdrop.remove();
   backdrop.querySelector('.modal-close').addEventListener('click', close);
   backdrop.querySelector('.modal-close-btn').addEventListener('click', close);
+
+  // Auto-grow the Project Name box with its content (word-wrap on long names)
+  const nameTa = backdrop.querySelector('#ep-project_name');
+  const autoGrow = () => {
+    nameTa.style.height = 'auto';
+    nameTa.style.height = Math.min(nameTa.scrollHeight, 220) + 'px'; // cap ~6 lines
+  };
+  nameTa.addEventListener('input', autoGrow);
+  autoGrow();
 
   backdrop.querySelector('#ep-submit').addEventListener('click', async () => {
     const btn = backdrop.querySelector('#ep-submit');
@@ -633,8 +660,8 @@ function showAssignModal(project) {
         <p id="assign-error" style="color:var(--accent-rose);font-size:.82rem;margin-top:.5rem;display:none"></p>
       </div>
       <div class="modal-footer">
-        <button class="btn-secondary" id="assign-cancel">Cancel</button>
-        <button class="btn-primary" id="assign-submit">Assign</button>
+        <button class="btn btn-secondary" id="assign-cancel">Cancel</button>
+        <button class="btn btn-primary" id="assign-submit">Assign</button>
       </div>
     </div>`;
   document.body.appendChild(backdrop);
@@ -753,8 +780,8 @@ function showEditAssignModal(staff, project) {
         </div>
       </div>
       <div class="modal-footer">
-        <button class="btn-secondary" id="edit-cancel">Cancel</button>
-        <button class="btn-primary" id="edit-submit">Save Changes</button>
+        <button class="btn btn-secondary" id="edit-cancel">Cancel</button>
+        <button class="btn btn-primary" id="edit-submit">Save Changes</button>
       </div>
     </div>`;
   document.body.appendChild(backdrop);

@@ -78,9 +78,9 @@ function renderNav(activeTab) {
     const themeTitle = isDark ? 'Switch to light mode' : 'Switch to dark mode';
 
     html += `<div style="margin-left:auto;display:flex;align-items:center;gap:1rem">
-      <button class="btn-secondary" id="theme-toggle" title="${themeTitle}" style="padding:.3rem .6rem;font-size:0.85rem;line-height:1;border-radius:6px;min-width:34px;display:flex;align-items:center;justify-content:center">${themeIcon}</button>
+      <button class="btn btn-secondary" id="theme-toggle" title="${themeTitle}" style="padding:.3rem .6rem;font-size:0.85rem;line-height:1;border-radius:6px;min-width:34px;display:flex;align-items:center;justify-content:center">${themeIcon}</button>
       <span style="font-size:0.8rem;color:var(--text-secondary)">${authUser.email}</span>
-      <button class="btn-secondary" id="btn-logout" style="padding:.3rem .6rem;font-size:0.75rem">Logout</button>
+      <button class="btn btn-secondary" id="btn-logout" style="padding:.3rem .6rem;font-size:0.75rem">Logout</button>
     </div>`;
 
     nav.innerHTML = html;

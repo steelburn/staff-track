@@ -237,11 +237,11 @@ function showDetailPanel(s, q = '') {
     ${(authUser.isAdmin === true || authUser.is_hr === true || authUser.is_hr === 1)
             ? `<div style="margin-bottom:1rem; display:flex; gap:0.5rem; align-items:center;">
                  <a href="/cv-profile.html?email=${encodeURIComponent(s.email)}&tab=generate-cv"
-                    class="btn-secondary" style="display:inline-block;font-size:.82rem;padding:.35rem .8rem;text-decoration:none">
+                    class="btn btn-secondary" style="display:inline-block;font-size:.82rem;padding:.35rem .8rem;text-decoration:none">
                    🖨️ Generate CV
                  </a>
                  ${authUser.isAdmin === true ? `
-                    <button id="btn-remove-staff" class="btn-danger" style="font-size:.82rem;padding:.35rem .8rem;border:none;border-radius:4px;cursor:pointer">
+                    <button id="btn-remove-staff" class="btn btn-danger" style="font-size:.82rem;padding:.35rem .8rem;border:none;border-radius:4px;cursor:pointer">
                         🗑️ Remove Staff
                     </button>
                  ` : ''}

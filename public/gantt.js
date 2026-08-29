@@ -116,9 +116,9 @@ function renderGanttSection(type, data, currentScale, renderFn) {
     controls.className = 'gantt-controls';
     controls.innerHTML = `
         <span class="gantt-scale-info">Zoom:</span>
-        <button class="btn-secondary" id="zoom-out-${type}">−</button>
+        <button class="btn btn-secondary" id="zoom-out-${type}">−</button>
         <span class="zoom-level" id="zoom-level-${type}">${Math.round(currentScale * 100)}%</span>
-        <button class="btn-secondary" id="zoom-in-${type}">+</button>
+        <button class="btn btn-secondary" id="zoom-in-${type}">+</button>
     `;
     container.appendChild(controls);
 
