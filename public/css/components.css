@@ -1937,6 +1937,17 @@ mark {
     background: rgba(255, 255, 255, 0.15);
 }
 
+.split-chip-source {
+    background: var(--color-warning-light);
+    color: var(--color-warning);
+    border-color: rgba(245, 158, 11, 0.4);
+    font-weight: 500;
+}
+
+.split-chip-source b {
+    font-weight: 700;
+}
+
 .dupe-group-foot {
     font-size: 0.75rem;
     color: var(--color-text-secondary);

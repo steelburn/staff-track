@@ -4,7 +4,7 @@ import { verifyToken, requireRole } from './auth.js';
 import { v4 as uuidv4 } from 'uuid';
 import axios from 'axios';
 import { logAudit } from '../utils/audit.js';
-import { skillCharNorm, buildProposals } from '../utils/skillMatching.js';
+import { skillCharNorm, buildProposals, buildSplitProposals, pickCanonical } from '../utils/skillMatching.js';
 
 const router = express.Router();
 
@@ -200,8 +200,9 @@ router.get('/skills', verifyToken, requireRole('admin', 'hr'), async (req, res) 
         });
 
         const proposals = buildProposals(Object.fromEntries(groupRecords.map(g => [g.key, g])));
+        const splitProposals = buildSplitProposals(Object.fromEntries(groupRecords.map(g => [g.key, g])));
 
-        res.json({ skills, proposals });
+        res.json({ skills, proposals, splitProposals });
     } catch (err) {
         console.error('GET /admin/skills error:', err);
         res.status(500).json({ error: 'Failed to fetch skills' });
@@ -404,6 +405,87 @@ router.post('/skills/rename', verifyToken, requireRole('admin', 'hr'), async (re
     }
 });
 
+// ── POST /admin/skills/standardize ──────────────────────────────────────────
+// Merge all spelling variants of a skill group (same normalized spelling,
+// e.g. "PowerBI" / "Power BI") into one canonical spelling. The canonical
+// name must be one of the existing spellings — renaming to a brand-new name
+// belongs to /skills/rename.
+router.post('/skills/standardize', verifyToken, requireRole('admin', 'hr'), async (req, res) => {
+    try {
+        const { skillName, canonical } = req.body;
+        if (!skillName || !skillName.trim()) {
+            return res.status(400).json({ error: 'skillName is required' });
+        }
+
+        const db = await getDb();
+        const key = skillCharNorm(skillName.trim());
+
+        // All spellings in this normalized group, with instance counts.
+        // COLLATE utf8mb4_bin is required — the skill column uses a
+        // case-insensitive collation (utf8mb4_0900_ai_ci), so a plain GROUP BY
+        // would collapse "MySQL" / "mysql" / "MySql" into one row and hide
+        // the variants. (BINARY would work but returns Buffers, not strings.)
+        const [groupRows] = await db.query(
+            'SELECT skill COLLATE utf8mb4_bin AS skill, COUNT(*) AS instances FROM submission_skills GROUP BY skill COLLATE utf8mb4_bin'
+        );
+        const spellings = groupRows
+            .filter(r => skillCharNorm(r.skill) === key)
+            .map(r => ({ name: r.skill, instances: r.instances }))
+            .sort((a, b) => b.instances - a.instances || a.name.localeCompare(b.name));
+        if (spellings.length < 2) {
+            return res.status(400).json({ error: `No spelling variants found for "${skillName.trim()}"` });
+        }
+
+        const canonicalName = (canonical && canonical.trim()) ? canonical.trim() : pickCanonical(spellings);
+        // Standardization is about case/accent variants, so the canonical must
+        // match one of the spellings EXACTLY (case-sensitive) — the whole point
+        // is that "MySql" and "MySQL" are different spellings of one skill.
+        if (!spellings.some(s => s.name === canonicalName)) {
+            return res.status(400).json({ error: `"${canonicalName}" is not an exact spelling of this skill group — use Rename to introduce a new name` });
+        }
+
+        const sources = spellings.filter(s => s.name !== canonicalName);
+        if (sources.length === 0) {
+            return res.status(400).json({ error: 'No variants to standardize' });
+        }
+
+        const actor = (req.user || {}).email || 'unknown';
+        await snapshotSkillRows(db, [...sources.map(s => s.name), canonicalName], actor, 'standardize',
+            `Standardized ${spellings.length} spellings into "${canonicalName}"`);
+
+        let totalAffected = 0;
+        for (const src of sources) {
+            // Exact (binary) match — the skill column is case-insensitive, so a
+            // plain "WHERE skill = ?" would re-match every case variant of the
+            // canonical and inflate the affected count.
+            const [result] = await db.query(
+                'UPDATE submission_skills SET skill = ? WHERE skill COLLATE utf8mb4_bin = ?',
+                [canonicalName, src.name]
+            );
+            totalAffected += result.affectedRows;
+        }
+        const deduped = await dedupeSkillRows(db, canonicalName);
+
+        await logAudit(db, {
+            staffEmail: null, actorEmail: actor, section: 'skills_admin', action: 'standardize',
+            summary: `Standardized ${spellings.length} spellings into "${canonicalName}" (${totalAffected} rows, ${deduped} deduped)`,
+            details: { variants: spellings.map(s => s.name), canonical: canonicalName, affectedCount: totalAffected, dedupedCount: deduped }
+        });
+
+        console.log(`Standardized skill group into "${canonicalName}": ${totalAffected} records updated, ${deduped} deduped`);
+        res.json({
+            success: true,
+            affectedCount: totalAffected,
+            dedupedCount: deduped,
+            undoAvailable: true,
+            message: `Standardized "${canonicalName}" (${totalAffected} records updated${deduped ? `, ${deduped} duplicate rows removed` : ''})`
+        });
+    } catch (err) {
+        console.error('POST /admin/skills/standardize error:', err);
+        res.status(500).json({ error: 'Failed to standardize skill: ' + err.message });
+    }
+});
+
 // ── POST /admin/skills/split ─────────────────────────────────────────────────
 // Split a skill into multiple new skills (distributes staff submissions round-robin)
 router.post('/skills/split', verifyToken, requireRole('admin', 'hr'), async (req, res) => {
@@ -448,18 +530,28 @@ router.post('/skills/split', verifyToken, requireRole('admin', 'hr'), async (req
             totalAffected++;
         }
 
+        // When a proposed part already exists in the catalog (e.g. splitting
+        // "HTML / CSS" into "HTML" and "CSS"), the round-robin above can create
+        // within-submission duplicates. Collapse them, keeping the highest
+        // rating — identical semantics to the merge endpoint.
+        let totalDeduped = 0;
+        for (const ns of trimmedNewSkills) {
+            totalDeduped += await dedupeSkillRows(db, ns);
+        }
+
         await logAudit(db, {
             staffEmail: null, actorEmail: actor, section: 'skills_admin', action: 'split',
-            summary: `Split "${trimmedOriginal}" into ${trimmedNewSkills.length} skills (${totalAffected} rows)`,
-            details: { originalSkill: trimmedOriginal, newSkills: trimmedNewSkills, affectedCount: totalAffected }
+            summary: `Split "${trimmedOriginal}" into ${trimmedNewSkills.length} skills (${totalAffected} rows${totalDeduped ? `, ${totalDeduped} deduped` : ''})`,
+            details: { originalSkill: trimmedOriginal, newSkills: trimmedNewSkills, affectedCount: totalAffected, dedupedCount: totalDeduped }
         });
 
-        console.log(`Split skill "${trimmedOriginal}" into ${trimmedNewSkills.length} skills: ${totalAffected} records updated`);
+        console.log(`Split skill "${trimmedOriginal}" into ${trimmedNewSkills.length} skills: ${totalAffected} records updated${totalDeduped ? `, ${totalDeduped} deduped` : ''}`);
         res.json({
             success: true,
             affectedCount: totalAffected,
+            dedupedCount: totalDeduped,
             undoAvailable: true,
-            message: `Split "${trimmedOriginal}" into ${trimmedNewSkills.length} skills (${totalAffected} records updated)`
+            message: `Split "${trimmedOriginal}" into ${trimmedNewSkills.length} skills (${totalAffected} records updated${totalDeduped ? `, ${totalDeduped} duplicate rows removed` : ''})`
         });
     } catch (err) {
         console.error('POST /admin/skills/split error:', err);

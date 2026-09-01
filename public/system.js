@@ -247,7 +247,7 @@ async function handleSyncProjects() {
 }
 
 // ── Skill Consolidation Logic ─────────────────────────────────────────────────
-let catalog = { skills: [], proposals: [] }; // GET /api/admin/skills payload
+let catalog = { skills: [], proposals: [], splitProposals: [] }; // GET /api/admin/skills payload
 let skillSearchQ = '';
 let selectedSkills = new Set();              // checked skill names (main table)
 let undoInfo = null;                         // GET /api/admin/skills/undo payload
@@ -268,10 +268,12 @@ async function loadCatalogSkills() {
         catalog = await res.json();
         catalog.skills = catalog.skills || [];
         catalog.proposals = catalog.proposals || [];
+        catalog.splitProposals = catalog.splitProposals || [];
         catalogIndex.clear();
         catalog.skills.forEach(s => catalogIndex.set(s.name, s));
         renderCatalogSkills();
         renderDuplicatesPanel();
+        renderSplitsPanel();
         updateSummary();
         await refreshUndoState();
     } catch (e) {
@@ -285,12 +287,18 @@ function updateSummary() {
     if (!el) return;
     const variantCount = catalog.skills.reduce((n, s) => n + s.variants.length, 0);
     const propCount = catalog.proposals.length;
-    el.textContent = `${catalog.skills.length} skills · ${variantCount} spelling variants · ${propCount} suggested merge groups.`;
+    const splitPropCount = catalog.splitProposals.length;
+    el.textContent = `${catalog.skills.length} skills · ${variantCount} spelling variants · ${propCount} suggested merges · ${splitPropCount} suggested splits.`;
 }
 
 // A skill participates in a suggested merge group (for the 🔁 badge).
 function inProposal(name) {
     return catalog.proposals.some(p => p.members.some(m => m.name === name));
+}
+
+// A skill is a candidate for a suggested split (for the ✂️ badge).
+function inSplitProposal(name) {
+    return catalog.splitProposals.some(p => p.name === name);
 }
 
 function renderCatalogSkills() {
@@ -318,11 +326,14 @@ function renderCatalogSkills() {
         const dupBadge = inProposal(s.name)
             ? '<span class="dup-badge" title="Appears in a suggested merge group">🔁</span>'
             : '';
+        const splitBadge = inSplitProposal(s.name)
+            ? '<span class="dup-badge" title="Suggested for splitting">✂️</span>'
+            : '';
         return `
         <tr style="border-bottom:1px solid var(--border)">
             <td style="padding:.5rem"><input type="checkbox" class="chk-skill" data-name="${esc(s.name)}" ${selectedSkills.has(s.name) ? 'checked' : ''}></td>
             <td style="padding:.5rem">
-                <div style="font-weight:500;display:flex;align-items:center;gap:.35rem">${esc(s.name)} ${dupBadge}</div>
+                <div style="font-weight:500;display:flex;align-items:center;gap:.35rem">${esc(s.name)} ${dupBadge}${splitBadge}</div>
                 ${variants}
             </td>
             <td style="padding:.5rem"><span class="skill-count-pill" style="display:inline-block;padding:.1rem .5rem;background:var(--bg-hover);border-radius:1rem;font-size:.75rem">${s.count}</span></td>
@@ -347,6 +358,8 @@ function getSelectedSkills() {
 function updateSkillButtons() {
     const n = selectedSkills.size;
     document.getElementById('btn-rename-skill').disabled = (n !== 1);
+    document.getElementById('btn-standardize-skill').disabled =
+        (n !== 1) || !((getSkill([...selectedSkills][0])?.variants || []).length > 0);
     document.getElementById('btn-merge-skills').disabled = (n < 2);
     document.getElementById('btn-split-skill').disabled = (n !== 1);
     document.getElementById('btn-delete-skill').disabled = (n !== 1);
@@ -408,6 +421,55 @@ function renderDuplicatesPanel() {
             if (!p) return;
             // Sources = non-target members; target stays in the target field.
             openMergeModal(p.members.filter(m => !m.isTarget).map(m => m.name), p.target);
+        });
+    });
+}
+
+// ── Split proposals panel ───────────────────────────────────────────────────
+function renderSplitsPanel() {
+    const panel = document.getElementById('splits-panel');
+    if (!panel) return;
+    if (panel.style.display === 'none') return;
+
+    const list = document.getElementById('splits-list');
+    const subtitle = document.getElementById('splits-subtitle');
+
+    if (!catalog.splitProposals.length) {
+        subtitle.textContent = 'No split candidates found — the catalog looks clean.';
+        list.innerHTML = '';
+        return;
+    }
+
+    const segCount = catalog.splitProposals.reduce((n, p) => n + p.segments.length, 0);
+    subtitle.textContent = `${catalog.splitProposals.length} machine-suggested candidates (${segCount} proposed skill parts). Review each group, then split.`;
+    list.innerHTML = catalog.splitProposals.map((p, i) => {
+        const kindHint = p.kind === 'paren' ? 'parenthetical list detected'
+            : p.kind === 'phrase' ? 'word-joined phrase — review carefully'
+            : 'separator-separated list';
+        const chip = seg => seg.exists
+            ? `<span class="dupe-chip" title="Already exists in the catalog (×${seg.instances})">${esc(seg.name)} <em>in catalog</em></span>`
+            : `<span class="dupe-chip">${esc(seg.name)}</span>`;
+        return `
+        <div class="dupe-group">
+            <div class="dupe-group-head">
+                <div class="dupe-group-members">
+                    <span class="dupe-chip split-chip-source" title="Compound skill to split">✂️ ${esc(p.name)} <b>×${p.instances}</b></span>
+                    <span style="color:var(--color-text-secondary);flex:none">→</span>
+                    ${p.segments.map(chip).join('')}
+                </div>
+                <div style="display:flex;gap:var(--space-2);align-items:center;flex:none;">
+                    <button class="btn btn-primary btn-sm btn-split-proposal" data-group="${i}">✂️ Split</button>
+                </div>
+            </div>
+            <div class="dupe-group-foot">${kindHint} — ${p.count} submissions · ${p.instances} instances affected</div>
+        </div>`;
+    }).join('');
+
+    list.querySelectorAll('.btn-split-proposal').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const p = catalog.splitProposals[+btn.dataset.group];
+            if (!p) return;
+            openSplitModal(p.name, p.segments.map(s => s.name));
         });
     });
 }
@@ -581,15 +643,85 @@ async function applyRename() {
     }
 }
 
+// ── Standardize modal ────────────────────────────────────────────────────────
+let stdSkillName = '';
+
+function openStandardizeModal(name) {
+    stdSkillName = name;
+    const skill = getSkill(name);
+    const skillEl = document.getElementById('std-skill');
+    const variantsEl = document.getElementById('std-variants');
+    const canonicalEl = document.getElementById('std-canonical');
+    const hint = document.getElementById('std-hint');
+
+    const variants = skill?.variants || [];
+    const variantInstances = variants.reduce((n, v) => n + v.instances, 0);
+    const canonicalInstances = (skill?.instances || 0) - variantInstances;
+
+    if (skillEl) {
+        skillEl.innerHTML = [
+            `<span class="dupe-chip split-chip-source">🔤 ${esc(name)} <b>×${canonicalInstances}</b></span>`,
+            ...variants.map(v => `<span class="dupe-chip">${esc(v.name)} <b>×${v.instances}</b></span>`)
+        ].join('');
+    }
+    if (variantsEl) {
+        variantsEl.innerHTML = variants.length
+            ? variants.map(v => `<span class="dupe-chip">${esc(v.name)} <b>×${v.instances}</b></span>`).join('')
+            : '<span style="color:var(--color-text-secondary);font-size:.8rem">No alternate spellings in this group.</span>';
+    }
+    if (canonicalEl) { canonicalEl.value = name; canonicalEl.focus(); canonicalEl.select(); }
+    if (hint) {
+        hint.textContent = variants.length
+            ? `${variants.length} variant spelling${variants.length === 1 ? '' : 's'} (${variantInstances} instance${variantInstances === 1 ? '' : 's'}) will be renamed to the canonical spelling. ↩️ Undo available after applying.`
+            : 'This skill has no spelling variants to standardize.';
+    }
+    openModal('standardize-modal');
+}
+
+async function applyStandardize() {
+    const canonical = (document.getElementById('std-canonical')?.value || '').trim();
+    if (!canonical) {
+        showToast('Enter the canonical spelling.', true);
+        return;
+    }
+    const btn = document.getElementById('btn-apply-standardize');
+    btn.disabled = true;
+    const original = btn.textContent;
+    btn.textContent = '⏳ Standardizing...';
+
+    try {
+        const res = await window.StaffTrackAuth.apiFetch('/api/admin/skills/standardize', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ skillName: stdSkillName, canonical })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Standardize failed');
+
+        showToast(`${data.message} — ↩️ Undo available`);
+        closeModal('standardize-modal');
+        await loadCatalogSkills();
+    } catch (e) {
+        showToast(e.message, true);
+    } finally {
+        btn.disabled = false;
+        btn.textContent = original;
+    }
+}
+
 // ── Split modal ──────────────────────────────────────────────────────────────
 let splitOriginalName = '';
 
-function openSplitModal(name) {
+function openSplitModal(name, suggested) {
     splitOriginalName = name;
     const origEl = document.getElementById('split-original');
     const newEl = document.getElementById('split-new');
     if (origEl) origEl.innerHTML = `<span class="dupe-chip">${esc(name)} <b>×${getSkill(name)?.instances || '?'}</b></span>`;
-    if (newEl) { newEl.value = ''; newEl.focus(); }
+    if (newEl) {
+        newEl.value = (suggested || []).join(', ');
+        newEl.focus();
+        if (suggested && suggested.length) newEl.select();
+    }
     openModal('split-modal');
 }
 
@@ -736,10 +868,33 @@ function setupSkillActions() {
         if (btn) btn.textContent = '🔎 Find Duplicates';
     });
 
+    // Propose Splits: toggle the split proposals panel
+    document.getElementById('btn-propose-splits')?.addEventListener('click', () => {
+        const panel = document.getElementById('splits-panel');
+        if (!panel) return;
+        const isHidden = panel.style.display === 'none';
+        panel.style.display = isHidden ? 'block' : 'none';
+        if (isHidden) renderSplitsPanel();
+        const btn = document.getElementById('btn-propose-splits');
+        if (btn) btn.textContent = isHidden ? '✂️ Hide Splits' : '✂️ Propose Splits';
+    });
+    document.getElementById('btn-close-splits')?.addEventListener('click', () => {
+        const panel = document.getElementById('splits-panel');
+        if (panel) panel.style.display = 'none';
+        const btn = document.getElementById('btn-propose-splits');
+        if (btn) btn.textContent = '✂️ Propose Splits';
+    });
+
     // Rename
     document.getElementById('btn-rename-skill')?.addEventListener('click', () => {
         if (selectedSkills.size !== 1) return;
         openRenameModal([...selectedSkills][0]);
+    });
+
+    // Standardize: merge spelling variants into one canonical name
+    document.getElementById('btn-standardize-skill')?.addEventListener('click', () => {
+        if (selectedSkills.size !== 1) return;
+        openStandardizeModal([...selectedSkills][0]);
     });
 
     // Merge (toolbar — needs 2+ checked)
@@ -790,6 +945,7 @@ function setupSkillActions() {
     });
     document.getElementById('btn-apply-merge')?.addEventListener('click', applyMerge);
     document.getElementById('btn-apply-rename')?.addEventListener('click', applyRename);
+    document.getElementById('btn-apply-standardize')?.addEventListener('click', applyStandardize);
     document.getElementById('btn-apply-split')?.addEventListener('click', applySplit);
     document.getElementById('btn-apply-delete')?.addEventListener('click', applyDelete);
 }

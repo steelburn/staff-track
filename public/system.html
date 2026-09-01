@@ -119,8 +119,10 @@
                             <input type="text" id="skill-search" class="input input-sm" placeholder="Search skills...">
                         </div>
                         <button class="btn btn-secondary btn-sm" id="btn-find-duplicates">🔎 Find Duplicates</button>
+                        <button class="btn btn-secondary btn-sm" id="btn-propose-splits">✂️ Propose Splits</button>
                         <div style="width: 1px; height: 24px; background: var(--color-border);"></div>
                         <button class="btn btn-secondary btn-sm" id="btn-rename-skill" disabled>✏️ Rename</button>
+                        <button class="btn btn-secondary btn-sm" id="btn-standardize-skill" disabled title="Merge spelling variants into one canonical name">🔤 Standardize</button>
                         <button class="btn btn-primary btn-sm" id="btn-merge-skills" disabled>🔗 Merge</button>
                         <button class="btn btn-secondary btn-sm" id="btn-split-skill" disabled>✂️ Split</button>
                         <button class="btn btn-danger btn-sm" id="btn-delete-skill" disabled>🗑️ Delete</button>
@@ -138,6 +140,20 @@
                         <button class="btn btn-secondary btn-sm" id="btn-close-duplicates">✕ Close</button>
                     </div>
                     <div class="card-body" id="duplicates-list" style="display: flex; flex-direction: column; gap: var(--space-3);">
+                        <!-- Proposal cards injected here -->
+                    </div>
+                </div>
+
+                <!-- Split Proposals Panel -->
+                <div class="card" id="splits-panel" style="margin-top: var(--space-4); display: none;">
+                    <div class="card-header">
+                        <div>
+                            <div class="card-title">✂️ Suggested Skill Splits</div>
+                            <div class="card-subtitle" id="splits-subtitle">Machine-suggested compound skills — review each before splitting.</div>
+                        </div>
+                        <button class="btn btn-secondary btn-sm" id="btn-close-splits">✕ Close</button>
+                    </div>
+                    <div class="card-body" id="splits-list" style="display: flex; flex-direction: column; gap: var(--space-3);">
                         <!-- Proposal cards injected here -->
                     </div>
                 </div>
@@ -223,6 +239,35 @@
             <div class="modal-footer">
                 <button class="btn btn-secondary" data-close-modal="rename-modal">Cancel</button>
                 <button class="btn btn-primary" id="btn-apply-rename">Rename</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ═══ Standardize Modal ══════════════════════════════════════════════ -->
+    <div class="modal-backdrop" id="standardize-modal">
+        <div class="modal" role="dialog" aria-modal="true">
+            <div class="modal-header">
+                <div class="modal-title">🔤 Standardize Spelling</div>
+                <button class="modal-close" data-close-modal="standardize-modal">✕</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group" style="margin-bottom: var(--space-4);">
+                    <label>Skill group</label>
+                    <div id="std-skill" class="skill-chip-row"></div>
+                </div>
+                <div class="form-group" style="margin-bottom: var(--space-4);">
+                    <label>Spelling variants</label>
+                    <div id="std-variants" class="skill-chip-row"></div>
+                </div>
+                <div class="form-group" style="margin-bottom: var(--space-4);">
+                    <label for="std-canonical">Canonical spelling</label>
+                    <input type="text" id="std-canonical" class="input" placeholder="e.g. JavaScript">
+                </div>
+                <p class="form-hint" id="std-hint"></p>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" data-close-modal="standardize-modal">Cancel</button>
+                <button class="btn btn-primary" id="btn-apply-standardize">Standardize</button>
             </div>
         </div>
     </div>

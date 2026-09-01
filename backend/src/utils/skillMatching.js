@@ -177,3 +177,152 @@ export function buildProposals(groups) {
     proposals.sort((a, b) => b.groupInstances - a.groupInstances || a.canonical.localeCompare(b.canonical));
     return proposals;
 }
+
+// ── Split proposals ──────────────────────────────────────────────────────────
+// Suggest splitting a compound skill ("HTML / CSS", "Git & GitLab",
+// "Publishing Apps (iOS, Android & Huawei)") into its constituent parts.
+// Pure functions — no DB access. Segments are matched against the catalog
+// (case-insensitively) so the UI can mark which parts already exist.
+
+// List separators: punctuation with optional surrounding space ("HTML / CSS",
+// "Javascript, JQuery", "Git & GitLab", "TypeScript/JavaScript"), a spaced
+// "+" (never "C++"), the words "and"/"or", a colon list introducer, and a
+// spaced dash ("Git - GitHub, GitLab, GitKraken").
+const SPLIT_SEP = /\s*[,/&]\s*|\s+\+\s+|\s+\band\b\s+|\s+\bor\b\s+|\s*:\s*|\s+-\s+/gi;
+const SPLIT_URL_RE = /(?:https?:\/\/|www\.)\S+/gi;
+
+// Words that never stand alone as a skill part.
+const SPLIT_NOISE = new Set(['etc', 'etc.', 'and', 'or', 'the', 'of', 'for', 'with', 'using', 'plus']);
+
+// Strip URLs, bullets and stray brackets/colons from one split segment.
+function cleanSplitSegment(seg) {
+    return (seg || '')
+        .replace(SPLIT_URL_RE, '')
+        .replace(/^[\s•·*()\[\]:;.,-]+|[\s()\[\]:;.,-]+$/g, '')
+        .trim();
+}
+
+// A segment is a plausible skill name on its own: >=2 alphanumerics, contains
+// a letter ("2010" alone is a version, not a skill), and isn't a noise word.
+function isStandaloneSegment(seg) {
+    if (!seg) return false;
+    if (SPLIT_NOISE.has(seg.trim().toLowerCase())) return false;
+    const alnum = seg.replace(/[^a-z0-9#+]/gi, '');
+    if (alnum.length < 2) return false;
+    if (!/[a-z]/i.test(seg)) return false;
+    if (seg.length > 40) return false;
+    return true;
+}
+
+// Split a raw skill label into proposed constituent skill parts.
+// Returns null when the label is not a plausible compound skill.
+export function splitSkillLabel(label) {
+    const text = (label || '').trim();
+    if (!text || text.length < 4) return null;
+
+    const parts = [];
+    let kind = 'list';
+    let listCount = 0;
+    let rest = text;
+
+    // 1) Trailing parenthetical list: "Publishing Apps (iOS, Android & Huawei)",
+    //    "Acceptance Testing (SIT, UAT, PAT, FAT)" -> prefix + inner list items.
+    //    A single-item paren ("Laravel Framework (PHP)") is a qualifier, not a
+    //    split point — strip it and fall through to the separator split.
+    const paren = text.match(/\(([^)]*)\)/);
+    if (paren) {
+        const inner = paren[1].trim();
+        const innerParts = inner.split(SPLIT_SEP)
+            .map(cleanSplitSegment).filter(isStandaloneSegment);
+        if (innerParts.length >= 2) {
+            const prefix = (text.slice(0, paren.index) + ' ' + text.slice(paren.index + paren[0].length)).trim();
+            if (prefix && isStandaloneSegment(prefix)) parts.push(prefix);
+            parts.push(...innerParts);
+            rest = '';
+            kind = 'paren';
+            listCount = innerParts.length;
+        } else {
+            rest = (text.slice(0, paren.index) + ' ' + text.slice(paren.index + paren[0].length)).replace(/\([^)]*\)/g, ' ');
+        }
+    }
+
+    // 2) Separator-separated list: "HTML / CSS", "Git & GitLab",
+    //    "Bug Reporting, Defect Tracking and Dashboard Management".
+    if (rest) {
+        const wasPhrase = /\s+\band\b\s+|\s+\bor\b\s+/i.test(rest);
+        if (wasPhrase && kind === 'list') kind = 'phrase';
+        parts.push(...rest.split(SPLIT_SEP).map(cleanSplitSegment).filter(isStandaloneSegment));
+    }
+
+    // Dedupe case-insensitively, keep first occurrence.
+    const seen = new Set();
+    const out = [];
+    for (const p of parts) {
+        const k = p.toLowerCase();
+        if (seen.has(k)) continue;
+        seen.add(k);
+        out.push(p);
+    }
+    if (out.length < 2) return null;
+    return { parts: out, kind, listCount };
+}
+
+// Given skill groups keyed by charNorm (same shape as buildProposals), find
+// compound skill names worth splitting. Each proposal:
+// { name, key, count, instances, kind, segments: [{ name, exists, instances }] }.
+// `kind` tells the UI how confident the suggestion is: 'paren' (explicit list
+// in parentheses), 'list' (punctuation-separated) or 'phrase' (word-joined,
+// lowest confidence — human review strongly advised).
+export function buildSplitProposals(groups) {
+    const known = new Map(); // lowercase label -> instances
+    for (const k of Object.keys(groups)) {
+        known.set(groups[k].label.toLowerCase(), groups[k].instances);
+    }
+
+    const proposals = [];
+    for (const k of Object.keys(groups)) {
+        const g = groups[k];
+        const split = splitSkillLabel(g.label);
+        if (!split || split.parts.length < 2) continue;
+
+        const segments = split.parts.map(name => {
+            const exists = known.has(name.toLowerCase());
+            return { name, exists, instances: exists ? known.get(name.toLowerCase()) : null };
+        });
+
+        // Quality gate: enough of the parts must look like real skills —
+        // already in the catalog, multi-word phrases, acronyms, or (for
+        // parenthetical lists) the explicit list items themselves.
+        const meaningful = segments.filter(s =>
+            s.exists || /\s/.test(s.name) || /^[A-Z0-9#+]{2,}$/.test(s.name)).length
+            + (split.kind === 'paren' ? split.listCount : 0);
+        if (meaningful < 2) continue;
+
+        proposals.push({
+            name: g.label,
+            key: g.key,
+            count: g.count,
+            instances: g.instances,
+            kind: split.kind,
+            segments
+        });
+    }
+
+    // Most impactful first, then alphabetical.
+    proposals.sort((a, b) => b.instances - a.instances || a.name.localeCompare(b.name));
+    return proposals.slice(0, 40);
+}
+
+// ── Canonical spelling ──────────────────────────────────────────────────────
+// Pick the canonical spelling for a skill group from its variants (alternate
+// spellings of the same normalized skill, e.g. "PowerBI" vs "Power BI").
+// Most-used wins; ties break toward the shorter name, then alphabetical —
+// this mirrors the catalog's variant ordering so the UI suggestion always
+// matches the skill's display label. variants: [{ name, instances }].
+export function pickCanonical(variants) {
+    if (!Array.isArray(variants) || variants.length === 0) return null;
+    return [...variants].sort((a, b) =>
+        (b.instances || 0) - (a.instances || 0)
+        || (a.name || '').length - (b.name || '').length
+        || (a.name || '').localeCompare(b.name || ''))[0].name;
+}
