@@ -416,9 +416,17 @@
                         placeholder="# {{name}}&#10;&#10;**{{title}}** | {{department}}&#10;&#10;---&#10;&#10;## Summary&#10;&#10;{{summary}}"></textarea>
                 </div>
                 <div class="editor-area" id="col-css">
-                    <label for="tmpl-css">
-                        <span>🎨 CSS Styles</span>
-                    </label>
+                    <div style="display:flex; align-items:center; justify-content:space-between; gap:0.5rem;">
+                        <label for="tmpl-css"
+                            style="flex:1; min-width:0; font-size:0.82rem; font-weight:600; color:var(--color-text-secondary); display:flex; align-items:center; gap:0.35rem; margin:0;">
+                            <span>🎨 CSS Styles</span>
+                        </label>
+                        <button type="button" class="btn btn-secondary btn-sm" id="btn-format-css"
+                            title="Beautify CSS formatting (Ctrl+Shift+F)"
+                            style="padding:3px 10px; font-size:0.72rem; gap:4px; flex-shrink:0;">
+                            ✨ Format
+                        </button>
+                    </div>
                     <textarea id="tmpl-css" class="code-textarea" spellcheck="false"
                         placeholder="body { font-family: sans-serif; padding: 32px; }&#10;h1 { color: #1a1a2e; }"></textarea>
                 </div>
@@ -436,7 +444,7 @@
     <script src="/menu.js?v=20260828a"></script>
     <script src="/sidebar.js?v=20260824d"></script>
     <script src="/toast.js?v=20260824d"></script>
-    <script src="/cv-template-editor.js?v=20260824g"></script>
+    <script src="/cv-template-editor.js?v=20260901a"></script>
 </body>
 
 </html>

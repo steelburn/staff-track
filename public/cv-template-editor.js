@@ -213,6 +213,185 @@ ${cssStyles || ''}
 </head><body><div class="cv-body">${body}</div></body></html>`;
 }
 
+// ── CSS Beautifier ──────────────────────────────────────────────────────────
+// Formats minified or messy CSS into readable, consistently-indented styles.
+// Handles: comments, strings, url()/calc()/var()/attribute-selector blocks,
+// nested @media/@supports/@keyframes/@font-face, empty rules, combinators.
+function tokenizeCss(css) {
+    const tokens = [];
+    const n = css.length;
+    let i = 0;
+    while (i < n) {
+        const ch = css[i];
+        if (ch === '/' && css[i + 1] === '*') {
+            const end = css.indexOf('*/', i + 2);
+            tokens.push({ t: 'comment', v: end === -1 ? css.slice(i) : css.slice(i, end + 2) });
+            i = end === -1 ? n : end + 2;
+        } else if (ch === '"' || ch === "'") {
+            let j = i + 1;
+            while (j < n) {
+                if (css[j] === '\\') { j += 2; continue; }
+                if (css[j] === ch) { j++; break; }
+                j++;
+            }
+            tokens.push({ t: 'str', v: css.slice(i, j) });
+            i = j;
+        } else if (ch === '(' || ch === '[') {
+            const close = ch === '(' ? ')' : ']';
+            let depth = 1, j = i + 1;
+            while (j < n && depth > 0) {
+                const c = css[j];
+                if (c === '\\') { j += 2; continue; }
+                if (c === '"' || c === "'") {
+                    let k = j + 1;
+                    while (k < n) {
+                        if (css[k] === '\\') { k += 2; continue; }
+                        if (css[k] === c) { k++; break; }
+                        k++;
+                    }
+                    j = k;
+                    continue;
+                }
+                if (c === ch) depth++;
+                else if (c === close) depth--;
+                j++;
+            }
+            tokens.push({ t: 'paren', v: css.slice(i, j) });
+            i = j;
+        } else if (ch === '{' || ch === '}' || ch === ';' || ch === ':' || ch === ',') {
+            tokens.push({ t: ch });
+            i++;
+        } else if (/\s/.test(ch)) {
+            tokens.push({ t: 'ws' });
+            while (i < n && /\s/.test(css[i])) i++;
+        } else {
+            let j = i;
+            while (j < n && !/[\s{};:,'"()[\]]/.test(css[j]) && !(css[j] === '/' && css[j + 1] === '*')) j++;
+            if (j === i) { tokens.push({ t: 'txt', v: ch }); i++; }
+            else { tokens.push({ t: 'txt', v: css.slice(i, j) }); i = j; }
+        }
+    }
+    return tokens;
+}
+
+function beautifyCss(css) {
+    if (!css) return '';
+    if (!css.trim()) return css.trim();
+
+    const tokens = tokenizeCss(css);
+    const INDENT = '  ';
+    const out = [];
+    let line = '';
+    let indent = 0;
+    let mode = 'rule';        // 'rule' → selector context, 'decl' → declaration context
+    let pendingSpace = false;
+    const stack = [];         // { mode, lineIdx, hadContent }
+
+    const flushLine = (extra = '') => {
+        const trimmed = line.trim();
+        if (trimmed || extra) out.push(INDENT.repeat(indent) + trimmed + extra);
+        line = '';
+        pendingSpace = false;
+    };
+    const markContent = () => { if (stack.length) stack[stack.length - 1].hadContent = true; };
+    const isDeclAtRule = s => /^@(font-face|page|viewport|counter-style|property|namespace|charset|import)\b/i.test(s);
+
+    for (const tok of tokens) {
+        switch (tok.t) {
+            case 'ws':
+                if (line && !/[\s:([]$/.test(line)) pendingSpace = true;
+                break;
+            case 'txt':
+            case 'str':
+            case 'paren': {
+                let v = tok.v;
+                // Space out combinators in selector context (e.g. `a>b` → `a > b`)
+                if (mode === 'rule' && tok.t === 'txt') {
+                    v = v.replace(/([>+~])/g, ' $1 ').replace(/\s{2,}/g, ' ');
+                }
+                if (!line) { line = v; pendingSpace = false; markContent(); break; }
+                const prev = line[line.length - 1];
+                const startsClose = /^[)\],;:]/.test(v);
+                if (pendingSpace && prev !== '(' && prev !== '[' && prev !== ':' && !startsClose) line += ' ';
+                line += v;
+                pendingSpace = false;
+                markContent();
+                break;
+            }
+            case ':':
+                line = line.replace(/\s+$/, '');
+                line += mode === 'decl' ? ': ' : ':';
+                pendingSpace = false;
+                markContent();
+                break;
+            case ',':
+                line = line.replace(/\s+$/, '');
+                line += ', ';
+                pendingSpace = false;
+                markContent();
+                break;
+            case ';':
+                flushLine(';');
+                markContent();
+                break;
+            case 'comment':
+                flushLine();
+                out.push(INDENT.repeat(indent) + tok.v);
+                pendingSpace = false;
+                markContent();
+                break;
+            case '{': {
+                const sel = line.trim();
+                if (indent === 0 && out.length > 0 && out[out.length - 1] !== '') out.push('');
+                flushLine(sel ? ' {' : '');
+                const blockMode = /^@/.test(sel) && !isDeclAtRule(sel) ? 'rule' : 'decl';
+                stack.push({ mode: blockMode, lineIdx: out.length - 1, hadContent: false });
+                indent++;
+                mode = blockMode;
+                break;
+            }
+            case '}': {
+                const ctx = stack[stack.length - 1];
+                if (ctx && !ctx.hadContent) {
+                    // Empty rule → collapse to `selector {}`
+                    if (ctx.lineIdx >= 0 && out[ctx.lineIdx]) {
+                        out[ctx.lineIdx] = out[ctx.lineIdx].replace(/\{\s*$/, '{}');
+                    }
+                    if (stack.length) stack.pop();
+                    indent = Math.max(0, indent - 1);
+                    mode = stack.length ? stack[stack.length - 1].mode : 'rule';
+                    break;
+                }
+                flushLine(line.includes(':') && !/;\s*$/.test(line) ? ';' : '');
+                indent = Math.max(0, indent - 1);
+                out.push(INDENT.repeat(indent) + '}');
+                if (stack.length) stack.pop();
+                mode = stack.length ? stack[stack.length - 1].mode : 'rule';
+                break;
+            }
+        }
+    }
+    flushLine();
+    return out.join('\n').replace(/\n{3,}/g, '\n\n').trimEnd() + '\n';
+}
+
+function formatCss() {
+    const area = document.getElementById('tmpl-css');
+    if (!area) return;
+    const cursor = area.selectionStart;
+    const formatted = beautifyCss(area.value);
+    if (formatted === area.value) {
+        showToast('CSS is already well-formatted');
+        return;
+    }
+    area.value = formatted;
+    area.selectionStart = area.selectionEnd = Math.min(cursor, formatted.length);
+    area.focus();
+    showToast('✨ CSS formatted');
+    clearTimeout(previewDebounce);
+    previewDebounce = setTimeout(() => renderPreview(), 300);
+}
+
 function renderPreview() {
     const frame = document.getElementById('tmpl-preview-frame');
     if (!frame) return;
@@ -297,6 +476,15 @@ function renderEditor(tmpl) {
     const cssArea = document.getElementById('tmpl-css');
     mdArea?.addEventListener('focus', () => { focusedEditor = 'markdown'; });
     cssArea?.addEventListener('focus', () => { focusedEditor = 'css'; });
+
+    // Beautify CSS: button click + Ctrl/Cmd+Shift+F while CSS editor is focused
+    document.getElementById('btn-format-css')?.addEventListener('click', formatCss);
+    cssArea?.addEventListener('keydown', e => {
+        if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === 'F' || e.key === 'f')) {
+            e.preventDefault();
+            formatCss();
+        }
+    });
 
     // Debounced live preview — renders from textarea content
     [mdArea, cssArea].forEach(el => {
