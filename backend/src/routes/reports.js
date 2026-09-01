@@ -157,20 +157,25 @@ router.get('/staff', requireReporterOrManager, async (req, res) => {
         }
         
         // Get all staff with their projects and skills
+        // "All Staff" is a directory of every synced staff member (the staff
+        // table, populated by the DreamFactory bulk sync), not just people who
+        // have completed a submission. UNION keeps legacy submitters who have no
+        // staff-table row (e.g. chen@zen.com.my) visible; LEFT JOINs mean staff
+        // without submissions still appear with empty projects/skills.
         const joinClause = includeInactive 
-            ? 'LEFT JOIN user_roles ur ON s.staff_email = ur.email' 
-            : 'INNER JOIN user_roles ur ON s.staff_email = ur.email AND ur.is_active = 1';
-        
+            ? 'LEFT JOIN user_roles ur ON ur.email = people.email' 
+            : 'INNER JOIN user_roles ur ON ur.email = people.email AND ur.is_active = 1';
+
         let query = `
             SELECT 
-                s.id,
-                s.staff_name,
-                s.staff_email,
-                s.title,
-                s.department,
-                s.manager_name,
+                people.email AS staff_email,
+                COALESCE(st.name, s.staff_name) AS staff_name,
+                COALESCE(st.title, s.title) AS title,
+                COALESCE(st.department, s.department) AS department,
+                COALESCE(st.manager_name, s.manager_name) AS manager_name,
                 s.updated_at,
                 s.updated_by_staff,
+                s.id AS submission_id,
                 p.id as project_id,
                 p.soc,
                 p.project_name,
@@ -184,8 +189,14 @@ router.get('/staff', requireReporterOrManager, async (req, res) => {
                 mp.type_software_support,
                 sk.skill,
                 sk.rating
-            FROM submissions s
+            FROM (
+                SELECT email FROM staff
+                UNION
+                SELECT staff_email FROM submissions
+            ) people
             ${joinClause}
+            LEFT JOIN staff st ON LOWER(st.email) = LOWER(people.email)
+            LEFT JOIN submissions s ON LOWER(s.staff_email) = LOWER(people.email)
             LEFT JOIN submission_projects p ON s.id = p.submission_id
             LEFT JOIN managed_projects mp ON (mp.soc = p.soc OR (p.soc IS NULL AND mp.project_name = p.project_name))
             LEFT JOIN submission_skills sk ON s.id = sk.submission_id
@@ -193,20 +204,21 @@ router.get('/staff', requireReporterOrManager, async (req, res) => {
         
         const params = [];
         if (subordinatesOnly && !userHasFullAccess && subordinateEmails.length > 0) {
-            query += ` WHERE LOWER(s.staff_email) IN (${subordinateEmails.map(() => '?').join(',')})`;
+            query += ` WHERE LOWER(people.email) IN (${subordinateEmails.map(() => '?').join(',')})`;
             params.push(...subordinateEmails);
         }
         
-        query += ` ORDER BY s.staff_name ASC, p.soc ASC, sk.skill ASC`;
+        query += ` ORDER BY staff_name ASC, p.soc ASC, sk.skill ASC`;
 
         const [rows] = await db.query(query, params);
 
-        // Group by staff
+        // Group by person. Email is unique in the staff table and the UNION
+        // dedupes, so each row maps to exactly one directory entry.
         const staffMap = new Map();
         rows.forEach(row => {
-            if (!staffMap.has(row.id)) {
-                staffMap.set(row.id, {
-                    id: row.id,
+            if (!staffMap.has(row.staff_email)) {
+                staffMap.set(row.staff_email, {
+                    id: row.submission_id || null,
                     staffName: row.staff_name || '',
                     email: row.staff_email,
                     title: row.title || '',
@@ -219,7 +231,7 @@ router.get('/staff', requireReporterOrManager, async (req, res) => {
                 });
             }
 
-            const staff = staffMap.get(row.id);
+            const staff = staffMap.get(row.staff_email);
 
             // Add project if not already added
             if (row.project_id && !staff.projects.find(p => p.id === row.project_id)) {
