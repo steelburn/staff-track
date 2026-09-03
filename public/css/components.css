@@ -1823,6 +1823,127 @@ body > .toast {
     margin-top: var(--space-2);
 }
 
+/* ─── Catalog Project Classification tick-chips ──────────────────────────── */
+.cls-chip-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, max-content));
+    gap: 4px 8px;
+    align-items: center;
+    justify-content: start;
+}
+
+.cls-chip {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 1px 9px;
+    border: 1px solid var(--color-border);
+    border-radius: 999px;
+    font-size: var(--font-size-xs);
+    font-weight: var(--font-weight-semibold);
+    letter-spacing: 0.03em;
+    color: var(--color-text-secondary);
+    cursor: pointer;
+    user-select: none;
+    white-space: nowrap;
+    line-height: 1.55;
+    transition: all 0.15s ease;
+}
+
+.cls-chip input {
+    position: absolute;
+    opacity: 0;
+    width: 0;
+    height: 0;
+    margin: 0;
+    pointer-events: none;
+}
+
+.cls-chip:hover {
+    border-color: var(--color-text-secondary);
+    color: var(--color-text-primary);
+}
+
+.cls-chip:focus-within {
+    outline: 2px solid var(--color-primary);
+    outline-offset: 1px;
+}
+
+.cls-chip.checked.infra {
+    background: var(--color-success-light);
+    color: var(--color-success);
+    border-color: rgba(16, 185, 129, 0.45);
+}
+
+.cls-chip.checked.software {
+    background: var(--color-primary-light);
+    color: var(--color-primary);
+    border-color: rgba(99, 102, 241, 0.45);
+}
+
+.cls-chip.checked.isupport {
+    background: rgba(251, 191, 36, 0.15);
+    color: var(--color-warning);
+    border-color: rgba(251, 191, 36, 0.45);
+}
+
+.cls-chip.checked.ssupport {
+    background: rgba(167, 139, 250, 0.15);
+    color: #a78bfa;
+    border-color: rgba(167, 139, 250, 0.45);
+}
+
+.cls-chip.saving {
+    opacity: 0.55;
+    pointer-events: none;
+}
+
+/* ─── Staff-count column (Catalog → Projects, classification prioritisation) ── */
+th#th-projects-staff {
+    width: 92px;
+    text-align: center;
+}
+
+.project-staff-col {
+    text-align: center;
+}
+
+.staff-count {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 30px;
+    padding: 2px 9px;
+    font-size: var(--font-size-xs);
+    font-weight: var(--font-weight-bold);
+    border-radius: 999px;
+    white-space: nowrap;
+    line-height: 1.5;
+}
+
+.staff-count.zero {
+    background: var(--color-bg-muted);
+    color: var(--color-text-secondary);
+    font-weight: var(--font-weight-semibold);
+    opacity: 0.65;
+}
+
+.staff-count.low {
+    background: var(--color-info-light);
+    color: var(--color-info);
+}
+
+.staff-count.mid {
+    background: var(--color-primary-light);
+    color: var(--color-primary);
+}
+
+.staff-count.high {
+    background: var(--color-success-light);
+    color: var(--color-success);
+}
+
 .projects-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));

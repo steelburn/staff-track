@@ -5,7 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>StaffTrack — Catalog Management</title>
-    <link rel="stylesheet" href="/css/main.css?v=20260824d">
+    <link rel="stylesheet" href="/css/main.css?v=20260903b">
     <script src="/theme.js?v=20260824d"></script>
 </head>
 
@@ -75,13 +75,13 @@
 
                     <div class="table-container">
                         <div class="table-scroll">
-                            <table class="table">
+                            <table class="table" id="catalog-staff-table">
                                 <thead>
                                     <tr>
-                                        <th>Name</th>
-                                        <th>Title</th>
-                                        <th>Department</th>
-                                        <th>Email</th>
+                                        <th class="sortable" data-sort="name" title="Click to sort by name">Name <span class="sort-ind" aria-hidden="true">↕</span></th>
+                                        <th class="sortable" data-sort="title" title="Click to sort by title">Title <span class="sort-ind" aria-hidden="true">↕</span></th>
+                                        <th class="sortable" data-sort="department" title="Click to sort by department">Department <span class="sort-ind" aria-hidden="true">↕</span></th>
+                                        <th class="sortable" data-sort="email" title="Click to sort by email">Email <span class="sort-ind" aria-hidden="true">↕</span></th>
                                         <th style="width: 80px;">Action</th>
                                     </tr>
                                 </thead>
@@ -108,18 +108,24 @@
 
                     <div class="table-container">
                         <div class="table-scroll">
-                            <table class="table">
+                            <table class="table" id="catalog-projects-table">
                                 <thead>
                                     <tr>
-                                        <th>SOC</th>
-                                        <th>Project Name</th>
-                                        <th>Customer</th>
+                                        <th class="sortable" data-sort="soc" title="Click to sort by SOC">SOC <span class="sort-ind" aria-hidden="true">↕</span></th>
+                                        <th class="sortable" data-sort="project_name" title="Click to sort by project name">Project Name <span class="sort-ind" aria-hidden="true">↕</span></th>
+                                        <th class="sortable" data-sort="customer" title="Click to sort by customer">Customer <span class="sort-ind" aria-hidden="true">↕</span></th>
+                                        <th class="sortable" id="th-projects-staff" data-sort="staff_count"
+                                            title="Active staff with this project in their profile — click to sort">
+                                            Staff <span class="sort-ind" aria-hidden="true">↕</span>
+                                        </th>
+                                        <th class="sortable" data-sort="classification" style="width: 250px;"
+                                            title="Number of classifications set — click to sort">Classification <span class="sort-ind" aria-hidden="true">↕</span></th>
                                         <th style="width: 80px;">Action</th>
                                     </tr>
                                 </thead>
                                 <tbody id="catalog-projects-tbody">
                                     <tr>
-                                        <td colspan="4">
+                                        <td colspan="6">
                                             <div class="loading-state">
                                                 <div class="spinner"></div>
                                                 <p>Loading projects...</p>
@@ -142,7 +148,7 @@
     <script src="/menu.js?v=20260828a"></script>
     <script src="/sidebar.js?v=20260824d"></script>
     <script src="/toast.js?v=20260824d"></script>
-    <script src="/catalog.js?v=20260828a"></script>
+    <script src="/catalog.js?v=20260904a"></script>
 </body>
 
 </html>

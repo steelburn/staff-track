@@ -1,4 +1,5 @@
 import express from 'express';
+import { v4 as uuidv4 } from 'uuid';
 import { getDb } from '../db.js';
 import { verifyToken, requireRole } from './auth.js';
 import axios from 'axios';
@@ -147,6 +148,135 @@ router.post('/projects/refresh', verifyToken, requireRole('admin', 'hr'), async 
     } catch (err) {
         console.error('POST /catalog/projects/refresh error:', err);
         res.status(500).json({ error: 'Failed to refresh cache' });
+    }
+});
+
+// ── POST /catalog/projects/classification ─────────────────────────────────────
+// Upsert Project Classification (Infra / Software / Infra Support / Software
+// Support) for a catalog project. Classification lives on managed_projects
+// (joined everywhere by SOC, or by name when there is no SOC), so this either
+// updates the matching managed record or promotes the catalog project into
+// managed_projects with its classification flags set.
+router.post('/projects/classification', verifyToken, requireCoordinator, async (req, res) => {
+    try {
+        const db = await getDb();
+        const {
+            soc, project_name, customer,
+            start_date, end_date, technologies, description,
+            type_infra, type_software, type_infra_support, type_software_support
+        } = req.body;
+
+        const code = (soc || '').trim();
+        const name = (project_name || '').trim();
+        if (!code && !name) {
+            return res.status(400).json({ error: 'soc or project_name is required' });
+        }
+
+        const flag = v => (v ? 1 : 0);
+        const infra = flag(type_infra);
+        const software = flag(type_software);
+        const infraSupport = flag(type_infra_support);
+        const softwareSupport = flag(type_software_support);
+
+        // Same lookup the rest of the app uses to join classification to a
+        // project: exact SOC first, otherwise a SOC-less record by project name.
+        const [existing] = await db.query(
+            `SELECT id, soc, project_name, customer FROM managed_projects
+             WHERE (soc IS NOT NULL AND TRIM(soc) <> '' AND LOWER(soc) = LOWER(?))
+                OR ((soc IS NULL OR TRIM(soc) = '') AND LOWER(project_name) = LOWER(?))
+             ORDER BY (soc IS NOT NULL AND TRIM(soc) <> '') DESC
+             LIMIT 1`,
+            [code || '∅', name || '∅']
+        );
+
+        if (existing && existing.length > 0) {
+            const rec = existing[0];
+            const params = [];
+
+            const setClause = [
+                'type_infra = ?', 'type_software = ?',
+                'type_infra_support = ?', 'type_software_support = ?'
+            ];
+            params.push(infra, software, infraSupport, softwareSupport);
+
+            // Back-fill blank identity fields when the catalog has better data,
+            // but never clobber values a coordinator already entered.
+            if (code && !(rec.soc && rec.soc.trim())) { setClause.push('soc = ?'); params.push(code); }
+            if (name && !(rec.project_name && rec.project_name.trim())) { setClause.push('project_name = ?', 'name = ?'); params.push(name, name); }
+            if (customer && !(rec.customer && rec.customer.trim())) { setClause.push('customer = ?'); params.push(customer); }
+
+            params.push(rec.id);
+            await db.query(
+                `UPDATE managed_projects SET ${setClause.join(', ')} WHERE id = ?`,
+                params
+            );
+
+            return res.json({ success: true, id: rec.id, created: false });
+        }
+
+        // No matching record — promote the catalog project with its classification.
+        const id = uuidv4();
+        const createdAt = new Date().toISOString().slice(0, 19).replace('T', ' ');
+        let techJson = null;
+        if (technologies) {
+            if (typeof technologies === 'string') {
+                techJson = JSON.stringify(technologies.split(',').map(t => t.trim()).filter(t => t));
+            } else if (Array.isArray(technologies)) {
+                techJson = JSON.stringify(technologies);
+            }
+        }
+        const okDate = d => /^\d{4}-\d{2}-\d{2}$/.test(d || '') ? d : null;
+
+        await db.query(
+            `INSERT INTO managed_projects
+                (id, soc, name, project_name, customer, type_infra, type_software,
+                 type_infra_support, type_software_support, start_date, end_date,
+                 technologies, description, coordinator_email, created_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [
+                id, code || null, name, name, (customer || '').trim() || null,
+                infra, software, infraSupport, softwareSupport,
+                okDate(start_date), okDate(end_date),
+                techJson, description || null,
+                req.user.email,
+                createdAt
+            ]
+        );
+
+        res.status(201).json({ success: true, id, created: true });
+    } catch (err) {
+        console.error('POST /catalog/projects/classification error:', err);
+        res.status(500).json({ error: 'Failed to save classification' });
+    }
+});
+
+// ── GET /catalog/projects/staff-counts ───────────────────────────────────────
+// Number of active staff whose profile lists each project, keyed the same way
+// classification is joined everywhere else (exact SOC; by name only when the
+// submission row carries no SOC). Mirrors the per-project staff counts on the
+// Projects page so admins can prioritise classifications for projects that
+// actually appear in staff profiles.
+router.get('/projects/staff-counts', verifyToken, async (req, res) => {
+    try {
+        const db = await getDb();
+        const [rows] = await db.query(`
+            SELECT
+                p.soc,
+                p.project_name,
+                COUNT(DISTINCT s.staff_email) AS staff_count
+            FROM submission_projects p
+            JOIN submissions s ON p.submission_id = s.id
+            INNER JOIN user_roles ur ON LOWER(ur.email) = LOWER(s.staff_email) AND ur.is_active = 1
+            GROUP BY p.soc, p.project_name
+        `);
+        res.json(rows.map(r => ({
+            soc: r.soc,
+            project_name: r.project_name,
+            staff_count: Number(r.staff_count) || 0
+        })));
+    } catch (err) {
+        console.error('GET /catalog/projects/staff-counts error:', err);
+        res.status(500).json({ error: 'Failed to fetch project staff counts' });
     }
 });
 
