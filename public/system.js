@@ -320,8 +320,13 @@ function renderCatalogSkills() {
     }
 
     tbody.innerHTML = list.map(s => {
-        const variants = (s.variants || []).length
-            ? `<div class="skill-variants">variants: ${s.variants.map(v => `${esc(v.name)} <b>×${v.instances}</b>`).join(' · ')}</div>`
+        const variantList = (s.variants || []).length
+            ? `<span>variants: ${s.variants.map(v => `${esc(v.name)} <b>×${v.instances}</b>`).join(' · ')}</span>`
+            : '';
+        // Rows with spelling variants get an inline Standardize action.
+        const variants = variantList
+            ? `<div class="skill-variants" style="display:flex;align-items:center;flex-wrap:wrap;gap:.4rem">${variantList}
+            <button class="btn btn-secondary btn-sm row-std-btn" type="button" data-name="${esc(s.name)}" title="Standardize spelling variants into one canonical name">🔤 Standardize</button></div>`
             : '';
         const dupBadge = inProposal(s.name)
             ? '<span class="dup-badge" title="Appears in a suggested merge group">🔁</span>'
@@ -346,6 +351,11 @@ function renderCatalogSkills() {
             if (chk.checked) selectedSkills.add(chk.dataset.name);
             else selectedSkills.delete(chk.dataset.name);
             updateSkillButtons();
+        });
+    });
+    document.querySelectorAll('.row-std-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            if (btn.dataset.name) openStandardizeModal(btn.dataset.name);
         });
     });
     updateSkillButtons();
