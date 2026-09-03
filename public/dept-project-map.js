@@ -447,8 +447,13 @@ function renderTreemap() {
             formatter: (info) => {
                 if (!info.data) return '';
                 const d = info.data;
+                // Leaf = one project tile: the staff list lives on the tile.
                 if (d.staff) return `<b>${d.rootName ? d.rootName + ' → ' : ''}${d.name}</b><br/>${d.value} staff`;
-                return `<b>${d.name}</b><br/>${d.value} assignments`;
+                // Non-leaf (dept/team/person root) carries no own `value`;
+                // sum its children so we don't print "undefined assignments".
+                const sum = (d.children || []).reduce((s, c) => s + (Number(c.value) || 0), 0);
+                if (d.children && d.children.length) return `<b>${d.name}</b><br/>${sum} assignments`;
+                return `<b>${d.name}</b><br/>${Number(d.value) || 0} assignments`;
             },
         },
         series: [{
@@ -468,6 +473,12 @@ function renderTreemap() {
             data: treemapData(),
         }],
     });
+    // mkChart() reuses the live instance (only renderAll() disposes), and this
+    // function is re-invoked on every filter toggle / tab switch — so drop any
+    // previously bound handler first. Otherwise each re-render stacks another
+    // click listener: a dept-tile click then fires N handlers and with even N
+    // the filter toggles on and immediately off (drill-down silently stops).
+    chart.off('click');
     chart.on('click', (params) => handleTreemapClick(params));
 }
 

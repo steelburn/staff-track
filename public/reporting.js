@@ -484,7 +484,7 @@ function axisColors(col) {
 
 // ── Charts ────────────────────────────────────────────────────────────────────
 function renderDeptChart() {
-    const depts = (payload.headcount.byDepartment || []).slice(0, 12).slice().reverse();
+    const depts = (payload.headcount.byDepartment || []).slice().reverse();
     const c = mkChart('chart-depts');
     if (!c) return;
     const col = chartColors();

@@ -271,8 +271,6 @@ router.get('/projects', requireReporterOrManager, async (req, res) => {
     try {
         const db = await getDb();
 
-        const isAdminOrHR = req.user.isAdmin === true || req.user.is_hr === 1 || req.user.is_hr === true;
-        const email = req.user.email.toLowerCase();
         const includeInactive = req.query.include_inactive === 'true';
 
         // Inactive staff (user_roles.is_active = 0) are excluded by default;
@@ -296,10 +294,23 @@ router.get('/projects', requireReporterOrManager, async (req, res) => {
     `;
 
         let params = [];
-        if (!isAdminOrHR) {
-            // Coordinator: Only show projects where they are in the coordinators list
-            query += ` WHERE mp.coordinator_email LIKE ? OR mp.coordinator_email = ?`;
-            params = ['%"' + email + '"%', email];
+        if (!hasReportAccess(req.user)) {
+            // Same contract as the dashboard / skills / staff reports: users
+            // without admin|HR|coordinator access (i.e. managers) see only
+            // their subordinate tree. Previously this endpoint scoped by
+            // managed_projects.coordinator_email, which hid EVERY project from
+            // managers (→ Analytics' misleading "No department ↔ project
+            // assignments found." empty card) and showed coordinators a tiny
+            // slice while their dashboard is full-org. Staff with no
+            // subordinates get 403 (not an empty payload) so the Analytics
+            // page shows its "Access restricted" card instead of "add more
+            // projects" advice.
+            const emails = await getUserSubordinates(db, req.user.email.toLowerCase());
+            if (emails.length === 0) {
+                return res.status(403).json({ error: 'Forbidden' });
+            }
+            query += ` WHERE LOWER(s.staff_email) IN (${buildPlaceholders(emails)})`;
+            params = emails;
         }
 
         const [rows] = await db.query(query, params);
