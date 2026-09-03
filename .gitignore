@@ -38,6 +38,7 @@ brain/
 # Local tooling / editor state
 .kilo/
 .sisyphus/
+.hermes/
 
 # Runtime data (never commit user uploads or backups)
 backend/files/
