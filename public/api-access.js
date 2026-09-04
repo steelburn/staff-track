@@ -173,7 +173,39 @@ in
     </details>
 
     <details>
-        <summary>6 · Status codes & errors</summary>
+        <summary>6 · Staff data & CV endpoints (profile bundle)</summary>
+        <div class="help-body">
+            <p>Feeds return directory-style rows. When you need <b>one person's full record</b> — the data behind a CV — use the CV-profile endpoints. They serve the same comprehensive bundle the CV generator reads, so Admin/HR can pull everything needed to produce a CV for a staff member in a <b>single call</b>:</p>
+            <pre>curl -H "Authorization: Bearer st_…" "https://your-host/api/cv-profiles/jane@example.com"</pre>
+            <p>Response — the complete profile bundle (date fields are <code>YYYY-MM-DD</code>; sections are <code>[]</code> until the person records them):</p>
+            <pre>{
+  "profile":        { "summary": "…", "phone": "…", "linkedin": "…", "location": "…", "photo_path": "…" },
+  "education":      [ { "institution": "…", "degree": "…", "field": "…", "start_year": 2018, "end_year": 2022, "description": "…" } ],
+  "certifications": [ { "name": "…", "issuer": "…", "date_obtained": "2024-03-01", "expiry_date": "2027-03-01", "credential_id": "…" } ],
+  "awards":         [ { "title": "…", "issuer": "…", "date_received": "2023-11-01", "description": "…" } ],
+  "workHistory":    [ { "employer": "…", "job_title": "…", "start_date": "2021-06-01", "end_date": "2023-05-31", "is_current": 1 } ],
+  "pastProjects":   [ { "project_name": "…", "role": "…", "technologies": "…", "start_date": "2022-01-01", "end_date": "2022-12-31" } ]
+}</pre>
+            <table>
+                <tr><th>Endpoint</th><th>Returns</th></tr>
+                <tr><td><code>GET /api/cv-profiles/{email}</code></td><td>The comprehensive bundle above — profile, education, certifications, awards, work history, past projects.</td></tr>
+                <tr><td><code>GET /api/cv-profiles/{email}/snapshots</code></td><td>Previously generated CVs (template name + data + HTML, who generated it, created date), newest first.</td></tr>
+                <tr><td><code>GET /api/cv-profiles/{email}/certifications/bundle</code></td><td>Certification records with the extra metadata the CV template uses.</td></tr>
+                <tr><td><code>GET /api/cv-profiles/{email}/audit</code></td><td>Profile change history — which section, which action, by whom, when (newest first).</td></tr>
+                <tr><td><code>POST /api/cv-profiles/{email}/generate</code></td><td>Generate (or regenerate) a CV — body <code>{ "template_id": "classic" }</code>; returns the rendered HTML + template name and stores a snapshot.</td></tr>
+            </table>
+            <p><b>Access notes</b> (same access as the CV page):</p>
+            <ul>
+                <li>You can always read <b>your own</b> record; signed-in users get the read-only “view” of other staff profiles, which is what lets Admin/HR prepare and generate CVs for any staff member.</li>
+                <li>The four <code>GET</code> endpoints above work with <b>read-only</b> tokens.</li>
+                <li><code>generate</code> is a <b>write</b> — read-only tokens are rejected with <code>403</code>; full-access tokens can call it. In the UI, generating CVs for other staff is exposed to Admin/HR.</li>
+                <li><code>audit</code> is extra-restricted: the profile owner, Admin, HR, and Coordinators only — anyone else gets <code>403</code>.</li>
+            </ul>
+        </div>
+    </details>
+
+    <details>
+        <summary>7 · Status codes & errors</summary>
         <div class="help-body">
             <table>
                 <tr><th>Code</th><th>Meaning</th><th>What to do</th></tr>
@@ -190,7 +222,7 @@ in
     </details>
 
     <details>
-        <summary>7 · Security best practices</summary>
+        <summary>8 · Security best practices</summary>
         <div class="help-body">
             <ul>
                 <li><b>Treat tokens like passwords.</b> Anyone with the secret can act as you up to your role's power.</li>
@@ -205,7 +237,7 @@ in
     </details>
 
     <details>
-        <summary>8 · Troubleshooting & FAQ</summary>
+        <summary>9 · Troubleshooting & FAQ</summary>
         <div class="help-body">
             <ul>
                 <li><b>I get 401 immediately.</b> The token is wrong, expired, revoked, or the account was deactivated. Create a new one and update your script.</li>
@@ -213,6 +245,7 @@ in
                 <li><b>My revoked token still appears somewhere.</b> Your own list only shows active tokens (revoked ones disappear). Admins see history, with a “Revoked” status, on the Admin oversight panel.</li>
                 <li><b>403 on a feed.</b> Either a read-only token tried a write, or the requested record is outside your scope (managers see only their team).</li>
                 <li><b>404 on “My record”.</b> Your account has no staff-directory row — normal for some admin/HR logins. Use the org-wide feeds.</li>
+                <li><b>How do I read one person's full data (e.g. to prepare or generate a CV)?</b> <code>GET /api/cv-profiles/{email}</code> returns the complete profile bundle — see section 6 for the endpoints, a sample response, and who may read each.</li>
                 <li><b>Can a token create other tokens?</b> No — token management is browser-session only (403). This contains blast radius.</li>
                 <li><b>“Unsupported filter” / “Unknown sort” (400).</b> The column isn't whitelisted for that feed — see the reference table in section 5.</li>
                 <li><b>CSV output looks odd?</b> It's standard RFC-4180 (commas, quotes, newlines escaped). Open it in a spreadsheet or a CSV parser.</li>
