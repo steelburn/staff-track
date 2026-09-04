@@ -72,6 +72,7 @@ docker compose up -d
   - `staff-view.html`: Organization-wide staff reporting.
   - `skills.html`: Skill aggregation and search.
   - `certifications.html`: Organization-wide certification catalog (Admin/HR).
+  - `api-access.html`: Personal API tokens, Data Feeds, and an API console (all roles).
 
 ---
 ## 📑 Documentation

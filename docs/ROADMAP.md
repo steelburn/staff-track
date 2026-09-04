@@ -278,6 +278,23 @@ Plus schema changes to `submission_projects`: add `start_date`, `description`, `
 
 ---
 
+### 🔌 Self-Service API Access — ✅ COMPLETED (2026-09-04)
+
+Personal, user-owned API tokens (`st_` secrets; SHA-256 hashes stored) unlock the
+entire `/api` surface for any active user, scoped to their live UI role:
+
+- **Personal tokens**: read-only by default, optional full-access at creation;
+masked list, one-time secret reveal, self-revoke, optional expiry (default 90d).
+- **Data Feeds API** (`/api/feeds/*`): read-only staff / projects / skills /
+certifications / summary feeds with `fields`, `filter[col]`, `sort/order`,
+`page/limit`, and JSON or CSV output. Admin/HR/coordinator = org-wide;
+managers = subordinates (reuses `getUserSubordinates`); staff = self only.
+- **Live re-check per request**: tokens resolve against `user_roles` on every
+call, so deactivated/demoted users' tokens die on the next request.
+- **UI**: `api-access.html` (token manager + runnable console + quick reference,
+all roles) and an API Tokens oversight panel in `admin.html` (org-wide list,
+last-used, force-revoke).
+
 ## Confirmed Prioritization
 
 | Priority | Feature | Effort | Status |
