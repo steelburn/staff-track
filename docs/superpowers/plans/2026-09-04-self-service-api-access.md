@@ -67,7 +67,8 @@ CREATE TABLE IF NOT EXISTS api_tokens (
   UNIQUE INDEX idx_token_hash (token_hash),
   INDEX idx_user_email (user_email),
   INDEX idx_expires_at (expires_at)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+-- NOTE: 0900_ai_ci (not unicode_ci) — FK to user_roles.email requires identical collation (live table is 0900_ai_ci).
 ```
 
 - [ ] **Step 2: Apply the migration**
