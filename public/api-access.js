@@ -49,7 +49,7 @@ const visibleEndpoints = ENDPOINTS.filter(ep => {
     if (isHR) have.push('hr');
     if (hasFullAccess) have.push('full');
     if (isManager) have.push('manager');
-    return need.some(r => have.includes(r));
+    return need.some(r => r === 'all' || have.includes(r));
 });
 
 // ── My Tokens ──────────────────────────────────────────────────────────────────

@@ -1545,7 +1545,7 @@ const visibleEndpoints = ENDPOINTS.filter(ep => {
     if (isHR) have.push('hr');
     if (hasFullAccess) have.push('full');
     if (isManager) have.push('manager');
-    return need.some(r => have.includes(r));
+    return need.some(r => r === 'all' || have.includes(r));
 });
 
 // ── My Tokens ──────────────────────────────────────────────────────────────────
@@ -2213,7 +2213,8 @@ const sql = (q) => execSync(`${DB} "${q.replace(/"/g, '\\"')}"`, { stdio: ['igno
     assert((await fetch(BASE + '/catalog/staff', { headers: fullAuth })).status === 401, 'force-revoked token rejected 401');
 
     // 7. Cleanup: no leftover review tokens
-    const leftover = sql(`SELECT COUNT(*) AS n FROM api_tokens WHERE name LIKE '${NAME}%' OR user_email LIKE '${NAME}%'`).trim();
+    // Soft revokes keep rows — count only ACTIVE leftovers.
+    const leftover = sql(`SELECT COUNT(*) AS n FROM api_tokens WHERE revoked_at IS NULL AND (name LIKE '${NAME}%' OR user_email LIKE '${NAME}%')`).trim();
     assert(/n\s+0/.test(leftover), 'no leftover review tokens in api_tokens');
 
     console.log('\n' + (failures === 0 ? '✅ ALL PASS' : '❌ ' + failures + ' FAILURE(S)'));
