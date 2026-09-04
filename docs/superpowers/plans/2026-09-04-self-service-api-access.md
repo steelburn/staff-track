@@ -1,6 +1,6 @@
 # Self-Service API Access Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Give any active StaffTrack user self-service personal API tokens (read-only by default, optional write), unlock all existing `/api` routes + a new read-only Data Feeds API (`/api/feeds/*`, JSON + CSV, filter/sort/paginate) for those tokens, plus an in-app token manager + runnable API console page and an admin oversight panel.
 
@@ -24,12 +24,12 @@
 
 **Files:** none
 
-- [ ] **Step 1: Create a feature branch**
+- [x] **Step 1: Create a feature branch**
 
 Run: `cd /home/steelburn/staff-track && git checkout -b feat/api-access`
 Expected: `Switched to a new branch 'feat/api-access'`
 
-- [ ] **Step 2: Verify the stack is running**
+- [x] **Step 2: Verify the stack is running**
 
 Run: `docker compose ps --format '{{.Name}} {{.Status}}'`
 Expected: `staff-track-backend-1 Up ...`, `staff-track-db-1 Up (healthy)`, `staff-track-nginx-1 Up ...`
@@ -43,7 +43,7 @@ If the stack is down, start it with `docker compose up -d` and wait for `db` to 
 **Files:**
 - Create: `backend/migrations/0014_create_api_tokens.sql`
 
-- [ ] **Step 1: Write the migration file**
+- [x] **Step 1: Write the migration file**
 
 Create `backend/migrations/0014_create_api_tokens.sql`:
 
@@ -71,12 +71,12 @@ CREATE TABLE IF NOT EXISTS api_tokens (
 -- NOTE: 0900_ai_ci (not unicode_ci) — FK to user_roles.email requires identical collation (live table is 0900_ai_ci).
 ```
 
-- [ ] **Step 2: Apply the migration**
+- [x] **Step 2: Apply the migration**
 
 Run: `cd /home/steelburn/staff-track && docker compose restart backend`
 Expected: backend logs (from `docker compose logs backend --tail 20`) show `✅ 0014_create_api_tokens` after `📦 Database Migrations`.
 
-- [ ] **Step 3: Verify table + migration row**
+- [x] **Step 3: Verify table + migration row**
 
 Run:
 ```bash
@@ -84,7 +84,7 @@ docker compose exec -T db mysql -ustafftrack -pstafftrack_dev_password stafftrac
 ```
 Expected: 10 columns (`id, user_email, name, token_hash, read_only, expires_at, last_used_at, revoked_at, created_at`) and exactly one row `0014_create_api_tokens`.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add backend/migrations/0014_create_api_tokens.sql
@@ -100,7 +100,7 @@ git commit -m "feat: api_tokens table migration (self-service API access)"
 - Create: `backend/src/utils/csv.js`
 - Create: `backend/src/utils/ratelimit.js`
 
-- [ ] **Step 1: Write `backend/src/utils/tokens.js`**
+- [x] **Step 1: Write `backend/src/utils/tokens.js`**
 
 ```js
 import crypto from 'crypto';
@@ -123,7 +123,7 @@ export function maskTokenHash(hash) {
 }
 ```
 
-- [ ] **Step 2: Write `backend/src/utils/csv.js`**
+- [x] **Step 2: Write `backend/src/utils/csv.js`**
 
 ```js
 // Minimal RFC-4180-style CSV writer for flat row objects.
@@ -145,7 +145,7 @@ export function toCsv(rows, columns) {
 }
 ```
 
-- [ ] **Step 3: Write `backend/src/utils/ratelimit.js`**
+- [x] **Step 3: Write `backend/src/utils/ratelimit.js`**
 
 ```js
 // Lightweight in-memory sliding-window rate limiter. Per-process only —
@@ -180,7 +180,7 @@ export function rateLimit({ windowMs = 60000, max = 300, keyFn = null, message =
 }
 ```
 
-- [ ] **Step 4: Verify the utilities**
+- [x] **Step 4: Verify the utilities**
 
 Run:
 ```bash
@@ -214,7 +214,7 @@ ratelimit exported: true
 ```
 (`len: 46` = `st_` + 43; `b\"c` line shows RFC escaping.)
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add backend/src/utils/tokens.js backend/src/utils/csv.js backend/src/utils/ratelimit.js
@@ -230,7 +230,7 @@ git commit -m "feat: token/csv/ratelimit utilities for self-service API access"
 
 Context: `verifyToken` is currently synchronous JWT-only middleware; `logAuthEvent` is a console-only stub. Both live in `backend/src/routes/auth.js` between `hashToken` and `requireRole`. Every other route imports `verifyToken`/`requireRole` from this file, so upgrading it here is the single choke point — **no other route files change in this task.**
 
-- [ ] **Step 1: Replace the `logAuthEvent` stub with a DB-backed implementation + `resolveApiToken` helper**
+- [x] **Step 1: Replace the `logAuthEvent` stub with a DB-backed implementation + `resolveApiToken` helper**
 
 In `backend/src/routes/auth.js`, replace this exact block:
 
@@ -321,7 +321,7 @@ async function resolveApiToken(req, rawToken) {
 }
 ```
 
-- [ ] **Step 2: Replace `verifyToken` with the dual-path version**
+- [x] **Step 2: Replace `verifyToken` with the dual-path version**
 
 Replace this exact block:
 
@@ -390,7 +390,7 @@ const verifyToken = async (req, res, next) => {
 
 Note: `requireRole`, the `export { logAuthEvent, router, verifyToken, requireRole }` line, and every route handler are unchanged.
 
-- [ ] **Step 3: Restart backend + verify JWT login still works**
+- [x] **Step 3: Restart backend + verify JWT login still works**
 
 Run: `cd /home/steelburn/staff-track && docker compose restart backend`
 
@@ -401,7 +401,7 @@ curl -s -o /dev/null -w 'JWT /me -> %{http_code}\n' http://localhost:6082/api/au
 ```
 Expected: `JWT /me -> 200`
 
-- [ ] **Step 4: Verify the API-token path with a SQL-seeded token**
+- [x] **Step 4: Verify the API-token path with a SQL-seeded token**
 
 Generate a token secret + hash locally, seed one row for the `admin` user (admin exists in `user_roles`), then exercise the middleware:
 
@@ -427,7 +427,7 @@ Clean up the seeded row:
 docker compose exec -T db mysql -ustafftrack -pstafftrack_dev_password stafftrack -e "DELETE FROM api_tokens WHERE name='seeded-test';"
 ```
 
-- [ ] **Step 5: Verify audit rows landed**
+- [x] **Step 5: Verify audit rows landed**
 
 Run:
 ```bash
@@ -435,7 +435,7 @@ docker compose exec -T db mysql -ustafftrack -pstafftrack_dev_password stafftrac
 ```
 Expected: rows for `api_token_first_use` (success=1) and `api_token_denied` (success=0), both with `admin`/`unknown` email.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add backend/src/routes/auth.js
@@ -450,7 +450,7 @@ git commit -m "feat: dual-path verifyToken + DB-backed auth audit for API tokens
 - Create: `backend/src/routes/api-tokens.js`
 - Modify: `backend/src/index.js` (import + mount)
 
-- [ ] **Step 1: Write `backend/src/routes/api-tokens.js`**
+- [x] **Step 1: Write `backend/src/routes/api-tokens.js`**
 
 ```js
 import express from 'express';
@@ -617,7 +617,7 @@ router.delete('/admin/:id', verifyToken, requireSession, requireRole('admin'), a
 export { router };
 ```
 
-- [ ] **Step 2: Mount the router in `backend/src/index.js`**
+- [x] **Step 2: Mount the router in `backend/src/index.js`**
 
 Add after the existing data-tools import:
 
@@ -631,7 +631,7 @@ And after the existing data-tools mount line `app.use('/data-tools', dataToolsRo
 app.use('/api-tokens', apiTokensRouter);
 ```
 
-- [ ] **Step 3: Restart backend + run the full lifecycle**
+- [x] **Step 3: Restart backend + run the full lifecycle**
 
 Run: `cd /home/steelburn/staff-track && docker compose restart backend`
 
@@ -703,7 +703,7 @@ admin revoke -> 404       (already revoked — run order makes this 404; if 200,
 token list-as-token -> 403
 ```
 
-- [ ] **Step 4: Verify audit rows**
+- [x] **Step 4: Verify audit rows**
 
 Run:
 ```bash
@@ -711,7 +711,7 @@ docker compose exec -T db mysql -ustafftrack -pstafftrack_dev_password stafftrac
 ```
 Expected: rows incl. `api_token_created` (≥2), `api_token_revoked` (≥1), `api_token_admin_revoked` (≥1).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add backend/src/routes/api-tokens.js backend/src/index.js
@@ -725,7 +725,7 @@ git commit -m "feat: self-service API token management endpoints + admin oversig
 **Files:**
 - Modify: `backend/src/routes/reports.js` (last line only)
 
-- [ ] **Step 1: Export the helper**
+- [x] **Step 1: Export the helper**
 
 Replace the last line of `backend/src/routes/reports.js`:
 
@@ -739,7 +739,7 @@ with:
 export { router, getUserSubordinates };
 ```
 
-- [ ] **Step 2: Smoke-check reports still work**
+- [x] **Step 2: Smoke-check reports still work**
 
 Run: `cd /home/steelburn/staff-track && docker compose restart backend`
 
@@ -749,7 +749,7 @@ curl -s -o /dev/null -w 'reports/my-subordinates -> %{http_code}\n' http://local
 ```
 Expected: `reports/my-subordinates -> 200`
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add backend/src/routes/reports.js
@@ -766,7 +766,7 @@ git add backend/src/routes/reports.js
 
 Design: uniform GET-only surface. Query grammar: `?fields=a,b` (projection, validated), `?filter[col]=v` (equality) / `?filter[col]=~v` (substring), `?sort=col&order=asc|desc`, `?page=1&limit=50` (max 500), `?format=csv` or `Accept: text/csv`. JSON envelope `{ data, meta: { page, limit, total, returned } }`. Totals come from `COUNT(*) OVER()` in the same round-trip.
 
-- [ ] **Step 1: Write `backend/src/routes/feeds.js`**
+- [x] **Step 1: Write `backend/src/routes/feeds.js`**
 
 ```js
 import express from 'express';
@@ -1125,7 +1125,7 @@ router.get('/summary', verifyToken, async (req, res) => {
 export { router };
 ```
 
-- [ ] **Step 2: Mount `/feeds` in `backend/src/index.js`**
+- [x] **Step 2: Mount `/feeds` in `backend/src/index.js`**
 
 Add import after the api-tokens import:
 
@@ -1139,7 +1139,7 @@ Add mount after the api-tokens mount:
 app.use('/feeds', feedsRouter);
 ```
 
-- [ ] **Step 3: Restart + verify all feeds as admin**
+- [x] **Step 3: Restart + verify all feeds as admin**
 
 Run: `cd /home/steelburn/staff-track && docker compose restart backend`
 
@@ -1157,7 +1157,7 @@ echo "---"; curl -s "$BASE/feeds/staff?filter%5Bbogus%5D=x" -H "$AUTH" | head -c
 ```
 Expected: `/feeds/staff|projects|skills|certifications|summary` return `200`; `/feeds/me` returns `200` only if the account has a staff row (`admin` has none → `404 {"error":"No staff record for this account"}` — by design). The CSV block prints a header row (`email,name,title,department,manager_name,active`); the JSON block prints `total=… returned=2 first=…`; the bogus filter prints `{"error":"Unsupported filter 'bogus'. Allowed: department, manager_name, active"}`.
 
-- [ ] **Step 4: Verify role scoping with a plain-staff account**
+- [x] **Step 4: Verify role scoping with a plain-staff account**
 
 Insert a plain staff user (use an email that exists in `staff` if possible; otherwise the scope resolution returns `none` which is what we want to test):
 
@@ -1186,7 +1186,7 @@ Clean up:
 docker compose exec -T db mysql -ustafftrack -pstafftrack_dev_password stafftrack -e "DELETE FROM user_roles WHERE email='scope-test@zen.com.my'; DELETE FROM staff WHERE email='scope-test@zen.com.my';"
 ```
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add backend/src/routes/feeds.js backend/src/index.js
@@ -1205,7 +1205,7 @@ git add backend/src/routes/feeds.js backend/src/index.js
 
 All logged-in users get the page; content is role-aware. `api-access.js` mirrors the bootstrap pattern of `public/admin.js` (requireAuth, `renderSidebarNav('api-access')` fallback `renderNav`, ThemeManager, Toast).
 
-- [ ] **Step 1: Add the nav item (new sidebar)**
+- [x] **Step 1: Add the nav item (new sidebar)**
 
 In `public/sidebar.js`, inside the Main section of `render(user, activeTab)` (right after the My CV item), replace:
 
@@ -1220,7 +1220,7 @@ with:
                 ${this.renderNavItem('🔌', 'API Access', '/api-access.html', activeTab === 'api-access')}
 ```
 
-- [ ] **Step 2: Add the nav item (legacy menu)**
+- [x] **Step 2: Add the nav item (legacy menu)**
 
 In `public/menu.js`, inside `renderNav(activeTab)`, right after the My CV line, replace:
 
@@ -1235,7 +1235,7 @@ with:
     html += `<a href="/api-access.html" class="nav-link ${activeTab === 'api-access' ? 'active' : ''}">🔌 API Access</a>`;
 ```
 
-- [ ] **Step 3: Write `public/api-access.html`**
+- [x] **Step 3: Write `public/api-access.html`**
 
 ```html
 <!DOCTYPE html>
@@ -1491,7 +1491,7 @@ with:
 </html>
 ```
 
-- [ ] **Step 4: Write `public/api-access.js`**
+- [x] **Step 4: Write `public/api-access.js`**
 
 ```js
 'use strict';
@@ -1846,7 +1846,7 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 ```
 
-- [ ] **Step 5: Smoke-test the page loads for a logged-in session**
+- [x] **Step 5: Smoke-test the page loads for a logged-in session**
 
 Frontend files are served by nginx directly — no restart needed. Fetch the page and confirm the JS parses by loading it through chromium in Task 9; for now just confirm both files are served:
 
@@ -1856,7 +1856,7 @@ curl -s -o /dev/null -w 'api-access.js -> %{http_code}\n' http://localhost:6082/
 ```
 Expected: both `200`.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add public/api-access.html public/api-access.js public/sidebar.js public/menu.js
@@ -1871,7 +1871,7 @@ git commit -m "feat: API Access page (token manager + console + quick reference)
 - Modify: `public/admin.html` (second section)
 - Modify: `public/admin.js` (load/render/revoke + wiring)
 
-- [ ] **Step 1: Add the section to `public/admin.html`**
+- [x] **Step 1: Add the section to `public/admin.html`**
 
 In `public/admin.html`, replace:
 
@@ -1939,7 +1939,7 @@ with:
             </main>
 ```
 
-- [ ] **Step 2: Extend `public/admin.js`**
+- [x] **Step 2: Extend `public/admin.js`**
 
 Replace:
 
@@ -2083,7 +2083,7 @@ becomes
     // Roles Search
 ```
 
-- [ ] **Step 3: Verify the page serves and the admin API responds**
+- [x] **Step 3: Verify the page serves and the admin API responds**
 
 Frontend-only change (no backend restart needed):
 
@@ -2093,7 +2093,7 @@ curl -s -o /dev/null -w 'admin.js -> %{http_code}\n' http://localhost:6082/admin
 ```
 Expected: both `200`.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add public/admin.html public/admin.js
@@ -2108,7 +2108,7 @@ git commit -m "feat: admin API token oversight panel (org-wide list + force-revo
 - Create: `review-api-tokens.cjs` (backend API lifecycle assertions)
 - Create: `review-api-access-ui.cjs` (puppeteer/playwright UI + screenshots)
 
-- [ ] **Step 1: Write `review-api-tokens.cjs`**
+- [x] **Step 1: Write `review-api-tokens.cjs`**
 
 ```js
 'use strict';
@@ -2222,7 +2222,7 @@ const sql = (q) => execSync(`${DB} "${q.replace(/"/g, '\\"')}"`, { stdio: ['igno
 })().catch(err => { console.error('SCRIPT ERROR:', err); process.exit(1); });
 ```
 
-- [ ] **Step 2: Write `review-api-access-ui.cjs`**
+- [x] **Step 2: Write `review-api-access-ui.cjs`**
 
 ```js
 'use strict';
@@ -2349,7 +2349,7 @@ const assert = (cond, msg) => {
 })().catch(err => { console.error('SCRIPT ERROR:', err); process.exit(1); });
 ```
 
-- [ ] **Step 3: Run both review scripts**
+- [x] **Step 3: Run both review scripts**
 
 ```bash
 cd /home/steelburn/staff-track && node review-api-tokens.cjs
@@ -2360,7 +2360,7 @@ Expected: every line starts with `PASS:` and both end with `✅ ALL PASS`. Inspe
 
 If any assertion fails, fix the underlying code in the relevant earlier task file, restart the backend if backend code changed (`docker compose restart backend`), re-run the failing script, and commit the fix with a `fix:` message (e.g. `git commit -m "fix: feeds/staff scope clause when manager has no subordinates"`).
 
-- [ ] **Step 4: Commit the review scripts**
+- [x] **Step 4: Commit the review scripts**
 
 ```bash
 git add review-api-tokens.cjs review-api-access-ui.cjs
@@ -2375,7 +2375,7 @@ git commit -m "test: review scripts for API access (backend lifecycle + UI scree
 - Modify: `docs/ROADMAP.md`
 - Modify: `README.md`
 
-- [ ] **Step 1: ROADMAP — mark the feature completed**
+- [x] **Step 1: ROADMAP — mark the feature completed**
 
 In `docs/ROADMAP.md`, immediately before the line `## Confirmed Prioritization`, insert:
 
@@ -2398,7 +2398,7 @@ all roles) and an API Tokens oversight panel in `admin.html` (org-wide list,
 last-used, force-revoke).
 ```
 
-- [ ] **Step 2: README — page list + features**
+- [x] **Step 2: README — page list + features**
 
 In `README.md`, after the line:
 
@@ -2412,7 +2412,7 @@ insert:
   - `api-access.html`: Personal API tokens, Data Feeds, and an API console (all roles).
 ```
 
-- [ ] **Step 3: Final regression pass**
+- [x] **Step 3: Final regression pass**
 
 Run:
 
@@ -2432,14 +2432,14 @@ ls review-shots/ | head -5
 
 Expected: stack healthy, no backend errors, both review scripts `ALL PASS`, `reports/my-subordinates -> 200`, screenshots present.
 
-- [ ] **Step 4: Commit docs**
+- [x] **Step 4: Commit docs**
 
 ```bash
 git add docs/ROADMAP.md README.md
 git commit -m "docs: roadmap + README for self-service API access"
 ```
 
-- [ ] **Step 5: Final commit + branch summary**
+- [x] **Step 5: Final commit + branch summary**
 
 ```bash
 git status --short
@@ -2453,12 +2453,12 @@ Expected: clean `git status`, latest commit is the docs commit. (If no remote ex
 
 ## Definition of Done (whole feature)
 
-- [ ] `api_tokens` table migrated and indexed; no plaintext secrets anywhere in DB or logs.
-- [ ] Existing `/api/*` routes work with `st_` tokens — verified 200/403/401 matrix in `review-api-tokens.cjs`.
-- [ ] Read-only tokens blocked from writes; full-access tokens pass route-level role checks; tokens cannot mint tokens.
-- [ ] All 7 feeds endpoints return correct JSON envelope; CSV export works via `?format=csv` and `Accept: text/csv`.
-- [ ] Role scoping verified: admin org-wide, plain staff self-only (403 on org feeds), live deactivation kills tokens.
-- [ ] Audit rows written for create/revoke/admin-revoke/first-use/denied.
-- [ ] UI: nav entry for all roles, token manager, console, quick reference, admin oversight panel; screenshots reviewed.
-- [ ] Docs updated (ROADMAP + README).
+- [x] `api_tokens` table migrated and indexed; no plaintext secrets anywhere in DB or logs.
+- [x] Existing `/api/*` routes work with `st_` tokens — verified 200/403/401 matrix in `review-api-tokens.cjs`.
+- [x] Read-only tokens blocked from writes; full-access tokens pass route-level role checks; tokens cannot mint tokens.
+- [x] All 7 feeds endpoints return correct JSON envelope; CSV export works via `?format=csv` and `Accept: text/csv`.
+- [x] Role scoping verified: admin org-wide, plain staff self-only (403 on org feeds), live deactivation kills tokens.
+- [x] Audit rows written for create/revoke/admin-revoke/first-use/denied.
+- [x] UI: nav entry for all roles, token manager, console, quick reference, admin oversight panel; screenshots reviewed.
+- [x] Docs updated (ROADMAP + README).
 
