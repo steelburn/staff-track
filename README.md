@@ -74,6 +74,10 @@ docker compose up -d
   - `certifications.html`: Organization-wide certification catalog (Admin/HR).
   - `api-access.html`: Personal API tokens, Data Feeds, and an API console (all roles).
 
+### 🔌 Machine-readable API reference
+
+`public/api-docs.json` is an **OpenAPI 3.0** document describing the token/feed/CV API surface (paths, parameters, schemas, examples, access rules). It is served at `https://<host>/api-docs.json` (the API Access page links it as **📖 API Docs**), and the in-app Help & Guide renders its URL dynamically. Keep it in sync with the `ENDPOINTS` catalog in `public/api-access.js` — the review harness asserts method/path parity between the two.
+
 ---
 ## 📑 Documentation
 - [Feature Roadmap](docs/ROADMAP.md)

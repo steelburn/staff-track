@@ -44,6 +44,10 @@ const HELP_GUIDE_HTML = `
         <pre>curl -H "Authorization: Bearer st_…" "https://your-host/api/feeds/me"</pre>
         <p style="margin-bottom:0;">Full reference below, organised by topic. The same guide opens as an overlay any time via the <b>❓ Help</b> button (top-right).</p>
     </div>
+    <div class="api-docs-banner">
+        <span style="font-size:18px; line-height:1;">🤖</span>
+        <span><b>Building a client?</b> Machine-readable reference — <code>https://your-host/api-docs.json</code> is an <b>OpenAPI 3.0</b> document describing every endpoint, parameter, schema and example on this page (same catalog the console lists). Tools, scripts and AI agents can fetch it directly to generate interfaces — see also the <b>📖 API Docs</b> button at the top of this page.</span>
+    </div>
 
     <details>
         <summary>1 · How tokens work</summary>
@@ -132,7 +136,7 @@ const { data, meta } = await res.json();</pre>
     Rows = Table.FromRecords(Source[data])
 in
     Rows</pre>
-            <p><b>Machine-readable reference</b> — for tools, agents & AI that build clients against these endpoints: <code>https://your-host/api-docs.json</code> is an OpenAPI 3.0 document with every path, parameter, schema and example on this page (same catalog the console lists).</p>
+            <p><b>Machine-readable reference:</b> <code>https://your-host/api-docs.json</code> (OpenAPI 3.0 — see the 🤖 banner at the top of this guide).</p>
             <p>Tips:</p>
             <ul>
                 <li>Want CSV? Ask with <code>?format=csv</code> or the <code>Accept: text/csv</code> header.</li>

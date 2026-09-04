@@ -57,6 +57,19 @@
             margin-bottom: var(--space-4);
         }
         .help-guide .help-quickstart pre { margin-bottom: 0; }
+        .help-guide .api-docs-banner {
+            display: flex;
+            align-items: flex-start;
+            gap: var(--space-3);
+            background: var(--color-bg-muted);
+            border: 1px solid var(--color-border);
+            border-left: 3px solid var(--color-primary, #2f6fed);
+            border-radius: var(--radius-md);
+            padding: var(--space-3) var(--space-4);
+            margin: 0 0 var(--space-4);
+            font-size: 13px;
+        }
+        .help-guide .api-docs-banner code { font-size: 12px; }
         .help-ic {
             cursor: help;
             opacity: 0.55;
@@ -98,6 +111,7 @@
                     </div>
                     <div class="page-actions">
                         <button class="btn btn-secondary" id="btn-help" title="Open the API Access help & guide">❓ Help</button>
+                        <a class="btn btn-secondary" id="btn-api-docs" href="/api-docs.json" target="_blank" rel="noopener" title="Machine-readable OpenAPI 3.0 reference (JSON) — for tools, agents & AI building against these endpoints">📖 API Docs</a>
                         <button class="btn btn-secondary" id="theme-toggle" data-theme-toggle>
                             <span class="theme-icon">🌙</span>
                             <span class="theme-label">Dark</span>
