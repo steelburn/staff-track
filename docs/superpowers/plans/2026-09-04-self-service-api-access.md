@@ -928,16 +928,14 @@ router.get('/staff', verifyToken, async (req, res) => {
         const params = f.params.slice();
         if (!hasActiveFilter) { where.push('ur.is_active = 1'); }
         const sc = scopeClause(scope, 's');
-        where.push(sc.sql);
-        params.push(...sc.params);
+        if (sc.sql) { where.push(sc.sql); params.push(...sc.params); }
         const sel = f.selectCols(STAFF_FIELDS).join(', ');
         const sql = `SELECT ${sel}, COUNT(*) OVER() AS _total
                      FROM staff s
                      INNER JOIN user_roles ur ON ur.email = s.email
                      WHERE ${where.length ? where.join(' AND ') : '1=1'}
                      ORDER BY ${def.sortable[f.sortKey]} ${f.order}
-                     LIMIT ? OFFSET ?`;
-        params.push(f.limit, f.offset);
+                     LIMIT ${f.limit} OFFSET ${f.offset}`;
         const [rows] = await db.query(sql, params);
         const total = rows.length ? rows[0]._total : 0;
         const clean = rows.map(r => { delete r._total; return r; });
@@ -976,7 +974,7 @@ router.get('/staff/:email', verifyToken, async (req, res) => {
 });
 
 // ── GET /feeds/projects ───────────────────────────────────────────────────────
-const PROJECT_FIELDS = { id: 'mp.id AS id', soc: 'mp.soc AS soc', project_name: 'mp.project_name AS project_name', customer: 'mp.customer AS customer', type_infra: '(mp.type_infra = 1) AS type_infra', type_software: '(mp.type_software = 1) AS type_software', type_infra_support: '(mp.type_infra_support = 1) AS type_infra_support', type_software_support: '(mp.type_software_support = 1) AS type_software_support', start_date: 'mp.start_date AS start_date', end_date: 'mp.end_date AS end_date', coordinator_email: 'mp.coordinator_email AS coordinator_email', staff_count: '(SELECT COUNT(DISTINCT sp.staff_email) FROM submission_projects sp WHERE LOWER(sp.project_name) = LOWER(mp.project_name)) AS staff_count' };
+const PROJECT_FIELDS = { id: 'mp.id AS id', soc: 'mp.soc AS soc', project_name: 'mp.project_name AS project_name', customer: 'mp.customer AS customer', type_infra: '(mp.type_infra = 1) AS type_infra', type_software: '(mp.type_software = 1) AS type_software', type_infra_support: '(mp.type_infra_support = 1) AS type_infra_support', type_software_support: '(mp.type_software_support = 1) AS type_software_support', start_date: 'mp.start_date AS start_date', end_date: 'mp.end_date AS end_date', coordinator_email: 'mp.coordinator_email AS coordinator_email', staff_count: '(SELECT COUNT(DISTINCT sub.staff_email) FROM submission_projects sp JOIN submissions sub ON sub.id = sp.submission_id WHERE LOWER(sp.project_name) = LOWER(mp.project_name)) AS staff_count' };
 router.get('/projects', verifyToken, async (req, res) => {
     try {
         const db = await getDb();
@@ -994,15 +992,13 @@ router.get('/projects', verifyToken, async (req, res) => {
         const sc = scope.scope === 'subordinates'
             ? { sql: ` AND LOWER(mp.coordinator_email) IN (${scope.emails.map(() => '?').join(',')})`, params: scope.emails }
             : { sql: '', params: [] };
-        where.push(sc.sql);
-        params.push(...sc.params);
+        if (sc.sql) { where.push(sc.sql); params.push(...sc.params); }
         const sel = f.selectCols(PROJECT_FIELDS).join(', ');
         const sql = `SELECT ${sel}, COUNT(*) OVER() AS _total
                      FROM managed_projects mp
                      WHERE ${where.length ? where.join(' AND ') : '1=1'}
                      ORDER BY ${def.sortable[f.sortKey]} ${f.order}
-                     LIMIT ? OFFSET ?`;
-        params.push(f.limit, f.offset);
+                     LIMIT ${f.limit} OFFSET ${f.offset}`;
         const [rows] = await db.query(sql, params);
         const total = rows.length ? rows[0]._total : 0;
         const clean = rows.map(r => { delete r._total; return r; });
@@ -1030,8 +1026,7 @@ router.get('/skills', verifyToken, async (req, res) => {
         const where = f.where.slice();
         const params = f.params.slice();
         const sc = scopeClause(scope, 'r');
-        where.push(sc.sql);
-        params.push(...sc.params);
+        if (sc.sql) { where.push(sc.sql); params.push(...sc.params); }
         const sel = f.selectCols(SKILL_FIELDS).join(', ');
         const sql = `SELECT ${sel}, COUNT(*) OVER() AS _total
                      FROM (
@@ -1042,8 +1037,7 @@ router.get('/skills', verifyToken, async (req, res) => {
                      ) r
                      WHERE r.rn = 1${where.length ? ' AND ' + where.join(' AND ') : ''}
                      ORDER BY ${def.sortable[f.sortKey]} ${f.order}
-                     LIMIT ? OFFSET ?`;
-        params.push(f.limit, f.offset);
+                     LIMIT ${f.limit} OFFSET ${f.offset}`;
         const [rows] = await db.query(sql, params);
         const total = rows.length ? rows[0]._total : 0;
         const clean = rows.map(r => { delete r._total; return r; });
@@ -1085,8 +1079,7 @@ router.get('/certifications', verifyToken, async (req, res) => {
                      FROM certifications c
                      WHERE ${where.length ? where.join(' AND ') : '1=1'}
                      ORDER BY ${def.sortable[f.sortKey]} ${f.order}
-                     LIMIT ? OFFSET ?`;
-        params.push(f.limit, f.offset);
+                     LIMIT ${f.limit} OFFSET ${f.offset}`;
         const [rows] = await db.query(sql, params);
         const total = rows.length ? rows[0]._total : 0;
         const clean = rows.map(r => { delete r._total; return r; });
@@ -1157,11 +1150,12 @@ AUTH="Authorization: Bearer $TOKEN"
 for EP in me staff projects skills certifications summary; do
   printf '%-16s -> %s\n' "/feeds/$EP" "$(curl -s -o /dev/null -w '%{http_code}' $BASE/feeds/$EP -H "$AUTH")"
 done
-curl -s "$BASE/feeds/staff?limit=3&filter[active]=1&format=csv" -H "$AUTH" | head -3
+# NOTE: encode [ ] as %5B %5D (or pass -g) — curl treats raw brackets as URL globs
+curl -s "$BASE/feeds/staff?limit=3&filter%5Bactive%5D=1&format=csv" -H "$AUTH" | head -3
 echo "---"; curl -s "$BASE/feeds/staff?limit=2&sort=name&order=desc" -H "$AUTH" | node -pe "const d=JSON.parse(require('fs').readFileSync(0,'utf8')); 'total='+d.meta.total+' returned='+d.meta.returned+' first='+d.data[0].name"
-echo "---"; curl -s "$BASE/feeds/staff?filter[bogus]=x" -H "$AUTH" | head -c 200; echo
+echo "---"; curl -s "$BASE/feeds/staff?filter%5Bbogus%5D=x" -H "$AUTH" | head -c 200; echo
 ```
-Expected: every `/feeds/*` line returns `200`; the CSV block prints a header row (`email,name,title,department,manager_name,active`); the JSON block prints `total=… returned=2 first=…`; the bogus filter prints `{"error":"Unsupported filter 'bogus'. Allowed: department, manager_name"}`.
+Expected: `/feeds/staff|projects|skills|certifications|summary` return `200`; `/feeds/me` returns `200` only if the account has a staff row (`admin` has none → `404 {"error":"No staff record for this account"}` — by design). The CSV block prints a header row (`email,name,title,department,manager_name,active`); the JSON block prints `total=… returned=2 first=…`; the bogus filter prints `{"error":"Unsupported filter 'bogus'. Allowed: department, manager_name, active"}`.
 
 - [ ] **Step 4: Verify role scoping with a plain-staff account**
 
