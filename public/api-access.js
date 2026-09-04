@@ -132,6 +132,7 @@ const { data, meta } = await res.json();</pre>
     Rows = Table.FromRecords(Source[data])
 in
     Rows</pre>
+            <p><b>Machine-readable reference</b> — for tools, agents & AI that build clients against these endpoints: <code>https://your-host/api-docs.json</code> is an OpenAPI 3.0 document with every path, parameter, schema and example on this page (same catalog the console lists).</p>
             <p>Tips:</p>
             <ul>
                 <li>Want CSV? Ask with <code>?format=csv</code> or the <code>Accept: text/csv</code> header.</li>
@@ -188,7 +189,7 @@ in
             <p><b>Access notes</b> (same access as the CV page):</p>
             <ul>
                 <li>You can always read <b>your own</b> record; signed-in users get the read-only “view” of other staff profiles, which is what lets Admin/HR prepare and generate CVs for any staff member.</li>
-                <li>The four <code>GET</code> endpoints above work with <b>read-only</b> tokens.</li>
+                <li>The <code>GET</code> endpoints work with <b>read-only</b> tokens: three return JSON (profile bundle, snapshots list, audit trail) and the certifications bundle returns a <b>ZIP download</b> of proof documents (<code>Content-Type: application/zip</code>).</li>
                 <li><code>generate</code> is a <b>write</b> — read-only tokens are rejected with <code>403</code>; full-access tokens can call it. In the UI, generating CVs for other staff is exposed to Admin/HR.</li>
                 <li><code>audit</code> is extra-restricted: the profile owner, Admin, HR, and Coordinators only — anyone else gets <code>403</code>.</li>
             </ul>
@@ -268,7 +269,7 @@ const ENDPOINTS = [
     // ── CV-profile endpoints (guide §6) — {email} is filled in by the console ──
     { id: 'cv-profile', label: 'Staff CV profile bundle — /api/cv-profiles/{email}', method: 'GET', path: '/api/cv-profiles/{email}', roles: 'all', kind: 'cv', doc: 'The comprehensive profile bundle — profile, education, certifications, awards, work history, past projects (see guide §6 for the response shape).' },
     { id: 'cv-snapshots', label: 'CV snapshots — /api/cv-profiles/{email}/snapshots', method: 'GET', path: '/api/cv-profiles/{email}/snapshots', roles: 'all', kind: 'cv', doc: 'Previously generated CVs — template data + HTML, who generated it, created date; newest first.' },
-    { id: 'cv-certs-bundle', label: 'Certifications bundle — /api/cv-profiles/{email}/certifications/bundle', method: 'GET', path: '/api/cv-profiles/{email}/certifications/bundle', roles: 'all', kind: 'cv', doc: 'Certification records with the extra metadata the CV template uses.' },
+    { id: 'cv-certs-bundle', label: 'Certifications bundle — /api/cv-profiles/{email}/certifications/bundle', method: 'GET', path: '/api/cv-profiles/{email}/certifications/bundle', roles: 'all', kind: 'cv', doc: 'Downloads the person\'s certification proof documents as a ZIP attachment (certificates_<staff>.zip) — binary, not JSON. 404 when there are no proofs.' },
     { id: 'cv-audit', label: 'Profile audit trail — /api/cv-profiles/{email}/audit', method: 'GET', path: '/api/cv-profiles/{email}/audit', roles: 'all', kind: 'cv', doc: 'Profile change history — section, action, actor, timestamp (newest first). Your own is always readable; someone else’s needs Admin/HR/Coordinator (403 otherwise).' },
     { id: 'cv-generate', label: 'Generate CV — POST /api/cv-profiles/{email}/generate', method: 'POST', path: '/api/cv-profiles/{email}/generate', roles: 'admin,hr', kind: 'cv', bodyExample: '{ "template_id": "classic" }', doc: 'Generate (or regenerate) a CV from a template — returns the rendered HTML + template name. Persisting is a separate step: POST {email}/snapshots with the HTML (or the Save action on the CV page). A write: read-only tokens get 403.' },
 ];
@@ -569,6 +570,20 @@ async function runConsole() {
                 const a = document.createElement('a');
                 a.href = URL.createObjectURL(blob);
                 a.download = ep.id + '.csv';
+                a.click();
+                setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+            };
+        } else if (ctype.includes('application/zip') || ctype.includes('application/octet-stream')) {
+            // Binary download (e.g. the CV certifications bundle) — offer a save.
+            const blob = await res.blob();
+            const name = (res.headers.get('content-disposition') || '').match(/filename="?([^";]+)"?/i);
+            output.textContent = 'Binary response (' + (ctype || 'unknown') + ', ' + blob.size.toLocaleString() + ' bytes) — saved as ' + (name ? name[1] : ep.id + '.zip') + '. Open it to inspect.';
+            download.textContent = '💾 Download ' + (name ? name[1] : 'bundle.zip');
+            download.style.display = '';
+            download.onclick = () => {
+                const a = document.createElement('a');
+                a.href = URL.createObjectURL(blob);
+                a.download = name ? name[1] : ep.id + '.zip';
                 a.click();
                 setTimeout(() => URL.revokeObjectURL(a.href), 5000);
             };
