@@ -151,7 +151,6 @@ const Sidebar = {
             <div class="nav-section">
                 <div class="nav-section-label">Main</div>
                 ${this.renderNavItem('📄', 'My CV', '/cv-profile.html', activeTab === 'cv-profile')}
-                ${this.renderNavItem('🔌', 'API Access', '/api-access.html', activeTab === 'api-access')}
                 ${this.renderNavItem('🗂', 'Projects', '/projects.html', activeTab === 'projects', '', 'projects')}
                 ${this.renderNavItem('📊', 'Skills', '/skills.html', activeTab === 'skills')}
                 ${this.renderNavItem('🌳', 'Org Chart', '/orgchart.html', activeTab === 'orgchart')}
@@ -177,6 +176,16 @@ const Sidebar = {
                 </div>
             `;
         }
+
+        // Bottom section — API Access is a self-service developer console; keep
+        // it as the LAST nav entry (below all role/work links) for every user.
+        html += '<div class="nav-divider"></div>';
+        html += `
+            <div class="nav-section">
+                <div class="nav-section-label">Developer</div>
+                ${this.renderNavItem('🔌', 'API Access', '/api-access.html', activeTab === 'api-access')}
+            </div>
+        `;
 
         nav.innerHTML = html;
 

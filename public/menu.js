@@ -38,7 +38,6 @@ function renderNav(activeTab) {
 
     // My CV - visible to all roles
     html += `<a href="/cv-profile.html" class="nav-link ${activeTab === 'cv-profile' ? 'active' : ''}">📄 My CV</a>`;
-    html += `<a href="/api-access.html" class="nav-link ${activeTab === 'api-access' ? 'active' : ''}">🔌 API Access</a>`;
 
     // Common links
     html += `<a href="/projects.html" class="nav-link ${activeTab === 'projects' ? 'active' : ''}">🗂 Projects</a>`;
@@ -72,6 +71,9 @@ function renderNav(activeTab) {
         html += `<a href="/system.html" class="nav-link ${activeTab === 'system' ? 'active' : ''}">💻 System</a>`;
         html += `<a href="/admin.html" class="nav-link ${activeTab === 'admin' ? 'active' : ''}">🛡️ Admin</a>`;
     }
+
+    // API Access last (rightmost) — self-service developer console below all work links
+    html += `<a href="/api-access.html" class="nav-link ${activeTab === 'api-access' ? 'active' : ''}">🔌 API Access</a>`;
 
     // Right-aligned theme toggle, user info and logout
     const isDark = ThemeManager.isDark();
