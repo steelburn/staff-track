@@ -9,6 +9,7 @@ import { router as managedProjRouter } from './routes/managed_projects.js';
 import { router as catalogRouter } from './routes/catalog.js';
 import { router as cvProfilesRouter } from './routes/cv_profiles.js';
 import { router as dataToolsRouter } from './routes/data-tools.js';
+import { router as apiTokensRouter } from './routes/api-tokens.js';
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -53,6 +54,7 @@ app.use('/submissions', submissionsRouter);
 app.use('/reports', reportsRouter);
 app.use('/cv-profiles', cvProfilesRouter);
 app.use('/data-tools', dataToolsRouter);
+app.use('/api-tokens', apiTokensRouter);
 
 // 404 handler
 app.use((_req, res) => res.status(404).json({ error: 'Not found' }));
