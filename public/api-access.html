@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>StaffTrack — API Access</title>
+    <link rel="stylesheet" href="/css/main.css?v=20260904a">
+    <script src="/theme.js?v=20260904a"></script>
+</head>
+
+<body>
+    <div class="app-layout">
+        <!-- ═══ Sidebar ═══════════════════════════════════════════════════════ -->
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-header">
+                <div class="sidebar-logo">📋</div>
+                <span class="sidebar-title">StaffTrack</span>
+            </div>
+            <nav class="sidebar-nav" id="sidebar-nav"></nav>
+            <div class="sidebar-footer">
+                <div class="user-card" id="sidebar-user-card"></div>
+            </div>
+            <button class="sidebar-toggle" id="sidebarToggle">◀</button>
+        </aside>
+        <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+        <!-- ═══ Main Content ═════════════════════════════════════════════════ -->
+        <div class="main-content">
+            <header class="page-header">
+                <div class="page-header-top">
+                    <div style="display:flex; align-items:center; gap:12px;">
+                        <button class="mobile-menu-btn" id="mobileMenuBtn">☰</button>
+                        <div>
+                            <h1 class="page-title">API Access</h1>
+                            <p class="page-subtitle">Personal API tokens, data feeds, and a live console</p>
+                        </div>
+                    </div>
+                    <div class="page-actions">
+                        <button class="btn btn-secondary" id="theme-toggle" data-theme-toggle>
+                            <span class="theme-icon">🌙</span>
+                            <span class="theme-label">Dark</span>
+                        </button>
+                    </div>
+                </div>
+            </header>
+
+            <main class="content-area">
+                <!-- ═══ My Tokens ═════════════════════════════════════════════ -->
+                <div class="section-header" style="margin-top:0;">
+                    <h2 class="section-title">🔑 My API Tokens</h2>
+                    <span class="section-count" id="token-count-hint"></span>
+                </div>
+
+                <div class="card" style="margin-bottom: var(--space-5);">
+                    <div class="card-header">
+                        <div class="card-title">Create a token</div>
+                        <div class="card-subtitle">Tokens act as <b>you</b> — never wider than your UI role. The secret is shown once.</div>
+                    </div>
+                    <div class="card-body">
+                        <div style="display:grid; gap: var(--space-4); grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));">
+                            <div>
+                                <label class="form-label" for="tok-name">Token name</label>
+                                <input type="text" id="tok-name" class="input" maxlength="100" placeholder="e.g. Nightly backup sync">
+                            </div>
+                            <div>
+                                <label class="form-label">Scope</label>
+                                <div style="display:flex; gap: var(--space-4); padding-top: 6px;">
+                                    <label style="display:flex; align-items:center; gap:6px;">
+                                        <input type="radio" name="tok-scope" value="read" checked> Read-only <span style="font-size:11px; color: var(--color-text-muted);">(safe default)</span>
+                                    </label>
+                                    <label style="display:flex; align-items:center; gap:6px;">
+                                        <input type="radio" name="tok-scope" value="full"> Full access
+                                    </label>
+                                </div>
+                            </div>
+                            <div>
+                                <label class="form-label" for="tok-expiry">Expires in</label>
+                                <select id="tok-expiry" class="select" style="width:100%;">
+                                    <option value="30">30 days</option>
+                                    <option value="90" selected>90 days</option>
+                                    <option value="180">180 days</option>
+                                    <option value="365">365 days</option>
+                                    <option value="never">Never (not recommended)</option>
+                                </select>
+                            </div>
+                        </div>
+                        <p id="tok-scope-warning" style="display:none; font-size:12px; color: var(--color-warning); margin: var(--space-3) 0 0;">
+                            ⚠️ A full-access token can <b>write</b> to every endpoint your role allows. Anyone holding it can act as you.
+                        </p>
+                        <p id="tok-expiry-warning" style="display:none; font-size:12px; color: var(--color-warning); margin: var(--space-3) 0 0;">
+                            ⚠️ Tokens that never expire stay valid until manually revoked.
+                        </p>
+                        <div style="margin-top: var(--space-4);">
+                            <button class="btn btn-primary" id="tok-create">+ Create token</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="table-container">
+                    <div class="table-scroll">
+                        <table class="table" id="api-token-table">
+                            <thead>
+                                <tr>
+                                    <th>Name</th>
+                                    <th>Key</th>
+                                    <th>Scope</th>
+                                    <th>Created</th>
+                                    <th>Expires</th>
+                                    <th>Last used</th>
+                                    <th style="text-align:right;">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="api-token-tbody">
+                                <tr><td colspan="7"><div class="loading-state"><div class="spinner"></div><p>Loading tokens...</p></div></td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- ═══ API Console ═══════════════════════════════════════════ -->
+                <div class="section-header" style="margin-top: var(--space-6);">
+                    <h2 class="section-title">🧪 API Console</h2>
+                    <span class="section-count">Try endpoints live — responses come straight from the API</span>
+                </div>
+
+                <div class="card" style="margin-bottom: var(--space-5);">
+                    <div class="card-body">
+                        <div style="display:grid; gap: var(--space-3); grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); align-items:end;">
+                            <div>
+                                <label class="form-label" for="con-endpoint">Endpoint</label>
+                                <select id="con-endpoint" class="select" style="width:100%;"></select>
+                            </div>
+                            <div>
+                                <label class="form-label" for="con-auth">Authenticate as</label>
+                                <select id="con-auth" class="select" style="width:100%;">
+                                    <option value="session">My session (default)</option>
+                                    <option value="token">API token (paste below)</option>
+                                </select>
+                            </div>
+                            <div style="grid-column: span 2;">
+                                <label class="form-label" for="con-token-paste">Pasted API token</label>
+                                <input type="password" id="con-token-paste" class="input" style="width:100%;" placeholder="st_… — only needed when using 'API token' auth">
+                            </div>
+                        </div>
+
+                        <div id="con-feed-controls" style="margin-top: var(--space-4);">
+                            <div style="display:grid; gap: var(--space-3); grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));">
+                                <div>
+                                    <label class="form-label" for="con-fields">fields <span style="font-size:11px; color:var(--color-text-muted);">(comma list)</span></label>
+                                    <input type="text" id="con-fields" class="input" placeholder="email,name,department">
+                                </div>
+                                <div>
+                                    <label class="form-label" for="con-sort">sort</label>
+                                    <select id="con-sort" class="select" style="width:100%;"></select>
+                                </div>
+                                <div>
+                                    <label class="form-label" for="con-order">order</label>
+                                    <select id="con-order" class="select" style="width:100%;">
+                                        <option value="asc">asc</option>
+                                        <option value="desc">desc</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="form-label" for="con-limit">limit <span style="font-size:11px; color:var(--color-text-muted);">(≤500)</span></label>
+                                    <input type="number" id="con-limit" class="input" value="25" min="1" max="500">
+                                </div>
+                                <div>
+                                    <label class="form-label" for="con-format">format</label>
+                                    <select id="con-format" class="select" style="width:100%;">
+                                        <option value="json">JSON</option>
+                                        <option value="csv">CSV (download)</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div style="margin-top: var(--space-3);">
+                                <label class="form-label">Filters <button type="button" class="btn btn-ghost btn-sm" id="con-add-filter">+ add</button></label>
+                                <div id="con-filter-rows" style="display:grid; gap: var(--space-2); margin-top: var(--space-2);"></div>
+                            </div>
+                        </div>
+
+                        <div style="display:flex; gap: var(--space-3); align-items:center; margin-top: var(--space-4); flex-wrap:wrap;">
+                            <code id="con-url" style="font-family:monospace; font-size:12px;"></code>
+                            <button class="btn btn-primary" id="con-run">▶ Run</button>
+                            <button class="btn btn-secondary" id="con-copy-curl" disabled>Copy cURL</button>
+                            <button class="btn btn-secondary" id="con-download" style="display:none;">⬇ Download CSV</button>
+                        </div>
+
+                        <div id="con-status" style="margin-top: var(--space-3); font-size:12px; color: var(--color-text-muted);"></div>
+                        <pre id="con-output" style="display:none; margin-top: var(--space-3); background:var(--color-bg-muted); border:1px solid var(--color-border); border-radius:8px; padding:var(--space-4); overflow:auto; max-height:480px; font-size:12px; white-space:pre-wrap; word-break:break-word;"></pre>
+                    </div>
+                </div>
+
+                <!-- ═══ Quick Reference ═══════════════════════════════════════ -->
+                <div class="section-header" style="margin-top: var(--space-6);">
+                    <h2 class="section-title">📖 Quick Reference</h2>
+                </div>
+                <div class="card">
+                    <div class="card-body" style="font-size: 13px; line-height: 1.7;">
+                        <p><b>Authenticate</b> — send the token in the <code>Authorization</code> header:</p>
+                        <pre style="background:var(--color-bg-muted); border:1px solid var(--color-border); border-radius:8px; padding:var(--space-4); overflow:auto; max-height:480px; font-size:12px; white-space:pre-wrap; word-break:break-word;">curl -H "Authorization: Bearer st_…" \
+  https://your-host/api/feeds/staff?limit=10&amp;format=csv</pre>
+                        <p><b>Write access</b> — tokens are read-only unless you chose full access at creation. Read-only tokens are rejected with <code>403</code> on any non-GET request. API tokens can never manage other tokens.</p>
+                        <p><b>Data Feed query grammar</b> (all feeds are GET):</p>
+                        <ul style="margin-left: var(--space-5);">
+                            <li><code>?fields=email,name,department</code> — limit columns (whitelisted per feed)</li>
+                            <li><code>?filter[department]=IT</code> — exact match; <code>?filter[name]=~john</code> — substring</li>
+                            <li><code>?sort=name&amp;order=asc</code> — sort by an allowed column</li>
+                            <li><code>?page=2&amp;limit=50</code> — pagination (limit ≤ 500, default 50)</li>
+                            <li><code>?format=csv</code> or <code>Accept: text/csv</code> — CSV export</li>
+                        </ul>
+                        <p><b>Errors</b> — <code>401</code> invalid/expired/revoked token · <code>403</code> read-only token or out-of-scope record · <code>400</code> bad query param (name says which) · <code>429</code> rate limited.</p>
+                        <p><b>Scope</b> — tokens resolve against your live role on every request. If your account is deactivated or demoted, existing tokens stop working immediately. Revoke a token any time from this page; admins can force-revoke any token from the Admin page.</p>
+                    </div>
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <!-- ═══ Reveal-secret modal ═════════════════════════════════════════════ -->
+    <div class="modal-backdrop" id="reveal-modal">
+        <div class="modal" role="dialog" aria-modal="true">
+            <div class="modal-header">
+                <div class="modal-title">🔑 Token created — copy it now</div>
+                <button class="modal-close" data-close-modal>✕</button>
+            </div>
+            <div class="modal-body">
+                <p style="font-size:13px; color: var(--color-text-muted);">This secret is shown <b>once</b> and never stored. Keep it safe — anyone with it can act as you.</p>
+                <input type="text" id="reveal-secret" class="input" readonly style="width:100%; font-family: monospace; margin-top: var(--space-3);">
+                <div style="display:flex; gap: var(--space-3); margin-top: var(--space-4); flex-wrap:wrap;">
+                    <button class="btn btn-primary" id="reveal-copy">📋 Copy token</button>
+                    <button class="btn btn-secondary" id="reveal-copy-curl">Copy cURL sample</button>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" data-close-modal>I've saved it</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Container -->
+    <div id="toast-container" class="toast-container"></div>
+
+    <script src="/auth.js?v=20260904a"></script>
+    <script src="/menu.js?v=20260904a"></script>
+    <script src="/sidebar.js?v=20260904a"></script>
+    <script src="/toast.js?v=20260904a"></script>
+    <script src="/api-access.js?v=20260904a"></script>
+</body>
+
+</html>

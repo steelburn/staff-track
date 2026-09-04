@@ -38,6 +38,7 @@ function renderNav(activeTab) {
 
     // My CV - visible to all roles
     html += `<a href="/cv-profile.html" class="nav-link ${activeTab === 'cv-profile' ? 'active' : ''}">📄 My CV</a>`;
+    html += `<a href="/api-access.html" class="nav-link ${activeTab === 'api-access' ? 'active' : ''}">🔌 API Access</a>`;
 
     // Common links
     html += `<a href="/projects.html" class="nav-link ${activeTab === 'projects' ? 'active' : ''}">🗂 Projects</a>`;

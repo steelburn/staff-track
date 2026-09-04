@@ -151,6 +151,7 @@ const Sidebar = {
             <div class="nav-section">
                 <div class="nav-section-label">Main</div>
                 ${this.renderNavItem('📄', 'My CV', '/cv-profile.html', activeTab === 'cv-profile')}
+                ${this.renderNavItem('🔌', 'API Access', '/api-access.html', activeTab === 'api-access')}
                 ${this.renderNavItem('🗂', 'Projects', '/projects.html', activeTab === 'projects', '', 'projects')}
                 ${this.renderNavItem('📊', 'Skills', '/skills.html', activeTab === 'skills')}
                 ${this.renderNavItem('🌳', 'Org Chart', '/orgchart.html', activeTab === 'orgchart')}
