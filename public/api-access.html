@@ -240,6 +240,20 @@
                             </div>
                         </div>
 
+                        <div id="con-cv-controls" style="display:none; margin-top: var(--space-4);">
+                            <div style="display:grid; gap: var(--space-3); grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); align-items:end;">
+                                <div>
+                                    <label class="form-label" for="con-param-val"><span id="con-param-label">Staff email</span> <span class="help-ic" id="con-param-hint" title="The staff member — leave blank for your own record.">ⓘ</span></label>
+                                    <input type="text" id="con-param-val" class="input" style="width:100%;" placeholder="jane@example.com">
+                                    <div style="font-size:11px; color:var(--color-text-muted); margin-top:2px;">Leave blank to use your own email</div>
+                                </div>
+                            </div>
+                            <div id="con-body-controls" style="display:none; margin-top: var(--space-3);">
+                                <label class="form-label" for="con-body-val">JSON body <span class="help-ic" title="Sent with the request as-is — parsed here first so bad JSON is caught before the call.">ⓘ</span></label>
+                                <textarea id="con-body-val" class="input" rows="2" style="width:100%; font-family:monospace; font-size:12px; resize:vertical;"></textarea>
+                            </div>
+                        </div>
+
                         <div style="display:flex; gap: var(--space-3); align-items:center; margin-top: var(--space-4); flex-wrap:wrap;">
                             <code id="con-url" style="font-family:monospace; font-size:12px;"></code>
                             <button class="btn btn-primary" id="con-run">▶ Run</button>

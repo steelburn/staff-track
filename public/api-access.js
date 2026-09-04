@@ -82,11 +82,11 @@ const HELP_GUIDE_HTML = `
             <p>Feed scope is decided by your <b>live</b> role — the console on this page only lists endpoints your role can actually use:</p>
             <table>
                 <tr><th>Your role</th><th>Data Feed scope</th><th>Extra endpoints</th></tr>
-                <tr><td>Admin</td><td>Org-wide — all feeds (<code>/feeds/me</code>, <code>staff</code>, <code>projects</code>, <code>skills</code>, <code>summary</code>)</td><td><code>/feeds/certifications</code>, staff catalog, and every write your UI role allows</td></tr>
-                <tr><td>HR</td><td>Org-wide — all feeds</td><td><code>/feeds/certifications</code>, staff catalog, role writes</td></tr>
-                <tr><td>Coordinator</td><td>Org-wide — staff / projects / skills / summary feeds</td><td>Dashboard-style reports for managed staff</td></tr>
-                <tr><td>Manager (has reports, no full access)</td><td>The same feeds, but <b>scoped to your direct + indirect reports only</b></td><td>—</td></tr>
-                <tr><td>Staff (no reports)</td><td><code>/feeds/me</code> — your own directory record only</td><td>—</td></tr>
+                <tr><td>Admin</td><td>Org-wide — all feeds (<code>/feeds/me</code>, <code>staff</code>, <code>projects</code>, <code>skills</code>, <code>summary</code>)</td><td><code>/feeds/certifications</code>, staff catalog, CV endpoints for any staff (§6), and every write your UI role allows</td></tr>
+                <tr><td>HR</td><td>Org-wide — all feeds</td><td><code>/feeds/certifications</code>, staff catalog, CV endpoints for any staff (§6), role writes</td></tr>
+                <tr><td>Coordinator</td><td>Org-wide — staff / projects / skills / summary feeds</td><td>Dashboard-style reports for managed staff, read-only CV endpoints (§6)</td></tr>
+                <tr><td>Manager (has reports, no full access)</td><td>The same feeds, but <b>scoped to your direct + indirect reports only</b></td><td>Read-only CV endpoints (§6) — view access like the CV page</td></tr>
+                <tr><td>Staff (no reports)</td><td><code>/feeds/me</code> — your own directory record only</td><td>Read-only CV endpoints for your own record (§6)</td></tr>
             </table>
             <p>Notes:</p>
             <ul>
@@ -161,12 +161,7 @@ in
             <p>Allowed columns per feed (an unsupported one → <code>400</code>, with the allowed list in the message):</p>
             <table>
                 <tr><th>Feed</th><th>Filterable</th><th>Sortable</th></tr>
-                <tr><td><code>/feeds/me</code></td><td colspan="2">Your own record — single object, not paginated/filterable</td></tr>
-                <tr><td><code>/feeds/staff</code></td><td><code>department</code>, <code>manager_name</code>, <code>active</code> (1/0)</td><td><code>name</code>, <code>email</code>, <code>department</code></td></tr>
-                <tr><td><code>/feeds/projects</code></td><td><code>customer</code>, <code>soc</code>, <code>project_name</code></td><td><code>project_name</code>, <code>customer</code>, <code>soc</code>, <code>end_date</code></td></tr>
-                <tr><td><code>/feeds/skills</code></td><td><code>skill</code></td><td><code>skill</code>, <code>email</code>, <code>rating</code></td></tr>
-                <tr><td><code>/feeds/certifications</code></td><td><code>email</code>, <code>name</code>, <code>issuer</code>, <code>status</code></td><td><code>email</code>, <code>name</code>, <code>issuer</code>, <code>expiry_date</code></td></tr>
-                <tr><td><code>/feeds/summary</code></td><td colspan="2">Org summary KPIs — single aggregate object</td></tr>
+                <tbody data-guide="feed-cols"></tbody>
             </table>
             <p>CSV responses respect <code>fields</code> and the same filters; quoted per RFC-4180, with a <code>Content-Disposition</code> attachment filename (e.g. <code>staff.csv</code>).</p>
         </div>
@@ -188,11 +183,7 @@ in
 }</pre>
             <table>
                 <tr><th>Endpoint</th><th>Returns</th></tr>
-                <tr><td><code>GET /api/cv-profiles/{email}</code></td><td>The comprehensive bundle above — profile, education, certifications, awards, work history, past projects.</td></tr>
-                <tr><td><code>GET /api/cv-profiles/{email}/snapshots</code></td><td>Previously generated CVs (template name + data + HTML, who generated it, created date), newest first.</td></tr>
-                <tr><td><code>GET /api/cv-profiles/{email}/certifications/bundle</code></td><td>Certification records with the extra metadata the CV template uses.</td></tr>
-                <tr><td><code>GET /api/cv-profiles/{email}/audit</code></td><td>Profile change history — which section, which action, by whom, when (newest first).</td></tr>
-                <tr><td><code>POST /api/cv-profiles/{email}/generate</code></td><td>Generate (or regenerate) a CV — body <code>{ "template_id": "classic" }</code>; returns the rendered HTML + template name and stores a snapshot.</td></tr>
+                <tbody data-guide="cv-endpoints"></tbody>
             </table>
             <p><b>Access notes</b> (same access as the CV page):</p>
             <ul>
@@ -258,16 +249,28 @@ in
 `;
 
 // ── Endpoint catalog ───────────────────────────────────────────────────────────
+// Single source of truth: the console dropdown, the guide's feed-column table
+// (§5) and the guide's CV-endpoint table (§6) are ALL generated from ENDPOINTS,
+// so docs and console can never drift. Add an endpoint here and it appears
+// everywhere (console + both guide tables) automatically.
 // roles: all | full | admin | hr | manager (manager = has subordinates or full)
+// kind: feed (filterable/sortable paginated) | cv (path param + optional POST body) | simple
+// doc: one-line “Returns” used by the guide §6 table.
 const ENDPOINTS = [
-    { id: 'feeds-me', label: 'My record — /api/feeds/me', method: 'GET', path: '/api/feeds/me', roles: 'all', kind: 'feed', filterable: [], sortable: [], feedDefaultSort: '' },
-    { id: 'feeds-staff', label: 'Staff directory — /api/feeds/staff', method: 'GET', path: '/api/feeds/staff', roles: 'full,manager', kind: 'feed', filterable: ['department', 'manager_name', 'active'], sortable: ['name', 'email', 'department'], feedDefaultSort: 'name' },
+    { id: 'feeds-me', label: 'My record — /api/feeds/me', method: 'GET', path: '/api/feeds/me', roles: 'all', kind: 'feed', filterable: [], sortable: [], feedDefaultSort: '', feedNote: 'Your own record — single object, not paginated/filterable' },
+    { id: 'feeds-staff', label: 'Staff directory — /api/feeds/staff', method: 'GET', path: '/api/feeds/staff', roles: 'full,manager', kind: 'feed', filterable: ['department', 'manager_name', 'active'], filterCols: ['department', 'manager_name', 'active (1/0)'], sortable: ['name', 'email', 'department'], feedDefaultSort: 'name' },
     { id: 'feeds-projects', label: 'Projects — /api/feeds/projects', method: 'GET', path: '/api/feeds/projects', roles: 'full,manager', kind: 'feed', filterable: ['customer', 'soc', 'project_name'], sortable: ['project_name', 'customer', 'soc', 'end_date'], feedDefaultSort: 'project_name' },
     { id: 'feeds-skills', label: 'Skills (latest per person) — /api/feeds/skills', method: 'GET', path: '/api/feeds/skills', roles: 'full,manager', kind: 'feed', filterable: ['skill'], sortable: ['skill', 'email', 'rating'], feedDefaultSort: 'skill' },
     { id: 'feeds-certs', label: 'Certifications — /api/feeds/certifications', method: 'GET', path: '/api/feeds/certifications', roles: 'admin,hr', kind: 'feed', filterable: ['email', 'name', 'issuer', 'status'], sortable: ['email', 'name', 'issuer', 'expiry_date'], feedDefaultSort: 'email' },
-    { id: 'feeds-summary', label: 'Org summary KPIs — /api/feeds/summary', method: 'GET', path: '/api/feeds/summary', roles: 'full,manager', kind: 'feed', filterable: [], sortable: [], feedDefaultSort: '' },
+    { id: 'feeds-summary', label: 'Org summary KPIs — /api/feeds/summary', method: 'GET', path: '/api/feeds/summary', roles: 'full,manager', kind: 'feed', filterable: [], sortable: [], feedDefaultSort: '', feedNote: 'Org summary KPIs — single aggregate object' },
     { id: 'reports-mine', label: 'My subordinates — /api/reports/my-subordinates', method: 'GET', path: '/api/reports/my-subordinates', roles: 'manager', kind: 'simple' },
     { id: 'catalog-staff', label: 'Staff catalog — /api/catalog/staff', method: 'GET', path: '/api/catalog/staff', roles: 'admin,hr', kind: 'simple' },
+    // ── CV-profile endpoints (guide §6) — {email} is filled in by the console ──
+    { id: 'cv-profile', label: 'Staff CV profile bundle — /api/cv-profiles/{email}', method: 'GET', path: '/api/cv-profiles/{email}', roles: 'all', kind: 'cv', doc: 'The comprehensive profile bundle — profile, education, certifications, awards, work history, past projects (see guide §6 for the response shape).' },
+    { id: 'cv-snapshots', label: 'CV snapshots — /api/cv-profiles/{email}/snapshots', method: 'GET', path: '/api/cv-profiles/{email}/snapshots', roles: 'all', kind: 'cv', doc: 'Previously generated CVs — template data + HTML, who generated it, created date; newest first.' },
+    { id: 'cv-certs-bundle', label: 'Certifications bundle — /api/cv-profiles/{email}/certifications/bundle', method: 'GET', path: '/api/cv-profiles/{email}/certifications/bundle', roles: 'all', kind: 'cv', doc: 'Certification records with the extra metadata the CV template uses.' },
+    { id: 'cv-audit', label: 'Profile audit trail — /api/cv-profiles/{email}/audit', method: 'GET', path: '/api/cv-profiles/{email}/audit', roles: 'all', kind: 'cv', doc: 'Profile change history — section, action, actor, timestamp (newest first). Your own is always readable; someone else’s needs Admin/HR/Coordinator (403 otherwise).' },
+    { id: 'cv-generate', label: 'Generate CV — POST /api/cv-profiles/{email}/generate', method: 'POST', path: '/api/cv-profiles/{email}/generate', roles: 'admin,hr', kind: 'cv', bodyExample: '{ "template_id": "classic" }', doc: 'Generate (or regenerate) a CV from a template — returns the rendered HTML + template name. Persisting is a separate step: POST {email}/snapshots with the HTML (or the Save action on the CV page). A write: read-only tokens get 403.' },
 ];
 const visibleEndpoints = ENDPOINTS.filter(ep => {
     const need = ep.roles.split(',');
@@ -278,6 +281,23 @@ const visibleEndpoints = ENDPOINTS.filter(ep => {
     if (isManager) have.push('manager');
     return need.some(r => r === 'all' || have.includes(r));
 });
+
+// ── Guide tables — generated from ENDPOINTS so the docs can never drift from
+//    the console catalog (both guide copies — inline + ❓ modal — get filled) ──
+function buildGuideTables() {
+    const col = arr => (arr && arr.length) ? arr.map(c => '<code>' + esc(c) + '</code>').join(', ') : '';
+    const feedRows = ENDPOINTS.filter(e => e.kind === 'feed').map(ep => {
+        const pathCell = '<code>' + ep.path.replace(/^\/api/, '') + '</code>';
+        if (ep.feedNote) return '<tr><td>' + pathCell + '</td><td colspan="2">' + ep.feedNote + '</td></tr>';
+        const filterCols = ep.filterCols || ep.filterable || [];
+        return '<tr><td>' + pathCell + '</td><td>' + col(filterCols) + '</td><td>' + col(ep.sortable || []) + '</td></tr>';
+    }).join('');
+    const cvRows = ENDPOINTS.filter(e => e.kind === 'cv').map(ep =>
+        '<tr><td><code>' + esc(ep.method + ' ' + ep.path) + '</code></td><td>' + esc(ep.doc || '') + '</td></tr>'
+    ).join('');
+    document.querySelectorAll('[data-guide="feed-cols"]').forEach(tb => { tb.innerHTML = feedRows; });
+    document.querySelectorAll('[data-guide="cv-endpoints"]').forEach(tb => { tb.innerHTML = cvRows; });
+}
 
 // ── My Tokens ──────────────────────────────────────────────────────────────────
 let lastSecret = null;   // only lives in memory right after creation
@@ -410,10 +430,38 @@ function renderEndpointSelect() {
     sel.addEventListener('change', () => onEndpointChange(visibleEndpoints.find(e => e.id === sel.value)));
 }
 
+// Resolve {param} placeholders (e.g. {email}) from the console's path-param
+// input. Blank = the signed-in user's own record (matches guide §6 access notes).
+function effectivePath(ep, forPreview) {
+    if (!ep.path.includes('{')) return ep.path;
+    const raw = (document.getElementById('con-param-val')?.value || '').trim()
+        || ((authUser && authUser.email) || '');
+    return ep.path.replace(/\{(\w+)\}/g, () => forPreview ? raw : encodeURIComponent(raw));
+}
+
 function onEndpointChange(ep) {
     activeEndpoint = ep;
     const feedBox = document.getElementById('con-feed-controls');
     feedBox.style.display = ep.kind === 'feed' ? '' : 'none';
+    const cvBox = document.getElementById('con-cv-controls');
+    if (cvBox) {
+        cvBox.style.display = ep.kind === 'cv' ? '' : 'none';
+        if (ep.kind === 'cv') {
+            const pv = document.getElementById('con-param-val');
+            if (pv) { pv.value = ''; pv.placeholder = 'jane@example.com'; }
+            const pl = document.getElementById('con-param-label');
+            if (pl) pl.textContent = 'Staff email';
+            const ph = document.getElementById('con-param-hint');
+            if (ph) ph.title = {
+                'cv-audit': 'Who to audit — your own is always readable; someone else’s requires Admin/HR/Coordinator.',
+                'cv-generate': 'Who the CV is for — blank = yourself. Generating for other staff is an Admin/HR action.',
+            }[ep.id] || 'The staff member — leave blank for your own record.';
+            const bodyBox = document.getElementById('con-body-controls');
+            if (bodyBox) bodyBox.style.display = ep.method === 'POST' ? '' : 'none';
+            const bv = document.getElementById('con-body-val');
+            if (bv) bv.value = ep.bodyExample || '';
+        }
+    }
     document.getElementById('con-filter-rows').innerHTML = '';
     const sortSel = document.getElementById('con-sort');
     sortSel.innerHTML = (ep.sortable || []).map(c => `<option value="${c}">${c}</option>`).join('') || '<option value="">—</option>';
@@ -466,7 +514,8 @@ function currentQuery() {
 function updateUrlPreview() {
     const urlEl = document.getElementById('con-url');
     if (!activeEndpoint) { urlEl.textContent = ''; return; }
-    urlEl.textContent = activeEndpoint.method + ' ' + activeEndpoint.path + (currentQuery() ? '?' + currentQuery() : '');
+    const qs = activeEndpoint.kind === 'feed' ? currentQuery() : '';
+    urlEl.textContent = activeEndpoint.method + ' ' + effectivePath(activeEndpoint, true) + (qs ? '?' + qs : '');
 }
 
 async function runConsole() {
@@ -480,16 +529,25 @@ async function runConsole() {
     const ep = activeEndpoint;
     if (!ep) return;
 
-    const url = ep.path + (currentQuery() ? '?' + currentQuery() : '');
+    const qs = ep.kind === 'feed' ? currentQuery() : '';
+    const url = effectivePath(ep, false) + (qs ? '?' + qs : '');
     const headers = {};
     if (authMode === 'token') {
         if (!pasted) { toast('Paste an API token first', true); return; }
         headers['Authorization'] = 'Bearer ' + pasted;
     }
-    if (format === 'csv') headers['Accept'] = 'text/csv';
-    else headers['Accept'] = 'application/json';
+    const wantsCsv = ep.kind === 'feed' && format === 'csv'; // CSV is feeds-only (guide §5)
+    headers['Accept'] = wantsCsv ? 'text/csv' : 'application/json';
+    const opts = { method: ep.method || 'GET', headers };
+    let bodyRaw = '';
+    if (ep.method === 'POST') {
+        bodyRaw = (document.getElementById('con-body-val')?.value || '').trim();
+        try { JSON.parse(bodyRaw); } catch { toast('JSON body is not valid', true); return; }
+        headers['Content-Type'] = 'application/json';
+        opts.body = bodyRaw;
+    }
 
-    status.textContent = 'Sending ' + ep.method + ' ' + url + ' …';
+    status.textContent = 'Sending ' + opts.method + ' ' + url + ' …';
     output.style.display = 'none';
     download.style.display = 'none';
     copyCurl.disabled = true;
@@ -497,10 +555,10 @@ async function runConsole() {
     btn.disabled = true;
     try {
         const res = authMode === 'session'
-            ? await window.StaffTrackAuth.apiFetch(url, { headers })
-            : await fetch(url, { headers });
+            ? await window.StaffTrackAuth.apiFetch(url, opts)
+            : await fetch(url, opts);
         const ctype = res.headers.get('content-type') || '';
-        status.textContent = ep.method + ' ' + url + ' → ' + res.status + ' ' + res.statusText;
+        status.textContent = opts.method + ' ' + url + ' → ' + res.status + ' ' + res.statusText;
         output.style.display = '';
         if (ctype.includes('text/csv')) {
             const text = await res.text();
@@ -521,7 +579,10 @@ async function runConsole() {
         copyCurl.disabled = false;
         copyCurl.onclick = () => {
             const token = authMode === 'token' ? pasted : (window.StaffTrackAuth.getToken ? window.StaffTrackAuth.getToken() : '');
-            copyText('curl -X ' + ep.method + ' -H "Authorization: Bearer ' + token + '"' + (format === 'csv' ? ' -H "Accept: text/csv"' : '') + ' ' + location.origin + url);
+            let cmd = 'curl -X ' + opts.method + ' -H "Authorization: Bearer ' + token + '"';
+            if (wantsCsv) cmd += ' -H "Accept: text/csv"';
+            if (opts.method === 'POST') cmd += ' -H "Content-Type: application/json" -d ' + "'" + bodyRaw.replace(/'/g, "'\\''") + "'";
+            copyText(cmd + ' ' + location.origin + url);
         };
     } catch (err) {
         status.textContent = 'Request failed: ' + err.message;
@@ -556,6 +617,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (inlineGuide) inlineGuide.innerHTML = HELP_GUIDE_HTML;
     const modalGuide = document.getElementById('help-modal-body');
     if (modalGuide) modalGuide.innerHTML = HELP_GUIDE_HTML;
+    buildGuideTables(); // fills the generated endpoint tables in every guide copy
     const btnHelp = document.getElementById('btn-help');
     if (btnHelp) btnHelp.addEventListener('click', () => openModal('help-modal'));
 
@@ -568,6 +630,8 @@ document.addEventListener('DOMContentLoaded', () => {
         if (el) el.addEventListener('change', updateUrlPreview);
     });
     document.getElementById('con-fields').addEventListener('input', updateUrlPreview);
+    const conParam = document.getElementById('con-param-val');
+    if (conParam) conParam.addEventListener('input', updateUrlPreview);
     document.getElementById('con-run').addEventListener('click', runConsole);
 
     // modal helpers
