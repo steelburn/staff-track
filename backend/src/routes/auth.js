@@ -98,31 +98,117 @@ function hashToken(token) {
     return crypto.createHash('sha256').update(token).digest('hex');
 }
 
-// Define a placeholder for logAuthEvent
-function logAuthEvent(db, email, event, success, req) {
-    console.log(`Auth event: ${event} for ${email} - Success: ${success}`);
+// Real DB-backed auth audit trail. Never throws — audit failures must not
+// break the request. Inserts into auth_audit_log (id VARCHAR(36) uuid, IP
+// VARCHAR(45), user_agent TEXT).
+async function logAuthEvent(db, email, action, success, req) {
+    try {
+        const ip = req && req.ip ? String(req.ip).slice(0, 45) : null;
+        const ua = req && typeof req.get === 'function' ? String(req.get('user-agent') || '').slice(0, 500) : null;
+        const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
+        await db.query(
+            `INSERT INTO auth_audit_log (id, email, action, ip_address, user_agent, success, created_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?)`,
+            [uuidv4(), (email || '').toLowerCase(), action, ip, ua, success ? 1 : 0, now]
+        );
+    } catch (err) {
+        console.error('auth audit log write failed:', err.message);
+    }
+}
+
+// API-token auth path: look up an `st_` Bearer token against api_tokens
+// (SHA-256 hash) joined to LIVE user_roles. Returns { user } on success or
+// { status, error } to short-circuit. Enforces read-only tokens centrally:
+// a read_only token may only call GET/HEAD/OPTIONS.
+async function resolveApiToken(req, rawToken) {
+    const db = await getDb();
+    const tokenHash = hashToken(rawToken);
+
+    const [rows] = await db.query(
+        `SELECT t.id AS token_id, t.user_email, t.read_only, t.last_used_at,
+                u.role, u.is_active, u.is_hr, u.is_coordinator
+         FROM api_tokens t
+         JOIN user_roles u ON u.email = t.user_email
+         WHERE t.token_hash = ? AND t.revoked_at IS NULL
+           AND (t.expires_at IS NULL OR t.expires_at > NOW())`,
+        [tokenHash]
+    );
+    if (rows.length === 0) {
+        await logAuthEvent(db, 'unknown', 'api_token_denied', false, req);
+        return { status: 401, error: 'Invalid or expired API token' };
+    }
+
+    const row = rows[0];
+    if (!row.is_active) {
+        await logAuthEvent(db, row.user_email, 'api_token_denied', false, req);
+        return { status: 401, error: 'Account is deactivated' };
+    }
+
+    const method = (req.method || 'GET').toUpperCase();
+    const readOnly = row.read_only === 1 || row.read_only === true;
+    if (readOnly && !['GET', 'HEAD', 'OPTIONS'].includes(method)) {
+        await logAuthEvent(db, row.user_email, 'api_token_denied', false, req);
+        return { status: 403, error: 'Read-only API token cannot perform this request' };
+    }
+
+    const user = {
+        email: row.user_email,
+        role: row.role,
+        isAdmin: row.role === 'admin',
+        is_hr: row.is_hr,
+        is_coordinator: row.is_coordinator,
+        tokenId: row.token_id,
+        readOnly,
+        authMode: 'api',
+    };
+
+    // Throttled last_used_at update (at most once per minute per token).
+    const isFirstUse = !row.last_used_at;
+    const lastUsedMs = row.last_used_at ? new Date(row.last_used_at).getTime() : 0;
+    if (isFirstUse || Date.now() - lastUsedMs > 60000) {
+        await db.query('UPDATE api_tokens SET last_used_at = NOW() WHERE id = ?', [row.token_id]);
+    }
+    if (isFirstUse) {
+        await logAuthEvent(db, row.user_email, 'api_token_first_use', true, req);
+    }
+    return { user };
 }
 
 // Define and export all middleware functions first
-const verifyToken = (req, res, next) => {
-    const authHeader = req.headers['authorization'];
-    const token = authHeader && authHeader.split(' ')[1];
+// Dual-path bearer auth: `st_` tokens resolve via api_tokens (DB-backed, live
+// role re-check, instant revocation); everything else goes through the JWT
+// session path unchanged. req.user always carries { email, role, isAdmin,
+// is_hr, is_coordinator, authMode } so requireRole works identically for both.
+const verifyToken = async (req, res, next) => {
+    try {
+        const authHeader = req.headers['authorization'];
+        const token = authHeader && authHeader.split(' ')[1];
 
-    if (!token) {
-        console.log('verifyToken: No token provided');
-        return res.status(401).json({ error: 'Unauthorized' });
-    }
-
-    jwt.verify(token, process.env.JWT_SECRET, (err, user) => {
-        if (err) {
-            console.log('verifyToken: Token verification failed', err.message);
-            return res.status(403).json({ error: 'Forbidden' });
+        if (!token) {
+            return res.status(401).json({ error: 'Unauthorized' });
         }
 
-        console.log('verifyToken: Token verified successfully', user);
-        req.user = user;
-        next();
-    });
+        if (token.startsWith('st_')) {
+            const result = await resolveApiToken(req, token);
+            if (result.status) {
+                return res.status(result.status).json({ error: result.error });
+            }
+            req.user = result.user;
+            return next();
+        }
+
+        // Legacy session JWT path
+        jwt.verify(token, process.env.JWT_SECRET, (err, user) => {
+            if (err) {
+                return res.status(403).json({ error: 'Forbidden' });
+            }
+            req.user = { ...user, authMode: 'jwt' };
+            next();
+        });
+    } catch (err) {
+        console.error('verifyToken error:', err);
+        res.status(500).json({ error: 'Internal server error' });
+    }
 };
 
 // Define requireRole middleware factory
