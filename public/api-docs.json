@@ -1,0 +1,411 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "StaffTrack API",
+    "version": "1.0.0",
+    "description": "Machine-readable reference for the StaffTrack REST API behind the self-service API Access feature.\n\nIntended audience: integration tools, scripts, AI agents and any client that needs to talk to the API endpoints. Every path, parameter, response shape and access rule below is verified against the live server behaviour documented in the in-app guide (API Access → Help & Guide) and the API Console.\n\n**Hosts / base URL**\n- Production: `https://staff-update.comulo.app` — the `/api/*` prefix is stripped by the front proxy before reaching the backend.\n- Local development: `http://localhost:6082` (same `/api/*` prefix).\n\n**Authentication** — send `Authorization: Bearer <token>` on every request. Two bearer kinds are accepted:\n1. **Personal API tokens** starting with `st_…`, minted on the API Access page (see `/api/api-tokens`). Their power is your LIVE role, re-checked on every request against `user_roles`; deactivating/demoting the account kills them on the next request. Read-only tokens may only call `GET`/`HEAD`/`OPTIONS` — any other method is rejected centrally with `403 Read-only API token cannot perform this request`. Tokens can never manage tokens (that is browser-session only).\n2. **Session JWTs** issued by `POST /api/auth/login` (kept in the browser).\n\n**Conventions**\n- Data feeds (`/api/feeds/*`) are always read-only and return a JSON envelope or a CSV attachment (see `FeedEnvelope`).\n- Errors are JSON objects: `{ \"error\": \"<message>\" }` (message usually names the offending parameter).\n- CSV: ask with `?format=csv` or the `Accept: text/csv` header; the response is an RFC-4180 attachment with a `Content-Disposition` filename (e.g. `staff.csv`). `fields`, filters, sorting and pagination still apply.\n- Dates in CV-profile payloads are `YYYY-MM-DD`.",
+    "x-sync": {
+      "source": "public/api-access.js ENDPOINTS catalog + backend/src/routes handlers",
+      "note": "This file mirrors the API Console catalog and the in-app Help & Guide (both generated from the same ENDPOINTS array). Keep console, guide and this file in lock-step; the review harness asserts method/path parity with the console catalog."
+    }
+  },
+  "servers": [
+    { "url": "https://staff-update.comulo.app", "description": "Production origin (nginx serves /api/* and static assets)" },
+    { "url": "http://localhost:6082", "description": "Local development origin" }
+  ],
+  "security": [ { "bearerAuth": [] } ],
+  "tags": [
+    { "name": "Auth", "description": "Session authentication (login / who am I). Token management itself requires a session JWT — API tokens cannot call these." },
+    { "name": "API Tokens", "description": "Personal token lifecycle. Browser-session (JWT) only — an st_ token calling these gets 403." },
+    { "name": "Data Feeds", "description": "Read-only directory-style data exports (JSON envelope or CSV attachment)." },
+    { "name": "Reports & Catalog", "description": "Small utility endpoints exposed to the console." },
+    { "name": "Staff data & CV", "description": "One-person profile bundle, CV generation and related resources (guide §6)." }
+  ],
+  "paths": {
+    "/api/auth/login": {
+      "post": {
+        "tags": ["Auth"],
+        "summary": "Log in and receive a session JWT",
+        "description": "Returns an access token to use as `Authorization: Bearer` for session-only operations (e.g. token management). The special `admin` account is checked locally against `ADMIN_PASSWORD`; every other email is authenticated against the identity provider and auto-synced into `user_roles` on first login. Password must be base64-encoded (UTF-8 → base64) — the app's own login form does `btoa(password)`.",
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/LoginRequest" }, "example": { "email": "jane@example.com", "password": "c2VjdXJlUGFzcw==" } } }
+        },
+        "responses": {
+          "200": { "description": "Authenticated", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/LoginResult" } } } },
+          "400": { "$ref": "#/components/responses/Error400" },
+          "401": { "$ref": "#/components/responses/Error401" },
+          "500": { "$ref": "#/components/responses/Error500" }
+        }
+      }
+    },
+    "/api/auth/me": {
+      "get": {
+        "tags": ["Auth"],
+        "summary": "Current session user",
+        "description": "Returns the user resolved from the bearer token — for `st_` tokens this reflects the LIVE role lookup (email, role, admin/hr/coordinator flags, readOnly flag, token id).",
+        "responses": {
+          "200": { "description": "OK", "content": { "application/json": { "schema": { "type": "object", "properties": { "user": { "$ref": "#/components/schemas/ResolvedUser" } } } } } },
+          "401": { "$ref": "#/components/responses/Error401" },
+          "403": { "$ref": "#/components/responses/Error403" }
+        }
+      }
+    },
+    "/api/api-tokens": {
+      "get": {
+        "tags": ["API Tokens"],
+        "summary": "List your active tokens (masked)",
+        "description": "Session only. Lists the caller's active (non-revoked) tokens, newest first. Secrets are never returned — only a masked key `st_…<last4>`.",
+        "responses": {
+          "200": { "description": "OK", "content": { "application/json": { "schema": { "type": "object", "properties": { "tokens": { "type": "array", "items": { "$ref": "#/components/schemas/ApiTokenView" } } } } } } },
+          "401": { "$ref": "#/components/responses/Error401" },
+          "403": { "$ref": "#/components/responses/Error403" }
+        }
+      },
+      "post": {
+        "tags": ["API Tokens"],
+        "summary": "Create a personal API token",
+        "description": "Session only. `token` in the 201 response is the ONE and only time the plaintext secret (`st_…`) is returned — store it immediately; the server keeps only a SHA-256 hash. Up to 20 active tokens per user. Read-only by default; set `readOnly: false` for write access. `expiresInDays: null` means no expiry.",
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/CreateTokenRequest" }, "example": { "name": "Power BI refresh", "readOnly": true, "expiresInDays": 90 } } }
+        },
+        "responses": {
+          "201": { "description": "Created — `token` is the one-time secret", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/CreateTokenResult" } } } },
+          "400": { "$ref": "#/components/responses/Error400" },
+          "401": { "$ref": "#/components/responses/Error401" },
+          "403": { "$ref": "#/components/responses/Error403" },
+          "500": { "$ref": "#/components/responses/Error500" }
+        }
+      }
+    },
+    "/api/api-tokens/{id}": {
+      "delete": {
+        "tags": ["API Tokens"],
+        "summary": "Revoke one of your tokens (soft)",
+        "description": "Session only. Soft-revokes the token (`revoked_at` set); it stops working immediately on its next request. Only own tokens can be revoked here — admins use the admin variant for anyone's.",
+        "parameters": [ { "$ref": "#/components/parameters/TokenId" } ],
+        "responses": {
+          "200": { "description": "Revoked", "content": { "application/json": { "schema": { "type": "object", "properties": { "success": { "type": "boolean", "example": true } } } } } },
+          "401": { "$ref": "#/components/responses/Error401" },
+          "403": { "$ref": "#/components/responses/Error403" },
+          "404": { "$ref": "#/components/responses/Error404" }
+        }
+      }
+    },
+    "/api/api-tokens/admin/all": {
+      "get": {
+        "tags": ["API Tokens"],
+        "summary": "Org-wide token overview (admin)",
+        "description": "Session + Admin only. Lists every token org-wide, newest first (max 500), including revoked ones (`revokedAt` set). Metadata only — never secrets.",
+        "responses": {
+          "200": { "description": "OK", "content": { "application/json": { "schema": { "type": "object", "properties": { "tokens": { "type": "array", "items": { "$ref": "#/components/schemas/ApiTokenView" } } } } } } },
+          "401": { "$ref": "#/components/responses/Error401" },
+          "403": { "$ref": "#/components/responses/Error403" }
+        }
+      }
+    },
+    "/api/api-tokens/admin/{id}": {
+      "delete": {
+        "tags": ["API Tokens"],
+        "summary": "Force-revoke any token (admin)",
+        "description": "Session + Admin only. Revokes any user's token by id.",
+        "parameters": [ { "$ref": "#/components/parameters/TokenId" } ],
+        "responses": {
+          "200": { "description": "Revoked", "content": { "application/json": { "schema": { "type": "object", "properties": { "success": { "type": "boolean", "example": true } } } } } },
+          "401": { "$ref": "#/components/responses/Error401" },
+          "403": { "$ref": "#/components/responses/Error403" },
+          "404": { "$ref": "#/components/responses/Error404" }
+        }
+      }
+    },
+    "/api/feeds/me": {
+      "get": {
+        "tags": ["Data Feeds"],
+        "summary": "My record — your own staff-directory row",
+        "description": "Available to everyone with a staff-directory record. Returns a single row in the standard feed envelope (not paginated). 404 when the account has no directory record (some admin/HR logins) — use the org-wide feeds instead.",
+        "parameters": [ { "$ref": "#/components/parameters/FormatCsv" } ],
+        "responses": {
+          "200": { "description": "Feed envelope (or CSV attachment with `format=csv`)", "content": {
+            "application/json": { "schema": { "$ref": "#/components/schemas/FeedEnvelope" }, "example": { "data": [ { "email": "jane@example.com", "name": "Jane Doe", "title": "Engineer", "department": "Engineering", "manager_name": "John Smith", "skill_count": 8, "project_count": 3, "certification_count": 2 } ], "meta": { "page": 1, "limit": 1, "total": 1, "returned": 1 } } },
+            "text/csv": { "schema": { "type": "string", "format": "binary" } }
+          } },
+          "401": { "$ref": "#/components/responses/Error401" },
+          "403": { "$ref": "#/components/responses/Error403" },
+          "404": { "$ref": "#/components/responses/Error404" }
+        },
+        "x-console": { "id": "feeds-me", "roles": "all", "note": "Your own record — single object, not paginated/filterable", "csvFilename": "me.csv" }
+      }
+    },
+    "/api/feeds/staff": {
+      "get": {
+        "tags": ["Data Feeds"],
+        "summary": "Staff directory feed",
+        "description": "Org-wide for Admin/HR/Coordinator; scoped to direct + indirect reports for managers; 403 for everyone else. Columns: email, name, title, department, manager_name, active (1/0).",
+        "parameters": [
+          { "$ref": "#/components/parameters/Page" }, { "$ref": "#/components/parameters/Limit" },
+          { "$ref": "#/components/parameters/FormatCsv" }, { "$ref": "#/components/parameters/Sort" },
+          { "$ref": "#/components/parameters/Order" }, { "$ref": "#/components/parameters/Fields" },
+          { "$ref": "#/components/parameters/SearchQ" },
+          { "name": "filter[department]", "in": "query", "description": "Exact match (or `~text` contains)", "schema": { "type": "string" } },
+          { "name": "filter[manager_name]", "in": "query", "description": "Exact match (or `~text` contains)", "schema": { "type": "string" } },
+          { "name": "filter[active]", "in": "query", "description": "Boolean: `true`/`1`/`false`/`0`", "schema": { "type": "boolean" } }
+        ],
+        "responses": {
+          "200": { "description": "Feed envelope (or CSV attachment)", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/FeedEnvelope" } }, "text/csv": { "schema": { "type": "string", "format": "binary" } } } },
+          "400": { "$ref": "#/components/responses/Error400" },
+          "401": { "$ref": "#/components/responses/Error401" },
+          "403": { "$ref": "#/components/responses/Error403" },
+          "500": { "$ref": "#/components/responses/Error500" }
+        },
+        "x-console": { "id": "feeds-staff", "roles": "full,manager", "filterable": ["department", "manager_name", "active"], "sortable": ["name", "email", "department"], "defaultSort": "name", "columns": ["email", "name", "title", "department", "manager_name", "active"], "csvFilename": "staff.csv" }
+      }
+    },
+    "/api/feeds/projects": {
+      "get": {
+        "tags": ["Data Feeds"],
+        "summary": "Projects feed",
+        "description": "Scope same as staff feed. Columns include project_name, customer, soc, type_* flags, start_date, end_date, coordinator_email, staff_count.",
+        "parameters": [
+          { "$ref": "#/components/parameters/Page" }, { "$ref": "#/components/parameters/Limit" },
+          { "$ref": "#/components/parameters/FormatCsv" }, { "$ref": "#/components/parameters/Sort" },
+          { "$ref": "#/components/parameters/Order" }, { "$ref": "#/components/parameters/Fields" },
+          { "$ref": "#/components/parameters/SearchQ" },
+          { "name": "filter[customer]", "in": "query", "schema": { "type": "string" } },
+          { "name": "filter[soc]", "in": "query", "schema": { "type": "string" } },
+          { "name": "filter[project_name]", "in": "query", "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": { "description": "Feed envelope (or CSV attachment)", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/FeedEnvelope" } }, "text/csv": { "schema": { "type": "string", "format": "binary" } } } },
+          "400": { "$ref": "#/components/responses/Error400" }, "401": { "$ref": "#/components/responses/Error401" },
+          "403": { "$ref": "#/components/responses/Error403" }, "500": { "$ref": "#/components/responses/Error500" }
+        },
+        "x-console": { "id": "feeds-projects", "roles": "full,manager", "filterable": ["customer", "soc", "project_name"], "sortable": ["project_name", "customer", "soc", "end_date"], "defaultSort": "project_name", "csvFilename": "projects.csv" }
+      }
+    },
+    "/api/feeds/skills": {
+      "get": {
+        "tags": ["Data Feeds"],
+        "summary": "Skills feed (latest per person)",
+        "description": "Scope same as staff feed. Columns: email, skill, rating.",
+        "parameters": [
+          { "$ref": "#/components/parameters/Page" }, { "$ref": "#/components/parameters/Limit" },
+          { "$ref": "#/components/parameters/FormatCsv" }, { "$ref": "#/components/parameters/Sort" },
+          { "$ref": "#/components/parameters/Order" }, { "$ref": "#/components/parameters/Fields" },
+          { "$ref": "#/components/parameters/SearchQ" },
+          { "name": "filter[skill]", "in": "query", "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": { "description": "Feed envelope (or CSV attachment)", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/FeedEnvelope" } }, "text/csv": { "schema": { "type": "string", "format": "binary" } } } },
+          "400": { "$ref": "#/components/responses/Error400" }, "401": { "$ref": "#/components/responses/Error401" },
+          "403": { "$ref": "#/components/responses/Error403" }, "500": { "$ref": "#/components/responses/Error500" }
+        },
+        "x-console": { "id": "feeds-skills", "roles": "full,manager", "filterable": ["skill"], "sortable": ["skill", "email", "rating"], "defaultSort": "skill", "columns": ["email", "skill", "rating"], "csvFilename": "skills.csv" }
+      }
+    },
+    "/api/feeds/certifications": {
+      "get": {
+        "tags": ["Data Feeds"],
+        "summary": "Certifications feed (Admin/HR only)",
+        "description": "Admin or HR only. Columns: email, name, issuer, date_obtained, expiry_date, credential_id, status (computed: Valid/Expiring/Expired). `filter[status]` accepts valid/expiring/expired (special, not a raw column match).",
+        "parameters": [
+          { "$ref": "#/components/parameters/Page" }, { "$ref": "#/components/parameters/Limit" },
+          { "$ref": "#/components/parameters/FormatCsv" }, { "$ref": "#/components/parameters/Sort" },
+          { "$ref": "#/components/parameters/Order" }, { "$ref": "#/components/parameters/Fields" },
+          { "$ref": "#/components/parameters/SearchQ" },
+          { "name": "filter[email]", "in": "query", "schema": { "type": "string" } },
+          { "name": "filter[name]", "in": "query", "schema": { "type": "string" } },
+          { "name": "filter[issuer]", "in": "query", "schema": { "type": "string" } },
+          { "name": "filter[status]", "in": "query", "description": "One of: valid, expiring, expired", "schema": { "type": "string", "enum": ["valid", "expiring", "expired"] } }
+        ],
+        "responses": {
+          "200": { "description": "Feed envelope (or CSV attachment)", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/FeedEnvelope" } }, "text/csv": { "schema": { "type": "string", "format": "binary" } } } },
+          "400": { "$ref": "#/components/responses/Error400" }, "401": { "$ref": "#/components/responses/Error401" },
+          "403": { "$ref": "#/components/responses/Error403" }, "500": { "$ref": "#/components/responses/Error500" }
+        },
+        "x-console": { "id": "feeds-certs", "roles": "admin,hr", "filterable": ["email", "name", "issuer", "status"], "sortable": ["email", "name", "issuer", "expiry_date"], "defaultSort": "email", "csvFilename": "certifications.csv" }
+      }
+    },
+    "/api/feeds/summary": {
+      "get": {
+        "tags": ["Data Feeds"],
+        "summary": "Org summary KPIs (single aggregate row)",
+        "description": "Scope same as staff feed. Returns one row of key figures scoped to the caller (org-wide for full access, team for managers).",
+        "parameters": [ { "$ref": "#/components/parameters/FormatCsv" } ],
+        "responses": {
+          "200": { "description": "Feed envelope with one row (or CSV attachment)", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/FeedEnvelope" }, "example": { "data": [ { "total_staff": 243, "active_staff": 231, "staff_with_submission": 198, "distinct_skills": 54, "total_certifications": 301, "expiring_certifications": 12 } ], "meta": { "page": 1, "limit": 1, "total": 1, "returned": 1 } } }, "text/csv": { "schema": { "type": "string", "format": "binary" } } } },
+          "401": { "$ref": "#/components/responses/Error401" }, "403": { "$ref": "#/components/responses/Error403" },
+          "500": { "$ref": "#/components/responses/Error500" }
+        },
+        "x-console": { "id": "feeds-summary", "roles": "full,manager", "note": "Single aggregate object, not paginated/filterable", "columns": ["total_staff", "active_staff", "staff_with_submission", "distinct_skills", "total_certifications", "expiring_certifications"], "csvFilename": "summary.csv" }
+      }
+    },
+    "/api/reports/my-subordinates": {
+      "get": {
+        "tags": ["Reports & Catalog"],
+        "summary": "My subordinates (manager)",
+        "description": "Email set of the caller's direct + indirect reports (recursive orgchart walk). Non-managers without reports get an empty set.",
+        "responses": {
+          "200": { "description": "OK", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SubordinatesResult" }, "example": { "subordinates": ["a.najhan@example.com", "s.kumar@example.com"], "count": 2 } } } },
+          "401": { "$ref": "#/components/responses/Error401" }, "403": { "$ref": "#/components/responses/Error403" },
+          "500": { "$ref": "#/components/responses/Error500" }
+        },
+        "x-console": { "id": "reports-mine", "roles": "manager" }
+      }
+    },
+    "/api/catalog/staff": {
+      "get": {
+        "tags": ["Reports & Catalog"],
+        "summary": "Staff catalog (Admin/HR)",
+        "description": "Admin or HR only. Lightweight org list of active accounts: email, name, title, department, manager_name, ordered by name.",
+        "responses": {
+          "200": { "description": "Bare JSON array (not an envelope)", "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/CatalogStaffRow" } }, "example": [ { "email": "jane@example.com", "name": "Jane Doe", "title": "Engineer", "department": "Engineering", "manager_name": "John Smith" } ] } } },
+          "401": { "$ref": "#/components/responses/Error401" }, "403": { "$ref": "#/components/responses/Error403" },
+          "500": { "$ref": "#/components/responses/Error500" }
+        },
+        "x-console": { "id": "catalog-staff", "roles": "admin,hr" }
+      }
+    },
+    "/api/cv-profiles/{email}": {
+      "get": {
+        "tags": ["Staff data & CV"],
+        "summary": "Staff CV profile bundle",
+        "description": "The complete profile bundle the CV generator reads — profile, education, certifications, awards, work history, past projects in ONE call. You can always read your own record; signed-in users get a read-only view of other profiles (view-only, like the CV page). Works with read-only tokens. Email may be URL-encoded (@ → %40).",
+        "parameters": [ { "$ref": "#/components/parameters/Email" } ],
+        "responses": {
+          "200": { "description": "Full bundle", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/CvProfileBundle" } } } },
+          "401": { "$ref": "#/components/responses/Error401" }, "403": { "$ref": "#/components/responses/Error403" },
+          "404": { "$ref": "#/components/responses/Error404" }, "500": { "$ref": "#/components/responses/Error500" }
+        },
+        "x-console": { "id": "cv-profile", "roles": "all" }
+      }
+    },
+    "/api/cv-profiles/{email}/snapshots": {
+      "get": {
+        "tags": ["Staff data & CV"],
+        "summary": "List saved CV snapshots for a profile",
+        "description": "Previously generated CVs, newest first: template id/name, the saved HTML, snapshot data, who generated it, created date. Bare JSON array (not an envelope). Access matches the profile view (own always; read-only view of others). Works with read-only tokens.",
+        "parameters": [ { "$ref": "#/components/parameters/Email" } ],
+        "responses": {
+          "200": { "description": "Array of snapshots (empty array if none / table not populated)", "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/CvSnapshot" } } } } },
+          "401": { "$ref": "#/components/responses/Error401" }, "403": { "$ref": "#/components/responses/Error403" },
+          "500": { "$ref": "#/components/responses/Error500" }
+        },
+        "x-console": { "id": "cv-snapshots", "roles": "all" }
+      },
+      "post": {
+        "tags": ["Staff data & CV"],
+        "summary": "Persist a CV snapshot",
+        "description": "Saves a generated CV (the UI's Save action calls this after generating). A write — read-only tokens get 403. `snapshot_html` is required.",
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "type": "object", "required": ["snapshot_html"], "properties": {
+            "snapshot_html": { "type": "string", "description": "The rendered HTML from the generate call" },
+            "template_id": { "type": "string" }, "template_name": { "type": "string" }
+          } }, "example": { "snapshot_html": "<html>…rendered CV…</html>", "template_name": "classic" } } }
+        },
+        "responses": {
+          "200": { "description": "Saved", "content": { "application/json": { "schema": { "type": "object", "properties": { "id": { "type": "string", "format": "uuid" }, "snapshot_html": { "type": "string" }, "template_name": { "type": "string" }, "created_at": { "type": "string", "example": "2026-09-05 10:00:00" } } } } } },
+          "400": { "$ref": "#/components/responses/Error400" }, "401": { "$ref": "#/components/responses/Error401" },
+          "403": { "$ref": "#/components/responses/Error403" }, "500": { "$ref": "#/components/responses/Error500" }
+        }
+      }
+    },
+    "/api/cv-profiles/{email}/certifications/bundle": {
+      "get": {
+        "tags": ["Staff data & CV"],
+        "summary": "Download certification proof files (ZIP)",
+        "description": "Downloads the person's certification proof documents as a ZIP attachment (`certificates_<staff>.zip`), newest first. NOT JSON — treat the response as a binary download (Content-Type: application/zip). 404 when the profile has no certification proofs. Access matches the profile view; works with read-only tokens.",
+        "parameters": [ { "$ref": "#/components/parameters/Email" } ],
+        "responses": {
+          "200": { "description": "ZIP download", "content": { "application/zip": { "schema": { "type": "string", "format": "binary" } } } },
+          "401": { "$ref": "#/components/responses/Error401" }, "403": { "$ref": "#/components/responses/Error403" },
+          "404": { "$ref": "#/components/responses/Error404" }, "500": { "$ref": "#/components/responses/Error500" }
+        },
+        "x-console": { "id": "cv-certs-bundle", "roles": "all", "response": "application/zip download" }
+      }
+    },
+    "/api/cv-profiles/{email}/audit": {
+      "get": {
+        "tags": ["Staff data & CV"],
+        "summary": "Profile change audit trail",
+        "description": "Profile change history — section, action, actor, timestamp — newest first. Extra-restricted: the profile owner, Admin, HR and Coordinators only; anyone else gets 403. Works with read-only tokens.",
+        "parameters": [ { "$ref": "#/components/parameters/Email" } ],
+        "responses": {
+          "200": { "description": "Array of audit events", "content": { "application/json": { "schema": { "type": "array", "items": { "type": "object", "properties": { "staffEmail": { "type": "string" }, "actorEmail": { "type": "string" }, "section": { "type": "string" }, "action": { "type": "string" }, "summary": { "type": "string" }, "createdAt": { "type": "string", "example": "2026-09-04T08:00:00.000Z" } } } } } } },
+          "401": { "$ref": "#/components/responses/Error401" }, "403": { "$ref": "#/components/responses/Error403" },
+          "500": { "$ref": "#/components/responses/Error500" }
+        },
+        "x-console": { "id": "cv-audit", "roles": "all" }
+      }
+    },
+    "/api/cv-profiles/{email}/generate": {
+      "post": {
+        "tags": ["Staff data & CV"],
+        "summary": "Generate a CV from a template (Admin/HR)",
+        "description": "Renders the profile into an HTML CV document. In the UI this is exposed to Admin/HR for other staff. NOTE: generate returns the rendered HTML + template name — it does NOT persist anything. To store it, POST the HTML to `/{email}/snapshots` (or use the CV page's Save action). A write: read-only tokens get 403. Omit template_id to use the default template.",
+        "parameters": [ { "$ref": "#/components/parameters/Email" } ],
+        "requestBody": {
+          "required": false,
+          "content": { "application/json": { "schema": { "type": "object", "properties": { "template_id": { "type": "string", "description": "Template to render; omit for the default" } } }, "example": { "template_id": "classic" } } }
+        },
+        "responses": {
+          "200": { "description": "Rendered HTML document", "content": { "application/json": { "schema": { "type": "object", "properties": { "html": { "type": "string", "description": "Full HTML document" }, "template_name": { "type": "string", "example": "classic" } } } } } },
+          "400": { "$ref": "#/components/responses/Error400" }, "401": { "$ref": "#/components/responses/Error401" },
+          "403": { "$ref": "#/components/responses/Error403" }, "404": { "$ref": "#/components/responses/Error404" },
+          "500": { "$ref": "#/components/responses/Error500" }
+        },
+        "x-console": { "id": "cv-generate", "roles": "admin,hr", "method": "POST", "bodyExample": "{ \"template_id\": \"classic\" }" }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "Bearer token — either a personal API token (`st_…`) or a session JWT from POST /api/auth/login. Personal tokens cannot manage tokens; read-only tokens cannot write."
+      }
+    },
+    "parameters": {
+      "Email": { "name": "email", "in": "path", "required": true, "description": "Staff email (case-insensitive). URL-encode the @ as %40 when needed.", "schema": { "type": "string", "format": "email", "example": "jane@example.com" } },
+      "TokenId": { "name": "id", "in": "path", "required": true, "description": "API token UUID", "schema": { "type": "string", "format": "uuid" } },
+      "Page": { "name": "page", "in": "query", "description": "Page number, 1-based. Default 1.", "schema": { "type": "integer", "minimum": 1, "default": 1 } },
+      "Limit": { "name": "limit", "in": "query", "description": "Rows per page, 1–500. Default 50.", "schema": { "type": "integer", "minimum": 1, "maximum": 500, "default": 50 } },
+      "FormatCsv": { "name": "format", "in": "query", "description": "`csv` returns an attachment; otherwise send `Accept: text/csv`. Default json.", "schema": { "type": "string", "enum": ["csv", "json"] } },
+      "Sort": { "name": "sort", "in": "query", "description": "Sort column — must be in the feed's sortable whitelist, else the default is used. A non-whitelisted FILTER column is a 400; an unsupported sort silently falls back.", "schema": { "type": "string" } },
+      "Order": { "name": "order", "in": "query", "description": "`asc` (default) or `desc`", "schema": { "type": "string", "enum": ["asc", "desc"], "default": "asc" } },
+      "Fields": { "name": "fields", "in": "query", "description": "Comma list of output columns to return, whitelisted per feed. Unsupported keys are ignored (falls back to all columns).", "schema": { "type": "string", "example": "email,name,department" } },
+      "SearchQ": { "name": "q", "in": "query", "description": "Free-text contains search across the feed's searchable columns (case-insensitive).", "schema": { "type": "string" } }
+    },
+    "responses": {
+      "Error400": { "description": "Bad request — the error message names the offending parameter (e.g. `Unsupported filter 'x'. Allowed: …`)", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
+      "Error401": { "description": "Missing/invalid/expired/revoked token, or a deactivated account", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
+      "Error403": { "description": "Forbidden — read-only token on a write, token management via an API token, or a record outside your role's scope", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
+      "Error404": { "description": "Unknown route/resource (e.g. `/feeds/me` when the account has no directory record)", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
+      "Error500": { "description": "Server-side failure", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
+    },
+    "schemas": {
+      "Error": { "type": "object", "required": ["error"], "properties": { "error": { "type": "string", "example": "Unsupported filter 'x'. Allowed: department, manager_name, active" } } },
+      "LoginRequest": { "type": "object", "required": ["email", "password"], "properties": { "email": { "type": "string" }, "password": { "type": "string", "description": "Base64-encoded password (the app encodes with btoa before sending)" } } },
+      "LoginResult": { "type": "object", "properties": { "access_token": { "type": "string" }, "isAdmin": { "type": "boolean" }, "is_hr": { "type": "integer", "example": 1 }, "is_coordinator": { "type": "integer", "example": 0 }, "name": { "type": "string", "nullable": true } } },
+      "ResolvedUser": { "type": "object", "properties": { "email": { "type": "string" }, "role": { "type": "string" }, "isAdmin": { "type": "boolean" }, "is_hr": { "type": "integer" }, "is_coordinator": { "type": "integer" }, "authMode": { "type": "string", "enum": ["jwt", "api"] }, "readOnly": { "type": "boolean", "description": "Only present for API-token auth" }, "tokenId": { "type": "string", "description": "Only present for API-token auth" } } },
+      "CreateTokenRequest": { "type": "object", "required": ["name"], "properties": { "name": { "type": "string", "minLength": 1, "maxLength": 100, "description": "Purpose label (shown in lists and the audit trail)" }, "readOnly": { "type": "boolean", "default": true, "description": "true = GET/HEAD/OPTIONS only" }, "expiresInDays": { "type": ["integer", "null"], "minimum": 1, "maximum": 3650, "default": null, "description": "null = never expires" } } },
+      "CreateTokenResult": { "type": "object", "required": ["token"], "properties": { "id": { "type": "string", "format": "uuid" }, "name": { "type": "string" }, "readOnly": { "type": "boolean" }, "expiresAt": { "type": "string", "nullable": true }, "mask": { "type": "string", "example": "st_…9f3a" }, "token": { "type": "string", "description": "ONE-TIME plaintext secret (st_…). Returned only here; the server stores a SHA-256 hash." } } },
+      "ApiTokenView": { "type": "object", "properties": { "id": { "type": "string", "format": "uuid" }, "name": { "type": "string" }, "readOnly": { "type": "boolean" }, "mask": { "type": "string" }, "createdAt": { "type": "string" }, "expiresAt": { "type": "string", "nullable": true }, "lastUsedAt": { "type": "string", "nullable": true }, "revokedAt": { "type": "string", "nullable": true } } },
+      "FeedEnvelope": { "type": "object", "required": ["data", "meta"], "properties": { "data": { "type": "array", "items": { "type": "object", "additionalProperties": true } }, "meta": { "$ref": "#/components/schemas/FeedMeta" } } },
+      "FeedMeta": { "type": "object", "properties": { "page": { "type": "integer" }, "limit": { "type": "integer" }, "total": { "type": "integer", "description": "Row count ignoring pagination" }, "returned": { "type": "integer", "description": "Rows in this page" } } },
+      "SubordinatesResult": { "type": "object", "properties": { "subordinates": { "type": "array", "items": { "type": "string", "format": "email" }, "description": "Emails of direct + indirect reports" }, "count": { "type": "integer" } } },
+      "CatalogStaffRow": { "type": "object", "properties": { "email": { "type": "string" }, "name": { "type": "string" }, "title": { "type": "string", "nullable": true }, "department": { "type": "string", "nullable": true }, "manager_name": { "type": "string", "nullable": true } } },
+      "CvProfileBundle": { "type": "object", "description": "Date fields are YYYY-MM-DD; list sections are [] until the person records data.", "properties": {
+        "profile": { "type": "object", "properties": { "id": { "type": "string" }, "staff_email": { "type": "string" }, "summary": { "type": "string", "nullable": true }, "phone": { "type": "string", "nullable": true }, "linkedin": { "type": "string", "nullable": true }, "location": { "type": "string", "nullable": true }, "photo_path": { "type": "string", "nullable": true } } },
+        "education": { "type": "array", "items": { "type": "object", "properties": { "institution": { "type": "string" }, "degree": { "type": "string" }, "field": { "type": "string" }, "start_year": { "type": "integer" }, "end_year": { "type": "integer", "nullable": true }, "description": { "type": "string" } } } },
+        "certifications": { "type": "array", "items": { "type": "object", "properties": { "name": { "type": "string" }, "issuer": { "type": "string" }, "date_obtained": { "type": "string" }, "expiry_date": { "type": "string", "nullable": true }, "credential_id": { "type": "string" } } } },
+        "awards": { "type": "array", "items": { "type": "object", "properties": { "title": { "type": "string" }, "issuer": { "type": "string" }, "date_received": { "type": "string" }, "description": { "type": "string" } } } },
+        "workHistory": { "type": "array", "items": { "type": "object", "properties": { "employer": { "type": "string" }, "job_title": { "type": "string" }, "start_date": { "type": "string" }, "end_date": { "type": "string", "nullable": true }, "is_current": { "type": "integer", "example": 1 } } } },
+        "pastProjects": { "type": "array", "items": { "type": "object", "properties": { "project_name": { "type": "string" }, "role": { "type": "string" }, "technologies": { "type": "string" }, "start_date": { "type": "string" }, "end_date": { "type": "string" } } } }
+      } },
+      "CvSnapshot": { "type": "object", "properties": { "id": { "type": "string", "format": "uuid" }, "staff_email": { "type": "string" }, "generated_by": { "type": "string", "description": "Actor email or 'system'" }, "template_id": { "type": "string", "nullable": true }, "template_name": { "type": "string", "nullable": true }, "snapshot_html": { "type": "string" }, "snapshot_data": { "type": "object", "nullable": true }, "created_at": { "type": "string" } } }
+    }
+  }
+}

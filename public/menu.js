@@ -72,6 +72,9 @@ function renderNav(activeTab) {
         html += `<a href="/admin.html" class="nav-link ${activeTab === 'admin' ? 'active' : ''}">🛡️ Admin</a>`;
     }
 
+    // API Access last (rightmost) — self-service developer console below all work links
+    html += `<a href="/api-access.html" class="nav-link ${activeTab === 'api-access' ? 'active' : ''}">🔌 API Access</a>`;
+
     // Right-aligned theme toggle, user info and logout
     const isDark = ThemeManager.isDark();
     const themeIcon = isDark ? '☀️' : '🌙';

@@ -122,6 +122,87 @@ async function updateRole(email, is_admin, is_hr, is_coordinator) {
     }
 }
 
+// ── API Tokens Oversight ──────────────────────────────────────────────────────
+let adminTokens = [];
+let adminTokenSearchQ = '';
+
+function fmtDate(v) {
+    if (!v) return '—';
+    const d = new Date(String(v).replace(' ', 'T'));
+    return isNaN(d.getTime()) ? v : d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+}
+function esc(s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+async function loadAdminTokens() {
+    const tbody = document.getElementById('api-admin-tbody');
+    const countEl = document.getElementById('api-admin-count');
+    try {
+        const res = await window.StaffTrackAuth.apiFetch('/api/api-tokens/admin/all');
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        const { tokens } = await res.json();
+        adminTokens = tokens;
+        const active = tokens.filter(t => !t.revokedAt).length;
+        if (countEl) countEl.textContent = active + ' active / ' + tokens.length + ' total (last 500)';
+        renderAdminTokens();
+    } catch (err) {
+        tbody.innerHTML = '<tr><td colspan="8" style="color:var(--color-danger);">Failed to load tokens: ' + esc(err.message) + '</td></tr>';
+        if (countEl) countEl.textContent = 'Failed to load';
+    }
+}
+
+function renderAdminTokens() {
+    const tbody = document.getElementById('api-admin-tbody');
+    const q = adminTokenSearchQ.toLowerCase();
+    const rows = adminTokens.filter(t =>
+        !q || t.user_email.toLowerCase().includes(q) || (t.name || '').toLowerCase().includes(q)
+    );
+    if (rows.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="8" style="color:var(--color-text-muted); text-align:center; padding: var(--space-5);">No tokens match.</td></tr>';
+        return;
+    }
+    tbody.innerHTML = rows.map(t => {
+        const scopeBadge = t.readOnly ? '<span class="badge badge-info">Read-only</span>' : '<span class="badge badge-success">Full</span>';
+        const status = t.revokedAt
+            ? '<span class="badge badge-neutral">Revoked ' + esc(fmtDate(t.revokedAt)) + '</span>'
+            : (t.expiresAt && new Date(String(t.expiresAt).replace(' ', 'T')).getTime() < Date.now()
+                ? '<span class="badge badge-danger">Expired</span>'
+                : '<span class="badge badge-success">Active</span>');
+        const canRevoke = !t.revokedAt && (!t.expiresAt || new Date(String(t.expiresAt).replace(' ', 'T')).getTime() >= Date.now());
+        return `<tr data-id="${esc(t.id)}" data-email="${esc(t.user_email)}">
+            <td>${esc(t.name)}</td>
+            <td>${esc(t.user_email)}</td>
+            <td>${scopeBadge}</td>
+            <td>${esc(fmtDate(t.createdAt))}</td>
+            <td>${t.expiresAt ? esc(fmtDate(t.expiresAt)) : '<span class="badge badge-neutral">Never</span>'}</td>
+            <td>${esc(fmtDate(t.lastUsedAt))}</td>
+            <td>${status}</td>
+            <td style="text-align:right;">
+                <button class="btn btn-danger btn-sm api-admin-revoke" ${canRevoke ? '' : 'disabled'}>Force revoke</button>
+            </td>
+        </tr>`;
+    }).join('');
+
+    tbody.querySelectorAll('.api-admin-revoke').forEach(btn => {
+        btn.addEventListener('click', async () => {
+            const tr = btn.closest('tr');
+            const id = tr.dataset.id;
+            const email = tr.dataset.email;
+            const name = tr.querySelector('td').textContent.trim();
+            if (!confirm('Force-revoke token "' + name + '" owned by ' + email + '?')) return;
+            const res = await window.StaffTrackAuth.apiFetch('/api/api-tokens/admin/' + id, { method: 'DELETE' });
+            if (res.ok) {
+                showToast('Token force-revoked');
+                loadAdminTokens();
+            } else {
+                const data = await res.json().catch(() => ({}));
+                showToast('Revoke failed: ' + (data.error || res.status), true);
+            }
+        });
+    });
+}
+
 // ── Initialization ────────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
     // Initialize sidebar navigation
@@ -139,6 +220,20 @@ document.addEventListener('DOMContentLoaded', () => {
         Toast.init();
     }
     loadData();
+    loadAdminTokens();
+
+    // API token search + refresh
+    const apiAdminSearch = document.getElementById('api-admin-search');
+    if (apiAdminSearch) {
+        apiAdminSearch.addEventListener('input', e => {
+            adminTokenSearchQ = e.target.value.trim();
+            renderAdminTokens();
+        });
+    }
+    const apiAdminRefresh = document.getElementById('api-admin-refresh');
+    if (apiAdminRefresh) {
+        apiAdminRefresh.addEventListener('click', loadAdminTokens);
+    }
 
     // Roles Search
     const adminSearch = document.getElementById('admin-search');

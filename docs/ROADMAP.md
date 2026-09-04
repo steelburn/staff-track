@@ -278,6 +278,44 @@ Plus schema changes to `submission_projects`: add `start_date`, `description`, `
 
 ---
 
+### 🔌 Self-Service API Access — ✅ COMPLETED (2026-09-04)
+
+Personal, user-owned API tokens (`st_` secrets; SHA-256 hashes stored) unlock the
+entire `/api` surface for any active user, scoped to their live UI role:
+
+- **Personal tokens**: read-only by default, optional full-access at creation;
+masked list, one-time secret reveal, self-revoke, optional expiry (default 90d).
+- **Data Feeds API** (`/api/feeds/*`): read-only staff / projects / skills /
+certifications / summary feeds with `fields`, `filter[col]`, `sort/order`,
+`page/limit`, and JSON or CSV output. Admin/HR/coordinator = org-wide;
+managers = subordinates (reuses `getUserSubordinates`); staff = self only.
+- **Live re-check per request**: tokens resolve against `user_roles` on every
+call, so deactivated/demoted users' tokens die on the next request.
+- **UI**: `api-access.html` (token manager + runnable console + quick reference,
+all roles) and an API Tokens oversight panel in `admin.html` (org-wide list,
+last-used, force-revoke).
+
+**Post-feature additions (2026-09)**
+
+- **In-app Help & Guide** (9 accordion sections + ❓ overlay modal): tokens,
+read-only vs full, role scope table, auth & request samples (curl / Python /
+Node / Power Query), Data Feeds grammar + allowed columns, staff-data & CV
+profile endpoints (§6), status codes, security, FAQ.
+- **Staff-data & CV endpoints** (`/api/cv-profiles/{email}` …) documented and
+**wired into the API Console** (path-param + POST support). The console dropdown
+and the guide's endpoint tables are all generated from a single `ENDPOINTS`
+catalog in `public/api-access.js` — console and docs cannot drift.
+- **Machine-readable API reference**: `public/api-docs.json` — an OpenAPI 3.0
+document served at `https://<host>/api-docs.json` (linked from the page header
+**📖 API Docs** button and the Help & Guide banner). Every console endpoint
+carries `x-console` metadata; a review harness asserts method/path parity
+between the catalog and the JSON.
+- **Dynamic host rendering**: Help & Guide samples replace the `https://your-host`
+placeholder with the caller's live origin at render time.
+- Console correctly handles the ZIP download response from
+`/cv-profiles/{email}/certifications/bundle`; `generate` is documented as
+render-only (persisting is a separate `POST …/snapshots`).
+
 ## Confirmed Prioritization
 
 | Priority | Feature | Effort | Status |

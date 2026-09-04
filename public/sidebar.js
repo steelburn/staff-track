@@ -177,6 +177,16 @@ const Sidebar = {
             `;
         }
 
+        // Bottom section — API Access is a self-service developer console; keep
+        // it as the LAST nav entry (below all role/work links) for every user.
+        html += '<div class="nav-divider"></div>';
+        html += `
+            <div class="nav-section">
+                <div class="nav-section-label">Developer</div>
+                ${this.renderNavItem('🔌', 'API Access', '/api-access.html', activeTab === 'api-access')}
+            </div>
+        `;
+
         nav.innerHTML = html;
 
         // Bind nav item clicks

@@ -47,4 +47,5 @@ backups/
 # Dev verification artifacts (local-only review harness)
 review-*.cjs
 review-*.png
+review-shots/
 test-orgchart.js

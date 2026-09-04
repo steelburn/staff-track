@@ -105,6 +105,52 @@
                         </table>
                     </div>
                 </div>
+
+                <!-- ═══ API Tokens Oversight ═══════════════════════════════ -->
+                <div class="section-header" style="margin-top: var(--space-6);">
+                    <h2 class="section-title">🔑 API Tokens Oversight</h2>
+                    <span class="section-count" id="api-admin-count">Org-wide personal API tokens</span>
+                </div>
+
+                <div class="toolbar" style="margin-bottom: var(--space-4);">
+                    <div class="search-box">
+                        <span class="search-icon">🔍</span>
+                        <input type="text" id="api-admin-search" class="input" placeholder="Search by user or token name...">
+                    </div>
+                    <button class="btn btn-secondary" id="api-admin-refresh">↻ Refresh</button>
+                </div>
+
+                <div class="table-container">
+                    <div class="table-scroll">
+                        <table class="table" id="api-admin-table">
+                            <thead>
+                                <tr>
+                                    <th>Name</th>
+                                    <th>User</th>
+                                    <th>Scope</th>
+                                    <th>Created</th>
+                                    <th>Expires</th>
+                                    <th>Last used</th>
+                                    <th>Status</th>
+                                    <th style="text-align:right;">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="api-admin-tbody">
+                                <tr>
+                                    <td colspan="8">
+                                        <div class="loading-state">
+                                            <div class="spinner"></div>
+                                            <p>Loading tokens...</p>
+                                        </div>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                <p style="font-size:12px; color: var(--color-text-muted); margin-top: var(--space-3);">
+                    Tokens are user-owned and revoked by their owners on the API Access page. Force-revoke here for security incidents — deactivating the user's account also kills their tokens on the next request.
+                </p>
             </main>
         </div>
     </div>

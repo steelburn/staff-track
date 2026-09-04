@@ -77,3 +77,15 @@ curl http://localhost:6082/api/health
 # Stop the application
 docker compose down
 ```
+## Recent Updates (September 5, 2026)
+- **Machine-readable API reference (`public/api-docs.json`)**:
+  - New OpenAPI 3.0 document served at `https://<host>/api-docs.json` (real FQDN from nginx `server_name`, e.g. `https://staff-update.comulo.app`).
+  - Covers 19 paths / 20 operations: auth (login/me), API-token lifecycle (create/list/revoke + admin oversight), all six Data Feeds with filterable/sortable/columns metadata and the feed grammar, my-subordinates, staff catalog, and the staff-data & CV endpoints.
+  - Documents the non-obvious response types: `certifications/bundle` returns a **ZIP download** (not JSON) and `generate` renders without persisting (`POST /{email}/snapshots` is the save step).
+  - Every console endpoint carries `x-console` metadata; the review harness asserts 1:1 method/path/roles parity with the `ENDPOINTS` catalog in `public/api-access.js`.
+- **API Access page — Help & Guide and console updates**:
+  - Console now supports CV-profile endpoints with an email path-param input (blank = your own record) and JSON bodies for POST; CSV remains feeds-only; binary ZIP responses download via a save button.
+  - Guide (inline + ❓ modal, single source) gained a §6 “Staff data & CV endpoints” section and a 🤖 machine-reference banner; sample hosts render the caller's live origin instead of the `https://your-host` placeholder.
+  - New **📖 API Docs** header button opens `/api-docs.json` on the same origin.
+- **README.md**: added “Machine-readable API reference” section describing `public/api-docs.json`, its served URL, and the sync rule with the console catalog.
+- **docs/ROADMAP.md**: expanded the “Self-Service API Access — ✅ COMPLETED” entry with the post-feature additions above.

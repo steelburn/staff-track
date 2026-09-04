@@ -991,4 +991,4 @@ router.get('/dashboard', verifyToken, async (req, res) => {
     }
 });
 
-export { router };
+export { router, getUserSubordinates };
