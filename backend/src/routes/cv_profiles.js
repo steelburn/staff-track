@@ -1098,11 +1098,21 @@ router.get('/:email/certifications/bundle', verifyToken, async (req, res) => {
 
 // POST /:email/photo - Upload profile photo
 router.post('/:email/photo', verifyToken, upload.single('photo'), async (req, res) => {
+    // multer has already written the file to disk by the time we get here, so
+    // if we bail for any reason, remove it to avoid leaving orphaned files
+    // (a user may retry many times, each attempt previously leaked a file).
+    const cleanupUploadedFile = () => {
+        if (req.file && req.file.path) {
+            fs.unlink(req.file.path, () => {});
+        }
+    };
+
     try {
         const { email } = req.params;
 
         // Check authorization - only profile owner can modify
         if (!canModifyProfile(req, email)) {
+            cleanupUploadedFile();
             return res.status(403).json({ error: 'You can only edit your own profile' });
         }
 
@@ -1116,15 +1126,25 @@ router.post('/:email/photo', verifyToken, upload.single('photo'), async (req, re
         const photoPath = `/uploads/photos/${req.file.filename}`;
         console.log(`Photo uploaded: ${photoPath}, updating for email: ${email}`);
 
-        // First check if profile exists
+        // Ensure a CV profile row exists. Staff who haven't saved the Profile
+        // section (or generated a CV) yet have no cv_profiles row — previously
+        // this returned 404 "CV profile not found for this email" and blocked
+        // photo uploads for brand-new users. Auto-create the row, matching the
+        // behaviour of the CV generate endpoint.
         const [existing] = await db.query(
-            'SELECT id FROM cv_profiles WHERE LOWER(staff_email) = ?',
+            'SELECT id FROM cv_profiles WHERE LOWER(staff_email) = ? LIMIT 1',
             [email.toLowerCase()]
         );
 
         if (!existing || existing.length === 0) {
-            console.log(`No profile found for email: ${email}`);
-            return res.status(404).json({ error: 'CV profile not found for this email' });
+            const id = uuidv4();
+            const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
+            await db.query(
+                `INSERT INTO cv_profiles (id, staff_email, summary, phone, linkedin, location, created_at, updated_at)
+                 VALUES (?, ?, NULL, NULL, NULL, NULL, ?, ?)`,
+                [id, email.toLowerCase(), now, now]
+            );
+            console.log(`Auto-created CV profile for ${email} during photo upload`);
         }
 
         // Update cv_profiles table with photo path
@@ -1145,6 +1165,7 @@ router.post('/:email/photo', verifyToken, upload.single('photo'), async (req, re
         await markStaffUpdated(db, email);
         res.json({ photo_path: photoPath });
     } catch (err) {
+        cleanupUploadedFile();
         console.error('Error uploading photo:', err);
         res.status(500).json({ error: 'Failed to upload photo: ' + err.message });
     }
