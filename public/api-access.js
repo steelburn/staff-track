@@ -30,6 +30,200 @@ function esc(s) {
     return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
 
+// ── Help & Guide (single source — injected into the inline section AND the
+//    ❓ Help overlay modal, so both stay identical) ─────────────────────────────
+const HELP_GUIDE_HTML = `
+<div class="help-guide">
+    <div class="help-quickstart">
+        <p><b>Quick start</b></p>
+        <ul>
+            <li><b>1 · Create</b> a token below — name it after the job (e.g. “Nightly BI sync”). Read-only is the safe default; pick an expiry (90&nbsp;days recommended).</li>
+            <li><b>2 · Copy the secret immediately</b> — it is shown <b>once</b> and never stored. Anyone holding it can act as you.</li>
+            <li><b>3 · Call the API</b> with the token in the <code>Authorization</code> header:</li>
+        </ul>
+        <pre>curl -H "Authorization: Bearer st_…" "https://your-host/api/feeds/me"</pre>
+        <p style="margin-bottom:0;">Full reference below, organised by topic. The same guide opens as an overlay any time via the <b>❓ Help</b> button (top-right).</p>
+    </div>
+
+    <details>
+        <summary>1 · How tokens work</summary>
+        <div class="help-body">
+            <p>An <b>API token</b> is a personal, user-owned credential tied to <b>your</b> account. It acts as you on the API — never wider than what your live UI role can do.</p>
+            <ul>
+                <li><b>Secret format:</b> <code>st_</code> followed by 43 random characters (46 total). Only a <b>SHA-256 hash</b> is stored server-side, so even a database leak cannot recover usable tokens.</li>
+                <li><b>Shown once:</b> the plaintext secret is returned only at creation (and shown in the reveal dialog). It can never be viewed again — rotate (revoke + create) if you lose it.</li>
+                <li><b>List display:</b> your token list shows a masked key (e.g. <code>st_…9f3a</code>) plus name, scope, created/expiry/last-used dates.</li>
+                <li><b>Limit:</b> up to <b>20 active tokens</b> per user. Revoke one to free a slot.</li>
+                <li><b>Expiry:</b> you choose 30 / 90 / 180 / 365 days or “Never”. Expired tokens are rejected with <code>401</code>. Shorter is safer — pick the shortest lifetime that fits the job.</li>
+                <li><b>Live role re-check:</b> every request resolves your token against <code>user_roles</code> <i>at that moment</i>. If your account is deactivated or demoted, existing tokens stop working on the next request (401). If you're promoted, tokens widen automatically.</li>
+                <li><b>Tokens cannot manage tokens:</b> creating, listing or revoking tokens requires an interactive browser session. A stolen token therefore can't mint more tokens.</li>
+                <li><b>Audit:</b> creation, revocation, admin force-revokes, first use, and denied attempts are recorded in the platform audit trail.</li>
+            </ul>
+        </div>
+    </details>
+
+    <details>
+        <summary>2 · Read-only vs Full access</summary>
+        <div class="help-body">
+            <table>
+                <tr><th></th><th>Read-only <span class="badge badge-info">default</span></th><th>Full access</th></tr>
+                <tr><td><b>Allowed</b></td><td><code>GET</code> / <code>HEAD</code> / <code>OPTIONS</code> on every endpoint your role can reach</td><td>Everything read-only allows, <b>plus</b> the write operations (<code>POST</code> / <code>PUT</code> / <code>DELETE</code> / <code>PATCH</code>) your role permits on those endpoints</td></tr>
+                <tr><td><b>Write attempt</b></td><td>Rejected centrally with <code>403 “Read-only API token cannot perform this request”</code></td><td>Passes the auth gate; the route still applies its own role checks</td></tr>
+                <tr><td><b>Data feeds</b></td><td colspan="2">Always read-only, for every token</td></tr>
+                <tr><td><b>Token management</b></td><td colspan="2">Never allowed for API tokens (403) — browser session only</td></tr>
+            </table>
+            <p>Choose <b>Read-only</b> unless an automation genuinely needs to write. A full-access token should be guarded like a password — anyone holding it can create data as you.</p>
+        </div>
+    </details>
+
+    <details>
+        <summary>3 · What can your tokens access?</summary>
+        <div class="help-body">
+            <p>Feed scope is decided by your <b>live</b> role — the console on this page only lists endpoints your role can actually use:</p>
+            <table>
+                <tr><th>Your role</th><th>Data Feed scope</th><th>Extra endpoints</th></tr>
+                <tr><td>Admin</td><td>Org-wide — all feeds (<code>/feeds/me</code>, <code>staff</code>, <code>projects</code>, <code>skills</code>, <code>summary</code>)</td><td><code>/feeds/certifications</code>, staff catalog, and every write your UI role allows</td></tr>
+                <tr><td>HR</td><td>Org-wide — all feeds</td><td><code>/feeds/certifications</code>, staff catalog, role writes</td></tr>
+                <tr><td>Coordinator</td><td>Org-wide — staff / projects / skills / summary feeds</td><td>Dashboard-style reports for managed staff</td></tr>
+                <tr><td>Manager (has reports, no full access)</td><td>The same feeds, but <b>scoped to your direct + indirect reports only</b></td><td>—</td></tr>
+                <tr><td>Staff (no reports)</td><td><code>/feeds/me</code> — your own directory record only</td><td>—</td></tr>
+            </table>
+            <p>Notes:</p>
+            <ul>
+                <li>Requesting a record outside your scope returns <code>403</code>.</li>
+                <li>If your account has <b>no staff-directory record</b> (some admin/HR logins), <code>/feeds/me</code> returns <code>404 “No staff record for this account”</code> — that's expected; use the org-wide feeds instead.</li>
+                <li>Admins see org-wide token metadata (never secrets) and can force-revoke any token on <b>Admin → API Tokens Oversight</b>.</li>
+            </ul>
+        </div>
+    </details>
+
+    <details>
+        <summary>4 · Authenticating & making requests</summary>
+        <div class="help-body">
+            <p>Send the token in the <code>Authorization</code> header on every request. Host: <code>https://your-host</code> (the same origin you use in the browser).</p>
+            <p><b>cURL — JSON list:</b></p>
+            <pre>curl -H "Authorization: Bearer st_…" "https://your-host/api/feeds/staff?limit=10"</pre>
+            <p><b>cURL — CSV download</b> (the API sends it as an attachment, so <code>-OJ</code> saves it using the server's filename):</p>
+            <pre>curl -OJ -H "Authorization: Bearer st_…" "https://your-host/api/feeds/staff?limit=10&amp;format=csv"</pre>
+            <p><b>Python (requests):</b></p>
+            <pre>import requests
+
+TOKEN = "st_…"  # keep out of source control — use an env var / secret store
+r = requests.get(
+    "https://your-host/api/feeds/staff",
+    params={"limit": 100, "filter[department]": "Engineering"},
+    headers={"Authorization": f"Bearer {TOKEN}"},
+)
+r.raise_for_status()
+print(r.json()["data"])</pre>
+            <p><b>Node.js (global fetch):</b></p>
+            <pre>const TOKEN = process.env.STAFFTRACK_TOKEN; // never hard-code
+const res = await fetch("https://your-host/api/feeds/staff?limit=100", {
+    headers: { Authorization: "Bearer " + TOKEN },
+});
+if (!res.ok) throw new Error("HTTP " + res.status + ": " + (await res.text()));
+const { data, meta } = await res.json();</pre>
+            <p><b>Power BI / Power Query (M):</b></p>
+            <pre>let
+    Source = Json.Document(Web.Contents(
+        "https://your-host/api/feeds/staff?limit=100",
+        [Headers = [Authorization = "Bearer st_…"]]
+    )),
+    Rows = Table.FromRecords(Source[data])
+in
+    Rows</pre>
+            <p>Tips:</p>
+            <ul>
+                <li>Want CSV? Ask with <code>?format=csv</code> or the <code>Accept: text/csv</code> header.</li>
+                <li>Test a token first in the <b>🧪 API Console</b> (set “Authenticate as → API token” and paste it), then hit <b>Copy cURL</b> to get a ready-made command.</li>
+                <li>Anything outside your role — or a revoked/expired/deactivated token — fails with <code>401</code> / <code>403</code>, never with fake data.</li>
+            </ul>
+        </div>
+    </details>
+
+    <details>
+        <summary>5 · Data Feeds API reference</summary>
+        <div class="help-body">
+            <p>Feeds are <b>read-only</b>, <code>GET</code>-only endpoints returning either a JSON envelope or a CSV attachment:</p>
+            <pre>{
+  "data": [ { "email": "jane@example.com", "name": "Jane …", "department": "…" } ],
+  "meta": { "page": 1, "limit": 50, "total": 128, "returned": 50 }
+}</pre>
+            <table>
+                <tr><th>Param</th><th>Meaning</th><th>Example</th></tr>
+                <tr><td><code>fields</code></td><td>Comma list of columns to return (whitelisted per feed). Empty = defaults.</td><td><code>fields=email,name,department</code></td></tr>
+                <tr><td><code>filter[col]</code></td><td>Exact match on an allowed column</td><td><code>filter[department]=Engineering</code></td></tr>
+                <tr><td><code>filter[col]=~text</code></td><td>Case-insensitive “contains” search</td><td><code>filter[name]=~john</code></td></tr>
+                <tr><td><code>sort</code> + <code>order</code></td><td>Sort by an allowed column, <code>asc</code> or <code>desc</code></td><td><code>sort=name&amp;order=desc</code></td></tr>
+                <tr><td><code>page</code> + <code>limit</code></td><td>Pagination: page ≥ 1, limit 1–500 (default 50)</td><td><code>page=2&amp;limit=100</code></td></tr>
+                <tr><td><code>format</code></td><td><code>csv</code> returns an attachment — or send <code>Accept: text/csv</code></td><td><code>format=csv</code></td></tr>
+            </table>
+            <p>Allowed columns per feed (an unsupported one → <code>400</code>, with the allowed list in the message):</p>
+            <table>
+                <tr><th>Feed</th><th>Filterable</th><th>Sortable</th></tr>
+                <tr><td><code>/feeds/me</code></td><td colspan="2">Your own record — single object, not paginated/filterable</td></tr>
+                <tr><td><code>/feeds/staff</code></td><td><code>department</code>, <code>manager_name</code>, <code>active</code> (1/0)</td><td><code>name</code>, <code>email</code>, <code>department</code></td></tr>
+                <tr><td><code>/feeds/projects</code></td><td><code>customer</code>, <code>soc</code>, <code>project_name</code></td><td><code>project_name</code>, <code>customer</code>, <code>soc</code>, <code>end_date</code></td></tr>
+                <tr><td><code>/feeds/skills</code></td><td><code>skill</code></td><td><code>skill</code>, <code>email</code>, <code>rating</code></td></tr>
+                <tr><td><code>/feeds/certifications</code></td><td><code>email</code>, <code>name</code>, <code>issuer</code>, <code>status</code></td><td><code>email</code>, <code>name</code>, <code>issuer</code>, <code>expiry_date</code></td></tr>
+                <tr><td><code>/feeds/summary</code></td><td colspan="2">Org summary KPIs — single aggregate object</td></tr>
+            </table>
+            <p>CSV responses respect <code>fields</code> and the same filters; quoted per RFC-4180, with a <code>Content-Disposition</code> attachment filename (e.g. <code>staff.csv</code>).</p>
+        </div>
+    </details>
+
+    <details>
+        <summary>6 · Status codes & errors</summary>
+        <div class="help-body">
+            <table>
+                <tr><th>Code</th><th>Meaning</th><th>What to do</th></tr>
+                <tr><td><code>200</code></td><td>OK (feeds also use 200 for empty results)</td><td>—</td></tr>
+                <tr><td><code>201</code></td><td>Created (e.g. token created — the one-time secret is in the body)</td><td>Copy and store it now</td></tr>
+                <tr><td><code>400</code></td><td>Bad request — an unsupported filter/sort column, invalid <code>limit</code>, bad JSON body…</td><td>The error message names the offending parameter (e.g. “Unsupported filter 'x'. Allowed: …”)</td></tr>
+                <tr><td><code>401</code></td><td>Missing, invalid, expired, revoked token — or a deactivated account</td><td>Check the header; create a fresh token</td></tr>
+                <tr><td><code>403</code></td><td>Read-only token on a write, token-management via an API token, or a record outside your role's scope</td><td>Use a full-access token (writes) / browser session (token mgmt) / an in-scope record</td></tr>
+                <tr><td><code>404</code></td><td>Unknown route, or <code>/feeds/me</code> when your account has no staff-directory record</td><td>Expected in the no-record case — use org feeds</td></tr>
+                <tr><td><code>429</code></td><td>Too many requests from your client in a short window</td><td>Back off and retry; the API sets a <code>Retry-After</code> header</td></tr>
+                <tr><td><code>500</code></td><td>Server-side failure</td><td>Wait, retry; contact support if it persists</td></tr>
+            </table>
+        </div>
+    </details>
+
+    <details>
+        <summary>7 · Security best practices</summary>
+        <div class="help-body">
+            <ul>
+                <li><b>Treat tokens like passwords.</b> Anyone with the secret can act as you up to your role's power.</li>
+                <li><b>Least privilege:</b> keep read-only unless a job genuinely writes. You can always create a second, full-access token later.</li>
+                <li><b>Short lifetimes:</b> pick the shortest expiry that fits. Rotate quarterly for long-running integrations.</li>
+                <li><b>Store safely:</b> use an environment variable or a secret manager — never commit tokens to source control, dashboards, chat or tickets.</li>
+                <li><b>Name tokens by purpose</b> (e.g. “Power BI refresh”) so the audit trail and the token list are easy to read.</li>
+                <li><b>Suspect a leak?</b> Revoke immediately from this page. Admins can force-revoke org-wide from Admin → API Tokens Oversight, and deactivating the owning account kills its tokens on the next request.</li>
+                <li><b>Remember:</b> a token is only as safe as your account — enable every protection your account offers.</li>
+            </ul>
+        </div>
+    </details>
+
+    <details>
+        <summary>8 · Troubleshooting & FAQ</summary>
+        <div class="help-body">
+            <ul>
+                <li><b>I get 401 immediately.</b> The token is wrong, expired, revoked, or the account was deactivated. Create a new one and update your script.</li>
+                <li><b>I lost the secret.</b> Irrecoverable by design (only a hash is stored). Revoke and create a replacement; update the consumer.</li>
+                <li><b>My revoked token still appears somewhere.</b> Your own list only shows active tokens (revoked ones disappear). Admins see history, with a “Revoked” status, on the Admin oversight panel.</li>
+                <li><b>403 on a feed.</b> Either a read-only token tried a write, or the requested record is outside your scope (managers see only their team).</li>
+                <li><b>404 on “My record”.</b> Your account has no staff-directory row — normal for some admin/HR logins. Use the org-wide feeds.</li>
+                <li><b>Can a token create other tokens?</b> No — token management is browser-session only (403). This contains blast radius.</li>
+                <li><b>“Unsupported filter” / “Unknown sort” (400).</b> The column isn't whitelisted for that feed — see the reference table in section 5.</li>
+                <li><b>CSV output looks odd?</b> It's standard RFC-4180 (commas, quotes, newlines escaped). Open it in a spreadsheet or a CSV parser.</li>
+                <li><b>What happens to my tokens if I leave the company?</b> The account deactivation check runs on every request — tokens stop returning 401 right away.</li>
+                <li><b>Can an admin see my secret?</b> No. Only the SHA-256 hash exists server-side; oversight shows metadata (name, user, scope, dates, status).</li>
+            </ul>
+        </div>
+    </details>
+</div>
+`;
+
 // ── Endpoint catalog ───────────────────────────────────────────────────────────
 // roles: all | full | admin | hr | manager (manager = has subordinates or full)
 const ENDPOINTS = [
@@ -323,6 +517,14 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('tok-expiry-warning').style.display = never ? '' : 'none';
     });
     document.getElementById('tok-create').addEventListener('click', createToken);
+
+    // help & guide — inject the single source into the inline section + overlay modal
+    const inlineGuide = document.getElementById('help-guide-inline');
+    if (inlineGuide) inlineGuide.innerHTML = HELP_GUIDE_HTML;
+    const modalGuide = document.getElementById('help-modal-body');
+    if (modalGuide) modalGuide.innerHTML = HELP_GUIDE_HTML;
+    const btnHelp = document.getElementById('btn-help');
+    if (btnHelp) btnHelp.addEventListener('click', () => openModal('help-modal'));
 
     // console wiring
     renderEndpointSelect();

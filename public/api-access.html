@@ -6,6 +6,66 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>StaffTrack — API Access</title>
     <link rel="stylesheet" href="/css/main.css?v=20260904a">
+    <style>
+        /* ── Help & Guide (inline + overlay share one .help-guide block) ── */
+        .help-guide { font-size: 13px; line-height: 1.75; color: var(--color-text-primary); }
+        .help-guide p { margin: 0 0 var(--space-3); }
+        .help-guide ul { margin: 0 0 var(--space-3); padding-left: var(--space-5); list-style: disc; }
+        .help-guide li { margin-bottom: 4px; }
+        .help-guide code {
+            color: var(--color-primary);
+            background: var(--color-primary-light);
+            font-size: 0.92em;
+        }
+        .help-guide details {
+            border: 1px solid var(--color-border);
+            border-radius: var(--radius-md);
+            margin-bottom: var(--space-3);
+            background: var(--color-bg-surface);
+            overflow: hidden;
+        }
+        .help-guide summary {
+            cursor: pointer;
+            font-weight: var(--font-weight-semibold);
+            padding: 10px var(--space-4);
+            display: flex;
+            align-items: center;
+            gap: var(--space-2);
+            list-style: none;
+            user-select: none;
+        }
+        .help-guide summary::-webkit-details-marker { display: none; }
+        .help-guide summary::before {
+            content: '▸';
+            color: var(--color-text-muted);
+            transition: transform var(--transition-fast);
+            font-size: 12px;
+        }
+        .help-guide details[open] summary::before { transform: rotate(90deg); }
+        .help-guide .help-body { padding: var(--space-3) var(--space-4) var(--space-4); border-top: 1px solid var(--color-border); }
+        .help-guide .help-body > :first-child { margin-top: 0; }
+        .help-guide .help-body > :last-child { margin-bottom: 0; }
+        .help-guide table { width: 100%; border-collapse: collapse; margin: var(--space-2) 0 var(--space-4); font-size: 12.5px; }
+        .help-guide th, .help-guide td { text-align: left; padding: 6px 10px; border: 1px solid var(--color-border); vertical-align: top; }
+        .help-guide th { background: var(--color-bg-muted); font-weight: var(--font-weight-semibold); white-space: nowrap; }
+        .help-guide pre { margin: var(--space-2) 0 var(--space-4); }
+        .help-guide .help-quickstart {
+            background: var(--color-bg-muted);
+            border: 1px solid var(--color-border);
+            border-radius: var(--radius-md);
+            padding: var(--space-4);
+            margin-bottom: var(--space-4);
+        }
+        .help-guide .help-quickstart pre { margin-bottom: 0; }
+        .help-ic {
+            cursor: help;
+            opacity: 0.55;
+            font-size: 12px;
+            margin-left: 2px;
+        }
+        .help-ic:hover { opacity: 1; }
+        .badge-row { display: inline-block; }
+    </style>
     <script src="/theme.js?v=20260904a"></script>
 </head>
 
@@ -37,6 +97,7 @@
                         </div>
                     </div>
                     <div class="page-actions">
+                        <button class="btn btn-secondary" id="btn-help" title="Open the API Access help & guide">❓ Help</button>
                         <button class="btn btn-secondary" id="theme-toggle" data-theme-toggle>
                             <span class="theme-icon">🌙</span>
                             <span class="theme-label">Dark</span>
@@ -60,11 +121,11 @@
                     <div class="card-body">
                         <div style="display:grid; gap: var(--space-4); grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));">
                             <div>
-                                <label class="form-label" for="tok-name">Token name</label>
+                                <label class="form-label" for="tok-name">Token name <span class="help-ic" title="A label you'll recognise later — e.g. 'Nightly BI sync'. Names are stored in plain text on your token list.">ⓘ</span></label>
                                 <input type="text" id="tok-name" class="input" maxlength="100" placeholder="e.g. Nightly backup sync">
                             </div>
                             <div>
-                                <label class="form-label">Scope</label>
+                                <label class="form-label">Scope <span class="help-ic" title="Read-only (default) = GET/HEAD/OPTIONS only. Full access also allows the writes your role permits. When in doubt, pick Read-only.">ⓘ</span></label>
                                 <div style="display:flex; gap: var(--space-4); padding-top: 6px;">
                                     <label style="display:flex; align-items:center; gap:6px;">
                                         <input type="radio" name="tok-scope" value="read" checked> Read-only <span style="font-size:11px; color: var(--color-text-muted);">(safe default)</span>
@@ -75,7 +136,7 @@
                                 </div>
                             </div>
                             <div>
-                                <label class="form-label" for="tok-expiry">Expires in</label>
+                                <label class="form-label" for="tok-expiry">Expires in <span class="help-ic" title="The token stops working after this date. Choose the shortest lifetime that fits the job — expired tokens return 401 and can be revoked.">ⓘ</span></label>
                                 <select id="tok-expiry" class="select" style="width:100%;">
                                     <option value="30">30 days</option>
                                     <option value="90" selected>90 days</option>
@@ -128,18 +189,18 @@
                     <div class="card-body">
                         <div style="display:grid; gap: var(--space-3); grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); align-items:end;">
                             <div>
-                                <label class="form-label" for="con-endpoint">Endpoint</label>
+                                <label class="form-label" for="con-endpoint">Endpoint <span class="help-ic" title="Only endpoints your role can actually use are listed — try something out of scope and you'll get 403.">ⓘ</span></label>
                                 <select id="con-endpoint" class="select" style="width:100%;"></select>
                             </div>
                             <div>
-                                <label class="form-label" for="con-auth">Authenticate as</label>
+                                <label class="form-label" for="con-auth">Authenticate as <span class="help-ic" title="Your browser session, or paste a real API token to test it before wiring it into a script.">ⓘ</span></label>
                                 <select id="con-auth" class="select" style="width:100%;">
                                     <option value="session">My session (default)</option>
                                     <option value="token">API token (paste below)</option>
                                 </select>
                             </div>
                             <div style="grid-column: span 2;">
-                                <label class="form-label" for="con-token-paste">Pasted API token</label>
+                                <label class="form-label" for="con-token-paste">Pasted API token <span class="help-ic" title="Only needed for 'API token' mode. The paste stays in this field — the secret is sent only in the test request's Authorization header.">ⓘ</span></label>
                                 <input type="password" id="con-token-paste" class="input" style="width:100%;" placeholder="st_… — only needed when using 'API token' auth">
                             </div>
                         </div>
@@ -147,7 +208,7 @@
                         <div id="con-feed-controls" style="margin-top: var(--space-4);">
                             <div style="display:grid; gap: var(--space-3); grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));">
                                 <div>
-                                    <label class="form-label" for="con-fields">fields <span style="font-size:11px; color:var(--color-text-muted);">(comma list)</span></label>
+                                    <label class="form-label" for="con-fields">fields <span class="help-ic" title="Comma list of columns allowed by this feed. Empty = all default columns.">ⓘ</span> <span style="font-size:11px; color:var(--color-text-muted);">(comma list)</span></label>
                                     <input type="text" id="con-fields" class="input" placeholder="email,name,department">
                                 </div>
                                 <div>
@@ -162,7 +223,7 @@
                                     </select>
                                 </div>
                                 <div>
-                                    <label class="form-label" for="con-limit">limit <span style="font-size:11px; color:var(--color-text-muted);">(≤500)</span></label>
+                                    <label class="form-label" for="con-limit">limit <span class="help-ic" title="Rows per page, 1–500 (default 50). Use page + limit to page through large feeds.">ⓘ</span> <span style="font-size:11px; color:var(--color-text-muted);">(≤500)</span></label>
                                     <input type="number" id="con-limit" class="input" value="25" min="1" max="500">
                                 </div>
                                 <div>
@@ -174,7 +235,7 @@
                                 </div>
                             </div>
                             <div style="margin-top: var(--space-3);">
-                                <label class="form-label">Filters <button type="button" class="btn btn-ghost btn-sm" id="con-add-filter">+ add</button></label>
+                                <label class="form-label">Filters <span class="help-ic" title="Exact match (=) or contains (~). Example: name ~ john finds any name containing 'john'. Filter columns are whitelisted per feed.">ⓘ</span> <button type="button" class="btn btn-ghost btn-sm" id="con-add-filter">+ add</button></label>
                                 <div id="con-filter-rows" style="display:grid; gap: var(--space-2); margin-top: var(--space-2);"></div>
                             </div>
                         </div>
@@ -191,27 +252,13 @@
                     </div>
                 </div>
 
-                <!-- ═══ Quick Reference ═══════════════════════════════════════ -->
+                <!-- ═══ Help & Guide ═════════════════════════════════════════ -->
                 <div class="section-header" style="margin-top: var(--space-6);">
-                    <h2 class="section-title">📖 Quick Reference</h2>
+                    <h2 class="section-title">📖 Help &amp; Guide</h2>
+                    <span class="section-count">Quick start, role scope, feed grammar, samples &amp; troubleshooting — also available as an overlay via ❓ Help</span>
                 </div>
                 <div class="card">
-                    <div class="card-body" style="font-size: 13px; line-height: 1.7;">
-                        <p><b>Authenticate</b> — send the token in the <code>Authorization</code> header:</p>
-                        <pre style="background:var(--color-bg-muted); border:1px solid var(--color-border); border-radius:8px; padding:var(--space-4); overflow:auto; max-height:480px; font-size:12px; white-space:pre-wrap; word-break:break-word;">curl -H "Authorization: Bearer st_…" \
-  https://your-host/api/feeds/staff?limit=10&amp;format=csv</pre>
-                        <p><b>Write access</b> — tokens are read-only unless you chose full access at creation. Read-only tokens are rejected with <code>403</code> on any non-GET request. API tokens can never manage other tokens.</p>
-                        <p><b>Data Feed query grammar</b> (all feeds are GET):</p>
-                        <ul style="margin-left: var(--space-5);">
-                            <li><code>?fields=email,name,department</code> — limit columns (whitelisted per feed)</li>
-                            <li><code>?filter[department]=IT</code> — exact match; <code>?filter[name]=~john</code> — substring</li>
-                            <li><code>?sort=name&amp;order=asc</code> — sort by an allowed column</li>
-                            <li><code>?page=2&amp;limit=50</code> — pagination (limit ≤ 500, default 50)</li>
-                            <li><code>?format=csv</code> or <code>Accept: text/csv</code> — CSV export</li>
-                        </ul>
-                        <p><b>Errors</b> — <code>401</code> invalid/expired/revoked token · <code>403</code> read-only token or out-of-scope record · <code>400</code> bad query param (name says which) · <code>429</code> rate limited.</p>
-                        <p><b>Scope</b> — tokens resolve against your live role on every request. If your account is deactivated or demoted, existing tokens stop working immediately. Revoke a token any time from this page; admins can force-revoke any token from the Admin page.</p>
-                    </div>
+                    <div class="card-body" id="help-guide-inline"></div>
                 </div>
             </main>
         </div>
@@ -234,6 +281,20 @@
             </div>
             <div class="modal-footer">
                 <button class="btn btn-secondary" data-close-modal>I've saved it</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ═══ Help & Guide overlay ══════════════════════════════════════════ -->
+    <div class="modal-backdrop" id="help-modal">
+        <div class="modal" role="dialog" aria-modal="true" style="max-width: 880px;">
+            <div class="modal-header">
+                <div class="modal-title">📖 API Access — Help &amp; Guide</div>
+                <button class="modal-close" data-close-modal>✕</button>
+            </div>
+            <div class="modal-body" id="help-modal-body" style="padding: var(--space-5) var(--space-6);"></div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" data-close-modal>Close</button>
             </div>
         </div>
     </div>
