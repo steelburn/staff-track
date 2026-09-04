@@ -627,11 +627,16 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     document.getElementById('tok-create').addEventListener('click', createToken);
 
-    // help & guide — inject the single source into the inline section + overlay modal
+    // help & guide — inject the single source into the inline section + overlay modal.
+    // https://your-host placeholders become the caller's actual origin (https FQDN in
+    // production, localhost:port in dev) so samples are always runnable as-is.
+    const isHttp = typeof location !== 'undefined' && location.protocol && /^https?:$/.test(location.protocol);
+    const guideHost = isHttp ? location.origin : 'https://your-host';
+    const guideHtml = HELP_GUIDE_HTML.split('https://your-host').join(guideHost);
     const inlineGuide = document.getElementById('help-guide-inline');
-    if (inlineGuide) inlineGuide.innerHTML = HELP_GUIDE_HTML;
+    if (inlineGuide) inlineGuide.innerHTML = guideHtml;
     const modalGuide = document.getElementById('help-modal-body');
-    if (modalGuide) modalGuide.innerHTML = HELP_GUIDE_HTML;
+    if (modalGuide) modalGuide.innerHTML = guideHtml;
     buildGuideTables(); // fills the generated endpoint tables in every guide copy
     const btnHelp = document.getElementById('btn-help');
     if (btnHelp) btnHelp.addEventListener('click', () => openModal('help-modal'));
