@@ -282,7 +282,10 @@ router.get('/projects', requireReporterOrManager, async (req, res) => {
         let query = `
       SELECT
         p.id as assignment_id, p.id as id, p.soc, p.project_name, p.customer, p.role, p.start_date, p.end_date as staff_end_date,
-        s.staff_name, s.staff_email, s.department, s.id as submission_id,
+        COALESCE(st.name, s.staff_name) AS staff_name,
+        s.staff_email,
+        COALESCE(st.department, s.department) AS department,
+        s.id as submission_id,
         COALESCE(st.manager_name, s.manager_name) AS manager_name,
         mp.type_infra, mp.type_software, mp.type_infra_support, mp.type_software_support,
         mp.coordinator_email
@@ -372,14 +375,15 @@ router.get('/skills', requireReporterOrManager, async (req, res) => {
             SELECT 
                 sk.skill,
                 sk.rating,
-                s.staff_name,
+                COALESCE(st.name, s.staff_name) AS staff_name,
                 s.staff_email,
-                s.title,
-                s.department,
+                COALESCE(st.title, s.title) AS title,
+                COALESCE(st.department, s.department) AS department,
                 s.id as submission_id
             FROM submission_skills sk
             JOIN submissions s ON sk.submission_id = s.id
             ${activeJoin}
+            LEFT JOIN staff st ON LOWER(st.email) = LOWER(s.staff_email)
         `;
         
         const params = [];
@@ -563,15 +567,16 @@ router.get('/staff-search', requireReporterOrManager, async (req, res) => {
             let query = `
                 SELECT 
                     s.id,
-                    s.staff_name,
+                    COALESCE(st.name, s.staff_name) AS staff_name,
                     s.staff_email,
-                    s.title,
-                    s.department,
-                    s.manager_name,
+                    COALESCE(st.title, s.title) AS title,
+                    COALESCE(st.department, s.department) AS department,
+                    COALESCE(st.manager_name, s.manager_name) AS manager_name,
                     sk.skill,
                     sk.rating
                 FROM submissions s
                 ${activeJoin}
+                LEFT JOIN staff st ON LOWER(st.email) = LOWER(s.staff_email)
                 LEFT JOIN submission_skills sk ON s.id = sk.submission_id
             `;
             
@@ -652,15 +657,16 @@ router.get('/staff-search', requireReporterOrManager, async (req, res) => {
         let query = `
             SELECT 
                 s.id,
-                s.staff_name,
+                COALESCE(st.name, s.staff_name) AS staff_name,
                 s.staff_email,
-                s.title,
-                s.department,
-                s.manager_name,
+                COALESCE(st.title, s.title) AS title,
+                COALESCE(st.department, s.department) AS department,
+                COALESCE(st.manager_name, s.manager_name) AS manager_name,
                 sk.skill,
                 sk.rating
             FROM submissions s
             ${activeJoin}
+            LEFT JOIN staff st ON LOWER(st.email) = LOWER(s.staff_email)
             LEFT JOIN submission_skills sk ON s.id = sk.submission_id
             WHERE ${whereClauses.join(' ')}
             ORDER BY s.staff_name ASC, sk.skill ASC
