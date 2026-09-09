@@ -1,6 +1,6 @@
 import express from 'express';
 import { getDb } from '../db.js';
-import { verifyToken, requireRole } from './auth.js';
+import { verifyToken, requireRole, logAuthEvent } from './auth.js';
 import { v4 as uuidv4 } from 'uuid';
 import axios from 'axios';
 import { logAudit } from '../utils/audit.js';
@@ -709,8 +709,8 @@ router.delete('/staff/:email', verifyToken, requireRole('admin'), async (req, re
 const syncStatus = {
     inProgress: false,
     startedAt: null,
-    phase: '',           // 'login' | 'fetch-details' | 'update-db' | 'deactivate' | 'done' | 'error'
-    percent: 0,          // weighted 0-100 overall progress (login 0-5, fetch 5-65, db 65-95, deactivate 95-100)
+    phase: '',           // 'auth' | 'fetch-details' | 'update-db' | 'deactivate' | 'done' | 'error'
+    percent: 0,          // weighted 0-100 overall progress (auth 0-5, fetch 5-65, db 65-95, deactivate 95-100)
     progress: 0,
     total: 0,
     currentStaff: '',
@@ -756,6 +756,19 @@ async function fetchEmploymentDetail(staff, accessToken, maxAttempts = 3) {
     throw lastErr;
 }
 
+// Resolve the BeeSuite (AppCore) access token captured when this user last
+// logged in to StaffTrack (see auth.js POST /auth/login). Sync actions run
+// under the logged-in operator's OWN BeeSuite identity — not a shared
+// service account. Returns null when the operator has no captured session
+// (e.g. they signed in before this shipped, or they used the 'admin' account).
+async function getBeesuiteTokenFor(db, email) {
+    const [rows] = await db.query(
+        'SELECT access_token FROM beesuite_sessions WHERE email = ?',
+        [String(email || '').toLowerCase()]
+    );
+    return rows.length > 0 ? rows[0].access_token : null;
+}
+
 router.get('/sync-staff/status', verifyToken, requireRole('admin'), async (req, res) => {
     res.json({
         inProgress: syncStatus.inProgress,
@@ -774,10 +787,31 @@ router.post('/sync-staff', verifyToken, requireRole('admin'), async (req, res) =
     if (syncStatus.inProgress) {
         return res.status(409).json({ error: 'Sync already in progress', startedAt: syncStatus.startedAt });
     }
-    
+
+    // Sync runs under the LOGGED-IN operator's own BeeSuite identity (token
+    // captured server-side at their StaffTrack login) instead of a shared
+    // service account. Resolve it up front so we can fail fast with an
+    // actionable message instead of starting a doomed background run.
+    const actorEmail = String(req.user?.email || '').toLowerCase();
+    let db;
+    let accessToken;
+    try {
+        db = await getDb();
+        accessToken = await getBeesuiteTokenFor(db, actorEmail);
+    } catch (err) {
+        console.error('sync-staff: could not resolve BeeSuite session:', err);
+        return res.status(500).json({ error: 'Failed to resolve BeeSuite session: ' + err.message });
+    }
+    if (!accessToken) {
+        return res.status(400).json({
+            error: `No BeeSuite session on record for ${actorEmail}. Sign out and sign back in, then retry the sync.`
+        });
+    }
+    logAuthEvent(db, actorEmail, 'sync_staff_started', true, req);
+
     syncStatus.inProgress = true;
     syncStatus.startedAt = new Date().toISOString();
-    syncStatus.phase = 'login';
+    syncStatus.phase = 'auth';
     syncStatus.percent = 0;
     syncStatus.progress = 0;
     syncStatus.total = 0;
@@ -791,22 +825,8 @@ router.post('/sync-staff', verifyToken, requireRole('admin'), async (req, res) =
     
     setImmediate(async () => {
         try {
-            const db = await getDb();
-            
-            const BEESUITE_EMAIL = process.env.BEESUITE_EMAIL || 'khairulnizam@zen.com.my';
-            const BEESUITE_PASSWORD = process.env.BEESUITE_PASSWORD || 'RXZlcnlvbmUjNzkwMTI0MDY1NDYz';
-            
-            const authResponse = await axios.post(`${BEESUITE_API_BASE}/api/auth/login`, {
-                email: BEESUITE_EMAIL,
-                password: BEESUITE_PASSWORD
-            }, { timeout: 20000 });
-
-            const accessToken = authResponse.data.access_token;
-
-            if (!accessToken) {
-                throw new Error('Failed to authenticate with BeeSuite API');
-            }
-
+            // `accessToken` was resolved up front from the logged-in operator's
+            // own captured BeeSuite session — no shared-account login here.
             const staffResponse = await axios.get(`${BEESUITE_API_BASE}/api/users/staff`, {
                 headers: { 'Authorization': `JWT ${accessToken}` },
                 timeout: 30000
@@ -1028,9 +1048,11 @@ router.post('/sync-staff', verifyToken, requireRole('admin'), async (req, res) =
                 detailFailures: syncStatus.stats.detailFailures,
                 message: `Sync complete: ${added} added, ${updated} updated, ${skipped} skipped (${inactiveSkipped} inactive, ${resignedSkipped} resigned, ${wrongTenantDeactivated} wrong tenant)`
             };
+            logAuthEvent(db, actorEmail, 'sync_staff_completed', true, req);
         } catch (err) {
             syncStatus.phase = 'error';
             syncStatus.result = { success: false, error: err.message };
+            logAuthEvent(db, actorEmail, 'sync_staff_failed', false, req);
         } finally {
             syncStatus.inProgress = false;
         }
@@ -1038,24 +1060,21 @@ router.post('/sync-staff', verifyToken, requireRole('admin'), async (req, res) =
 });
 
 // ── POST /admin/sync-projects-catalog ──────────────────────────────────────
-// Sync projects from BeeSuite AppCore /admin/soc/list endpoint
-const BEESUITE_EMAIL = process.env.BEESUITE_EMAIL || 'khairulnizam@zen.com.my';
-const BEESUITE_PASSWORD = process.env.BEESUITE_PASSWORD || 'RXZlcnlvbmUjNzkwMTI0MDY1NDYz';
-
+// Sync projects from BeeSuite AppCore /admin/soc/list endpoint. Runs under the
+// logged-in operator's own BeeSuite identity (token captured at login) instead
+// of a shared service account.
 router.post('/sync-projects-catalog', verifyToken, requireRole('admin'), async (req, res) => {
     try {
         const db = await getDb();
+        const actorEmail = String(req.user?.email || '').toLowerCase();
 
-        // Authenticate with BeeSuite API
-        const authResponse = await axios.post(`${BEESUITE_API_BASE}/api/auth/login`, {
-            email: BEESUITE_EMAIL,
-            password: BEESUITE_PASSWORD
-        });
-        const accessToken = authResponse.data.access_token;
-
+        const accessToken = await getBeesuiteTokenFor(db, actorEmail);
         if (!accessToken) {
-            throw new Error('Failed to authenticate with BeeSuite API');
+            return res.status(400).json({
+                error: `No BeeSuite session on record for ${actorEmail}. Sign out and sign back in, then retry the sync.`
+            });
         }
+        logAuthEvent(db, actorEmail, 'sync_projects_started', true, req);
 
         // Fetch SOC list from BeeSuite
         const response = await axios.get(`${BEESUITE_API_BASE}/admin/soc/list`, {
@@ -1126,6 +1145,7 @@ router.post('/sync-projects-catalog', verifyToken, requireRole('admin'), async (
         }
 
         console.log(`BeeSuite sync: ${added} added, ${updated} updated, ${unchanged} unchanged, ${skipped} skipped`);
+        logAuthEvent(db, actorEmail, 'sync_projects_completed', true, req);
         res.json({
             success: true,
             message: `Sync complete: ${added} added, ${updated} updated, ${unchanged} unchanged, ${skipped} skipped`,
@@ -1133,6 +1153,7 @@ router.post('/sync-projects-catalog', verifyToken, requireRole('admin'), async (
         });
     } catch (err) {
         console.error('BeeSuite sync error:', err);
+        logAuthEvent(await getDb(), String(req.user?.email || '').toLowerCase(), 'sync_projects_failed', false, req);
         res.status(500).json({ error: 'Failed to sync from BeeSuite: ' + err.message });
     }
 });

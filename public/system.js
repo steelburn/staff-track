@@ -22,7 +22,7 @@ function esc(s) {
 }
 
 const SYNC_PHASE_LABELS = {
-    'login': 'Logging in to BeeSuite…',
+    'auth': 'Preparing sync…',
     'fetch-details': 'Fetching employment details',
     'update-db': 'Updating database',
     'deactivate': 'Deactivating stale accounts',

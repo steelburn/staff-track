@@ -199,13 +199,13 @@ Plus schema changes to `submission_projects`: add `start_date`, `description`, `
 
 #### ✅ Implemented (2026-08-26)
 
-**Source**: BeeSuite AppCore REST (`https://appcore.beesuite.app`), JWT auth via `khairulnizam@zen.com.my`.
+**Source**: BeeSuite AppCore REST (`https://appcore.beesuite.app`). Since 2026-09-08, the Sync actions (`sync-staff`, `sync-projects-catalog`) authenticate as the **logged-in operator**: their BeeSuite access token is captured server-side at StaffTrack login (`beesuite_sessions` table, re-captured on every login) and used for the outbound AppCore calls — no shared `khairulnizam@zen.com.my` service account. If the operator has no captured session, Sync returns a clear "sign out and sign back in" error. (Catalog browsing & empty-DB seeding still use the `BEESUITE_EMAIL`/`BEESUITE_PASSWORD` service account.)
 
 **Staff sync pipeline** — `POST /api/admin/sync-staff` (background), status via `GET /api/admin/sync-staff/status`:
 
 | Phase | Work | Progress weight |
 |:---|:---|:---|
-| `login` | AppCore auth + staff list (`/api/users/staff`, tenant-filtered) | 0–5% |
+| `auth` | Resolve the operator's captured BeeSuite session + staff list (`/api/users/staff`, tenant-filtered) | 0–5% |
 | `fetch-details` | **Bulk**: single ZCS DreamFactory query (`/_table/user_info`, latest record per user — manager GUID→name + PROPERTIES_XML `dateOfResignation`) ~0.3s. Fallback: per-staff AppCore (`/api/admin/user-info-details/employment-detail/{id}`) — **8-worker parallel pool**, 15s timeout, 3 attempts w/ 400ms×n backoff — for staff the bulk dump misses or if the bulk call fails | 5–65% |
 | `update-db` | Sequential upserts: `staff` (name, title, department, manager_name) + `user_roles` (is_active reactivation) | 65–95% |
 | `deactivate` | `user_roles.is_active=0` for wrong-tenant / non-Active / resigned staff | 96–100% |

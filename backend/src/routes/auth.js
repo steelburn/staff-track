@@ -317,6 +317,26 @@ router.post('/login', async (req, res) => {
             }
         }
 
+        // Capture this user's BeeSuite access token (returned by the AppCore login
+        // above) so admin Sync actions run under the LOGGED-IN user's own identity
+        // instead of a shared service account. Re-captured on every login, so a
+        // stale/expired session is refreshed simply by signing back in. Skipped for
+        // the bootstrap 'admin' account, which has no BeeSuite identity.
+        const beesuiteAccessToken = user.access_token || user.token || null;
+        if (beesuiteAccessToken) {
+            try {
+                const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
+                await db.query(
+                    `INSERT INTO beesuite_sessions (email, access_token, captured_at)
+                     VALUES (?, ?, ?)
+                     ON DUPLICATE KEY UPDATE access_token = VALUES(access_token), captured_at = VALUES(captured_at)`,
+                    [String(email).toLowerCase(), beesuiteAccessToken, now]
+                );
+            } catch (tokenErr) {
+                console.error('Failed to store BeeSuite session for', email, '-', tokenErr.message);
+            }
+        }
+
         const { role, is_hr, is_coordinator } = roles[0];
         const isAdmin = role === 'admin';
 
