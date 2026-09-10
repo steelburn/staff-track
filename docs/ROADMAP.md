@@ -316,6 +316,23 @@ placeholder with the caller's live origin at render time.
 `/cv-profiles/{email}/certifications/bundle`; `generate` is documented as
 render-only (persisting is a separate `POST …/snapshots`).
 
+### 🖥️ Full-Screen Analysis Mode — ✅ COMPLETED (2026-09-10)
+
+Projector-friendly presentation of the two management analysis pages
+(`reporting.html`, `dept-project-map.html`):
+
+- **⛶ Full screen button** in each page header, backed by a shared
+`public/fullscreen.js` (`FullscreenToggle`) with vendor-prefixed probes,
+`fullscreenchange` sync (Escape included), a transient toast when the browser
+blocks the request, and the button hidden on unsupported browsers.
+- **Sidebar hidden while full screen**; a compact **Dashboard / Dept × Project**
+switcher takes its place in the header. The switcher is derived from the
+rendered sidebar DOM, so it inherits each role's existing page permissions.
+- **In-place page switching**: a real navigation would drop full screen, so the
+sibling page is loaded in an iframe (`.fs-embed`) with the host header pinned as
+a slim switcher bar and the frame filling the rest. Leaving full screen adopts
+the page that was shown, and the reporting `?dept=` scope is preserved.
+
 ## Confirmed Prioritization
 
 | Priority | Feature | Effort | Status |

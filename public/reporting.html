@@ -4,8 +4,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script>if (window.self !== window.top) document.documentElement.classList.add('embedded');</script>
     <title>StaffTrack — Reporting Dashboard</title>
-    <link rel="stylesheet" href="/css/main.css?v=20260826b">
+    <link rel="stylesheet" href="/css/main.css?v=20260911d">
     <script src="/theme.js?v=20260826a"></script>
     <style>
         /* ── Dashboard layout ─────────────────────────────────────────── */
@@ -578,13 +579,23 @@
             <!-- Page Header -->
             <header class="page-header">
                 <div class="page-header-top">
-                    <div style="display:flex; align-items:center; gap:12px;">
+                    <div class="page-title-group" style="display:flex; align-items:center; gap:12px;">
                         <button class="mobile-menu-btn" id="mobileMenuBtn">☰</button>
                         <div>
                             <h1 class="page-title">Reporting Dashboard</h1>
                             <p class="page-subtitle">Organisation-wide KPIs for management — drill down by department</p>
                         </div>
                     </div>
+                    <nav class="fs-nav" id="fs-nav" aria-label="Switch analysis view" hidden>
+                        <a class="fs-nav-item" href="/reporting.html">
+                            <span aria-hidden="true">📈</span><span>Dashboard</span>
+                        </a>
+                        <a class="fs-nav-item" href="/dept-project-map.html">
+                            <span aria-hidden="true">🗺️</span><span>Dept × Project</span>
+                        </a>
+                        <button type="button" class="fs-nav-exit" data-fs-exit
+                                title="Exit full screen" aria-label="Exit full screen"><span aria-hidden="true">🗗</span></button>
+                    </nav>
                     <div class="page-actions">
                         <span class="badge badge-info" id="scope-banner" hidden></span>
                         <select id="dept-select" class="input select" style="width: 280px; flex: none;" hidden
@@ -598,6 +609,12 @@
                             </span>
                             <span class="toggle-label">Include inactive</span>
                         </label>
+                        <button class="btn btn-secondary" id="fullscreen-toggle" data-fullscreen-toggle
+                                type="button" aria-pressed="false" title="Enter full screen"
+                                aria-label="Enter full screen">
+                            <span class="fs-icon" aria-hidden="true">⛶</span>
+                            <span class="fs-label">Full screen</span>
+                        </button>
                         <button class="btn btn-secondary" id="theme-toggle" data-theme-toggle>
                             <span class="theme-icon">🌙</span>
                             <span class="theme-label">Dark</span>
@@ -755,7 +772,8 @@
     <script src="/sidebar.js?v=20260826b"></script>
     <script src="/toast.js?v=20260826b"></script>
     <script src="/vendor/echarts.min.js?v=20260826b"></script>
-    <script src="/reporting.js?v=20260910e"></script>
+    <script src="/fullscreen.js?v=20260911d"></script>
+    <script src="/reporting.js?v=20260911d"></script>
 </body>
 
 </html>

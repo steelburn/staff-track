@@ -41,6 +41,7 @@ docker compose up -d
 - **Smart Autocomplete**: Dynamic search for Staff and Projects.
 - **Modern UI**: Segmented tab designs, smooth transitions, and a premium dark aesthetic.
 - **Mobile Responsive**: Optimized for various screen sizes with responsive grids and scrollable table containers.
+- **Full-Screen Analysis Mode**: The management dashboard (`reporting.html`) and Department × Project analysis (`dept-project-map.html`) can go full screen (⛶) for projector-friendly reporting. While full screen the sidebar is replaced by a compact **Dashboard / Dept × Project** switcher that mirrors each user's permissions and swaps pages in place, so you never drop out of full screen.
  - **Self-Service Administration**: Dedicated pages for permission management, catalog maintenance, and bulk data imports.
 - **CV Profiles**: Individual staff CV management with sections for personal info, education, certifications, work history, and past projects.
   - **Certification Proof Attachments**: Upload and attach PDF/image proof documents to certifications and education entries.
@@ -65,6 +66,7 @@ docker compose up -d
   - `catalog.html`: Global staff and project record maintenance.
   - `system.html`: BeeSuite staff/project sync cards, skill consolidation, and system stats.
   - `reporting.html`: Management reporting dashboard — org KPIs (headcount, team structure, profile completeness, skills, projects, certs, activity). Full org for Admin/HR/coordinator; subordinates (direct + indirect) for managers; 403 otherwise.
+  - `dept-project-map.html`: Department × Project analysis — linked pie charts + treemap (assignments by department, project type, employment type) with drill-down to the staff list. Same access as `reporting.html`; both analysis pages support full-screen mode with an in-place page switcher.
 - **Standard Pages**:
   - `index.html`: My Submission / Home.
   - `cv-profile.html`: CV profile management.

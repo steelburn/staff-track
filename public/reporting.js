@@ -26,6 +26,10 @@ document.addEventListener('DOMContentLoaded', () => {
     if (typeof ThemeManager !== 'undefined') {
         ThemeManager.updateToggleButtons();
     }
+    // Initialize fullscreen toggle (page-level)
+    if (typeof FullscreenToggle !== 'undefined') {
+        FullscreenToggle.init();
+    }
     // Initialize toast
     if (typeof Toast !== 'undefined') {
         Toast.init();

@@ -89,3 +89,12 @@ docker compose down
   - New **📖 API Docs** header button opens `/api-docs.json` on the same origin.
 - **README.md**: added “Machine-readable API reference” section describing `public/api-docs.json`, its served URL, and the sync rule with the console catalog.
 - **docs/ROADMAP.md**: expanded the “Self-Service API Access — ✅ COMPLETED” entry with the post-feature additions above.
+
+## Recent Updates (September 10, 2026)
+- **Full-screen analysis mode (Dashboard + Department × Project)**:
+  - New shared helper `public/fullscreen.js` exposes a global `FullscreenToggle`: browser Fullscreen API with vendor-prefixed probes, `fullscreenchange` sync (Escape included), a transient toast when the browser blocks the request, and the button hidden on unsupported browsers.
+  - `reporting.html` and `dept-project-map.html` gained a **⛶ Full screen** header button. The whole document is the fullscreen target (not just the content pane), so drawers and toasts stay usable.
+  - While full screen the sidebar is hidden and the page header shows a compact **Dashboard / Dept × Project** switcher that mirrors the sidebar's permission gating — managers without org-wide access never see a dead tab.
+  - Switching pages *inside* full screen loads the sibling page in an iframe (`.fs-embed`) with the host header pinned as a slim switcher bar, because a real navigation would drop full screen. Leaving full screen adopts the page that was shown, and the reporting `?dept=` scope is preserved.
+- **README.md**: added the `dept-project-map.html` management page and a Full-Screen Analysis Mode key-feature entry.
+- **docs/ROADMAP.md**: added the completed “Full-Screen Analysis Mode” entry.
