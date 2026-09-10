@@ -343,6 +343,162 @@
             line-height: 1;
         }
 
+        /* ── Employment drill-down drawer (slides in from the right) ───── */
+        .dash-drawer-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(15, 23, 42, 0.45);
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.28s ease;
+            z-index: var(--z-modal-backdrop);
+        }
+
+        .dash-drawer-overlay.open {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        .dash-drawer {
+            position: fixed;
+            top: 0;
+            right: 0;
+            height: 100dvh;
+            width: min(440px, 94vw);
+            display: flex;
+            flex-direction: column;
+            background: var(--color-bg-surface);
+            border-left: 1px solid var(--color-border);
+            box-shadow: -12px 0 32px rgba(15, 23, 42, 0.18);
+            transform: translateX(100%);
+            visibility: hidden;
+            transition: transform 0.28s cubic-bezier(0.22, 0.61, 0.36, 1), visibility 0.28s;
+            z-index: var(--z-modal);
+        }
+
+        .dash-drawer.open {
+            transform: translateX(0);
+            visibility: visible;
+        }
+
+        .dash-drawer-head {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: var(--space-3);
+            padding: var(--space-5);
+            border-bottom: 1px solid var(--color-border);
+        }
+
+        .dash-drawer-kind {
+            font-size: var(--font-size-xs);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--color-text-muted);
+        }
+
+        .dash-drawer-title {
+            margin: 2px 0 0;
+            font-size: 1.25rem;
+            color: var(--color-text-primary);
+        }
+
+        .dash-drawer-sub {
+            margin-top: 2px;
+            font-size: var(--font-size-sm);
+            color: var(--color-text-secondary);
+        }
+
+        .dash-drawer-close {
+            flex: none;
+            background: transparent;
+            border: none;
+            font-size: 1.5rem;
+            line-height: 1;
+            color: var(--color-text-muted);
+            cursor: pointer;
+            padding: 0 4px;
+            border-radius: var(--radius-md);
+        }
+
+        .dash-drawer-close:hover {
+            color: var(--color-text-primary);
+        }
+
+        .dash-drawer-search {
+            padding: var(--space-3) var(--space-5);
+            border-bottom: 1px solid var(--color-border);
+        }
+
+        .dash-drawer-search input {
+            width: 100%;
+        }
+
+        .dash-drawer-body {
+            flex: 1;
+            overflow-y: auto;
+            padding: var(--space-2) var(--space-3);
+        }
+
+        .dash-drawer-empty {
+            padding: var(--space-5);
+            color: var(--color-text-muted);
+            font-size: var(--font-size-sm);
+        }
+
+        .emp-list {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .emp-row {
+            display: flex;
+            align-items: center;
+            gap: var(--space-3);
+            padding: var(--space-3);
+            border-bottom: 1px solid var(--color-border);
+            border-radius: var(--radius-md);
+            text-decoration: none;
+            color: inherit;
+        }
+
+        .emp-row:last-child {
+            border-bottom: none;
+        }
+
+        .emp-row:hover {
+            background: var(--color-bg-muted);
+        }
+
+        .emp-row-main {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .emp-row-name {
+            color: var(--color-primary);
+            font-size: var(--font-size-sm);
+            font-weight: var(--font-weight-semibold);
+        }
+
+        .emp-row-meta {
+            margin-top: 1px;
+            color: var(--color-text-secondary);
+            font-size: var(--font-size-xs);
+            line-height: 1.35;
+        }
+
+        .emp-pill {
+            flex: none;
+            padding: 2px 9px;
+            border: 1px solid var(--color-border);
+            border-radius: var(--radius-full);
+            font-size: 0.66rem;
+            background: var(--color-bg-muted);
+            color: var(--color-text-secondary);
+            white-space: nowrap;
+        }
+
         @media (max-width: 768px) {
             .bar-row {
                 grid-template-columns: minmax(90px, 1fr) 1.8fr 40px;
@@ -436,6 +592,24 @@
                         <!-- KPI row -->
                         <div class="kpi-row" id="dash-kpis"></div>
 
+                        <!-- Workforce composition: employment type + status -->
+                        <div class="dash-grid" id="dash-employment-grid">
+                            <section class="dash-card" id="dash-employment-type-card">
+                                <div class="dash-card-header">
+                                    <h2>Employment type</h2>
+                                    <span class="dash-muted">Permanent · Contract · Temporary · other</span>
+                                </div>
+                                <div id="chart-employment-type" class="chart-box chart-lg"></div>
+                            </section>
+                            <section class="dash-card" id="dash-employment-status-card">
+                                <div class="dash-card-header">
+                                    <h2>Employment status</h2>
+                                    <span class="dash-muted">Confirmed · Probation · Terminated</span>
+                                </div>
+                                <div id="chart-employment-status" class="chart-box chart-lg"></div>
+                            </section>
+                        </div>
+
                         <!-- Team structure -->
                         <section class="dash-card" id="dash-org-card">
                             <div class="dash-card-header">
@@ -517,6 +691,25 @@
         </div>
     </div>
 
+    <!-- Employment drill-down drawer (slides in from the right) -->
+    <div class="dash-drawer-overlay" id="dash-drawer-overlay"></div>
+    <aside class="dash-drawer" id="emp-drawer" role="dialog" aria-modal="true"
+           aria-labelledby="emp-drawer-title" aria-hidden="true">
+        <div class="dash-drawer-head">
+            <div>
+                <div class="dash-drawer-kind" id="emp-drawer-kind">Employment type</div>
+                <h2 class="dash-drawer-title" id="emp-drawer-title">—</h2>
+                <div class="dash-drawer-sub" id="emp-drawer-sub"></div>
+            </div>
+            <button class="dash-drawer-close" id="emp-drawer-close" type="button" title="Close" aria-label="Close">×</button>
+        </div>
+        <div class="dash-drawer-search">
+            <input type="search" id="emp-drawer-search" class="input"
+                   placeholder="Search name, department or title…" autocomplete="off">
+        </div>
+        <div class="dash-drawer-body" id="emp-drawer-body"></div>
+    </aside>
+
     <!-- Toast Container -->
     <div id="toast-container" class="toast-container"></div>
 
@@ -525,7 +718,7 @@
     <script src="/sidebar.js?v=20260826b"></script>
     <script src="/toast.js?v=20260826b"></script>
     <script src="/vendor/echarts.min.js?v=20260826b"></script>
-    <script src="/reporting.js?v=20260903c"></script>
+    <script src="/reporting.js?v=20260910e"></script>
 </body>
 
 </html>

@@ -860,13 +860,20 @@ router.post('/sync-staff', verifyToken, requireRole('admin'), async (req, res) =
                 return (v && !/^invalid/i.test(v)) ? v : null;
             };
 
+            // Normalise a BeeSuite employment field (type/status): trim blanks and
+            // the literal "Invalid Date" sentinels to null so the UI shows Unspecified.
+            const normEmpField = (v) => {
+                const s = v == null ? '' : String(v).trim();
+                return (s && !/^invalid/i.test(s)) ? s : null;
+            };
+
             let unmatchedStaff = filteredStaffList;
             if (ZCS_API_KEY) {
                 try {
                     const dfRes = await axios.get(`${ZCS_API_BASE}/_table/user_info`, {
                         headers: { 'X-DreamFactory-API-Key': ZCS_API_KEY },
                         params: {
-                            fields: 'USER_INFO_GUID,USER_GUID,FULLNAME,MANAGER_USER_GUID,RESIGNATION_DATE,UPDATE_TS,PROPERTIES_XML',
+                            fields: 'USER_INFO_GUID,USER_GUID,FULLNAME,MANAGER_USER_GUID,RESIGNATION_DATE,UPDATE_TS,PROPERTIES_XML,EMPLOYEE_TYPE,EMPLOYEE_STATUS',
                             limit: 2000
                         },
                         timeout: 60000
@@ -891,13 +898,18 @@ router.post('/sync-staff', verifyToken, requireRole('admin'), async (req, res) =
                             const mgrGuid = rec.MANAGER_USER_GUID;
                             const detail = {
                                 reportingToName: (mgrGuid && latestByUser.get(mgrGuid)?.FULLNAME) || null,
-                                dateOfResignation: xmlResignationDate(rec.PROPERTIES_XML) || rec.RESIGNATION_DATE || null
+                                dateOfResignation: xmlResignationDate(rec.PROPERTIES_XML) || rec.RESIGNATION_DATE || null,
+                                employeeType: normEmpField(rec.EMPLOYEE_TYPE),
+                                employeeStatus: normEmpField(rec.EMPLOYEE_STATUS)
                             };
-                            if (detail.reportingToName || detail.dateOfResignation) {
+                            const hasManagerInfo = !!(detail.reportingToName || detail.dateOfResignation);
+                            if (hasManagerInfo || detail.employeeType || detail.employeeStatus) {
                                 details.set(staff.email.toLowerCase(), detail);
-                            } else {
-                                unmatchedStaff.push(staff); // nothing usable — let AppCore try
                             }
+                            // AppCore is the fallback for manager/resignation when the
+                            // bulk row can't supply it; keep any employment fields the
+                            // bulk row already gave us by merging (not replacing) below.
+                            if (!hasManagerInfo) unmatchedStaff.push(staff);
                         }
                     }
                 } catch (err) {
@@ -920,7 +932,17 @@ router.post('/sync-staff', verifyToken, requireRole('admin'), async (req, res) =
                     syncStatus.percent = 5 + Math.round((syncStatus.progress / Math.max(syncStatus.total, 1)) * 60);
                     try {
                         const detail = await fetchEmploymentDetail(staff, accessToken);
-                        if (detail) details.set(staff.email.toLowerCase(), detail);
+                        if (detail) {
+                            // Merge over any bulk-derived fields so an AppCore response
+                            // that omits type/status doesn't wipe what the bulk query found.
+                            const key = staff.email.toLowerCase();
+                            const prev = details.get(key) || {};
+                            const merged = { ...prev };
+                            for (const [k, v] of Object.entries(detail)) {
+                                if (v !== null && v !== undefined && v !== '') merged[k] = v;
+                            }
+                            details.set(key, merged);
+                        }
                     } catch (err) {
                         syncStatus.stats.detailFailures++;
                         if (syncStatus.errors.length < 100) {
@@ -953,10 +975,14 @@ router.post('/sync-staff', verifyToken, requireRole('admin'), async (req, res) =
 
                     const emp = details.get(email.toLowerCase());
                     let managerName = null;
+                    let employeeType = null;
+                    let employeeStatus = null;
                     let isResigned = false;
 
                     if (emp) {
                         managerName = emp.reportingToName || null;
+                        employeeType = emp.employeeType || null;
+                        employeeStatus = emp.employeeStatus || null;
 
                         if (emp.dateOfResignation && emp.dateOfResignation !== 'Invalid Date' && emp.dateOfResignation !== 'Invalid date') {
                             const resDate = new Date(emp.dateOfResignation);
@@ -989,12 +1015,14 @@ router.post('/sync-staff', verifyToken, requireRole('admin'), async (req, res) =
                     }
 
                     if (existing.length > 0) {
-                        await db.query('UPDATE staff SET name = ?, title = ?, department = ?, manager_name = ? WHERE email = ?',
-                            [name, title, department, managerName, email]);
+                        // COALESCE keeps the stored type/status when BeeSuite returns a
+                        // blank (common — ~9% of records) instead of wiping known data.
+                        await db.query('UPDATE staff SET name = ?, title = ?, department = ?, manager_name = ?, employee_type = COALESCE(?, employee_type), employee_status = COALESCE(?, employee_status) WHERE email = ?',
+                            [name, title, department, managerName, employeeType, employeeStatus, email]);
                         updated++;
                     } else {
-                        await db.query('INSERT INTO staff (email, name, title, department, manager_name) VALUES (?, ?, ?, ?, ?)',
-                            [email, name, title, department, managerName]);
+                        await db.query('INSERT INTO staff (email, name, title, department, manager_name, employee_type, employee_status) VALUES (?, ?, ?, ?, ?, ?, ?)',
+                            [email, name, title, department, managerName, employeeType, employeeStatus]);
                         added++;
                     }
 

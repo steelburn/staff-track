@@ -35,15 +35,24 @@ async function syncUserFromBeeSuite(db, email, beesuiteToken) {
             return null;
         }
 
-        // Fetch employment detail for manager info
+        // Fetch employment detail for manager + employment type/status
         let managerName = null;
+        let employeeType = null;
+        let employeeStatus = null;
         try {
             const empRes = await axios.get(
                 `${BEESUITE_API_BASE}/api/admin/user-info-details/employment-detail/${staffId}`,
                 { headers: { 'Authorization': `JWT ${beesuiteToken}` } }
             );
             if (empRes.data?.employmentDetail) {
-                managerName = empRes.data.employmentDetail.reportingToName;
+                const ed = empRes.data.employmentDetail;
+                managerName = ed.reportingToName || null;
+                const clean = (v) => {
+                    const s = v == null ? '' : String(v).trim();
+                    return (s && !/^invalid/i.test(s)) ? s : null;
+                };
+                employeeType = clean(ed.employmentType);
+                employeeStatus = clean(ed.employmentStatus);
             }
         } catch (empErr) {
             console.log(`Auto-sync: could not fetch employment detail for ${email}:`, empErr.message);
@@ -55,14 +64,14 @@ async function syncUserFromBeeSuite(db, email, beesuiteToken) {
         const [existingStaff] = await db.query('SELECT email FROM staff WHERE email = ?', [email]);
         if (existingStaff.length === 0) {
             await db.query(
-                'INSERT INTO staff (email, name, title, department, manager_name) VALUES (?, ?, ?, ?, ?)',
-                [email, name, title, department, managerName]
+                'INSERT INTO staff (email, name, title, department, manager_name, employee_type, employee_status) VALUES (?, ?, ?, ?, ?, ?, ?)',
+                [email, name, title, department, managerName, employeeType, employeeStatus]
             );
             console.log(`Auto-sync: created staff record for ${email}`);
         } else {
             await db.query(
-                'UPDATE staff SET name = ?, title = ?, department = ?, manager_name = ? WHERE email = ?',
-                [name, title, department, managerName, email]
+                'UPDATE staff SET name = ?, title = ?, department = ?, manager_name = ?, employee_type = COALESCE(?, employee_type), employee_status = COALESCE(?, employee_status) WHERE email = ?',
+                [name, title, department, managerName, employeeType, employeeStatus, email]
             );
         }
 

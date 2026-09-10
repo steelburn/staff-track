@@ -144,6 +144,29 @@
             position: relative;
         }
 
+        .dmap-chart-wrap {
+            position: relative;
+        }
+
+        /* Shown over the treemap when active filters exclude every tile. */
+        .dmap-chart-empty {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            padding: var(--space-6);
+            color: var(--color-text-secondary);
+            text-align: center;
+            pointer-events: none;
+        }
+
+        .dmap-chart-empty[hidden] {
+            display: none !important;
+        }
+
         /* ── View tabs (By Department / By Team / By Individual) ────────── */
         .dmap-tabs {
             display: inline-flex;
@@ -173,6 +196,62 @@
         .dmap-tab.active {
             background: var(--color-primary);
             color: var(--color-text-inverse);
+        }
+
+        /* ── Treemap tools: view tabs + individual-staff search ─────────── */
+        .dmap-treemap-tools {
+            display: flex;
+            align-items: center;
+            gap: var(--space-3);
+            flex-wrap: wrap;
+        }
+
+        .dmap-staff-search {
+            position: relative;
+            flex: 0 1 220px;
+            min-width: 170px;
+            max-width: 260px;
+        }
+
+        .dmap-staff-search .input {
+            width: 100%;
+            height: 30px;
+            /* keep room for the clear button on the right */
+            padding-right: 30px;
+        }
+
+        .dmap-staff-search-clear {
+            position: absolute;
+            right: 6px;
+            top: 50%;
+            transform: translateY(-50%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 18px;
+            height: 18px;
+            padding: 0;
+            border: none;
+            border-radius: var(--radius-full);
+            background: var(--color-bg-muted);
+            color: var(--color-text-muted);
+            font-size: 10px;
+            line-height: 1;
+            cursor: pointer;
+        }
+
+        .dmap-staff-search-clear:hover {
+            background: var(--color-bg-hover);
+            color: var(--color-text-primary);
+        }
+
+        .dmap-staff-search-clear[hidden] {
+            display: none !important;
+        }
+
+        .dmap-staff-search.is-active .input {
+            border-color: var(--color-primary);
+            box-shadow: 0 0 0 3px var(--color-primary-light);
         }
 
         /* ── Filter chips ───────────────────────────────────────────────── */
@@ -319,6 +398,201 @@
             white-space: nowrap;
         }
 
+        /* Dynamic employment-type legend for the treemap tooltip codes
+           (P = Permanent, C = Contract, …). Populated from the live data. */
+        .dmap-emp-legend {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: var(--space-2) var(--space-4);
+            padding: var(--space-2) var(--space-4) var(--space-3);
+            border-top: 1px solid var(--color-border);
+            font-size: var(--font-size-xs);
+            color: var(--color-text-muted);
+        }
+
+        .dmap-emp-legend[hidden] {
+            display: none;
+        }
+
+        .dmap-emp-key {
+            display: inline;
+            white-space: nowrap;
+        }
+
+        .dmap-emp-code {
+            display: inline-block;
+            min-width: 16px;
+            height: 16px;
+            padding: 0 4px;
+            border-radius: var(--radius-sm);
+            background: var(--color-bg-muted);
+            color: var(--color-text-secondary);
+            font-weight: var(--font-weight-semibold);
+            font-size: 10px;
+            line-height: 16px;
+            text-align: center;
+            vertical-align: middle;
+        }
+
+        /* ── People drawer (pie slice → staff list) ────────────────────────
+           Same right slide-in drawer as the reporting Dashboard, but NON-MODAL:
+           no backdrop, so the pies / chips / treemap stay clickable while it is
+           open (this page is a linked explorer). Closes via ✕ or Escape. */
+        .dmap-drawer {
+            position: fixed;
+            top: 0;
+            right: 0;
+            height: 100dvh;
+            width: min(420px, 94vw);
+            display: flex;
+            flex-direction: column;
+            background: var(--color-bg-surface);
+            border-left: 1px solid var(--color-border);
+            box-shadow: -12px 0 32px rgba(15, 23, 42, 0.18);
+            transform: translateX(100%);
+            visibility: hidden;
+            transition: transform 0.28s cubic-bezier(0.22, 0.61, 0.36, 1), visibility 0.28s;
+            z-index: var(--z-modal);
+        }
+
+        [data-theme="dark"] .dmap-drawer {
+            box-shadow: -12px 0 32px rgba(0, 0, 0, 0.5);
+        }
+
+        .dmap-drawer.open {
+            transform: translateX(0);
+            visibility: visible;
+        }
+
+        /* Keep the explorer usable while the drawer is open: on wide screens
+           shrink the page content so pies, chips and the treemap never sit
+           underneath the drawer. Charts are resized from JS (open/closeDrawer).
+           Narrow screens fall back to the overlay behaviour. */
+        @media (min-width: 1100px) {
+            body.dmap-drawer-open #dmap-content {
+                padding-right: calc(min(420px, 94vw) + var(--space-4));
+            }
+        }
+
+        .dmap-drawer-head {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: var(--space-3);
+            padding: var(--space-5);
+            border-bottom: 1px solid var(--color-border);
+        }
+
+        .dmap-drawer-kind {
+            font-size: var(--font-size-xs);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--color-text-muted);
+        }
+
+        .dmap-drawer-title {
+            margin: 2px 0 0;
+            font-size: 1.25rem;
+            color: var(--color-text-primary);
+        }
+
+        .dmap-drawer-sub {
+            margin-top: 2px;
+            font-size: var(--font-size-sm);
+            color: var(--color-text-secondary);
+        }
+
+        .dmap-drawer-close {
+            flex: none;
+            background: transparent;
+            border: none;
+            font-size: 1.5rem;
+            line-height: 1;
+            color: var(--color-text-muted);
+            cursor: pointer;
+            padding: 0 4px;
+            border-radius: var(--radius-md);
+        }
+
+        .dmap-drawer-close:hover {
+            color: var(--color-text-primary);
+        }
+
+        .dmap-drawer-search {
+            padding: var(--space-3) var(--space-5);
+            border-bottom: 1px solid var(--color-border);
+        }
+
+        .dmap-drawer-search input {
+            width: 100%;
+        }
+
+        .dmap-drawer-body {
+            flex: 1;
+            overflow-y: auto;
+            padding: var(--space-2) var(--space-3);
+        }
+
+        .dmap-drawer-empty {
+            padding: var(--space-5);
+            color: var(--color-text-muted);
+            font-size: var(--font-size-sm);
+        }
+
+        .dmap-dlist {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .dmap-drow {
+            display: flex;
+            align-items: center;
+            gap: var(--space-3);
+            padding: var(--space-3);
+            border-bottom: 1px solid var(--color-border);
+            border-radius: var(--radius-md);
+            text-decoration: none;
+            color: inherit;
+        }
+
+        .dmap-drow:last-child {
+            border-bottom: none;
+        }
+
+        .dmap-drow:hover {
+            background: var(--color-bg-hover);
+        }
+
+        .dmap-drow-main {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .dmap-drow-name {
+            color: var(--color-primary);
+            font-size: var(--font-size-sm);
+            font-weight: var(--font-weight-semibold);
+        }
+
+        .dmap-drow-meta {
+            margin-top: 1px;
+            color: var(--color-text-secondary);
+            font-size: var(--font-size-xs);
+            line-height: 1.35;
+        }
+
+        .dmap-dpill {
+            flex: none;
+            padding: 2px 9px;
+            border: 1px solid var(--color-border);
+            border-radius: var(--radius-full);
+            font-size: 0.66rem;
+            background: var(--color-bg-muted);
+            color: var(--color-text-secondary);
+            white-space: nowrap;
+        }
+
         /* ── Empty state ────────────────────────────────────────────────── */
         .dmap-empty {
             display: flex;
@@ -425,16 +699,23 @@
                             <section class="dmap-card">
                                 <div class="dmap-card-head">
                                     <h2>Assignments by department</h2>
-                                    <span class="dmap-hint">click a slice to filter the treemap</span>
+                                    <span class="dmap-hint">click a slice to filter the treemap + list its staff</span>
                                 </div>
                                 <div id="chart-depts-pie" class="dmap-chart dmap-chart-md"></div>
                             </section>
                             <section class="dmap-card">
                                 <div class="dmap-card-head">
                                     <h2>Assignments by project type</h2>
-                                    <span class="dmap-hint">click a slice to filter the treemap</span>
+                                    <span class="dmap-hint">click a slice to filter the treemap + list its staff</span>
                                 </div>
                                 <div id="chart-types-pie" class="dmap-chart dmap-chart-md"></div>
+                            </section>
+                            <section class="dmap-card">
+                                <div class="dmap-card-head">
+                                    <h2>Assignments by employment type</h2>
+                                    <span class="dmap-hint">Permanent · Contract · Temporary · other — click to filter the treemap + list staff</span>
+                                </div>
+                                <div id="chart-employment-pie" class="dmap-chart dmap-chart-md"></div>
                             </section>
                         </div>
 
@@ -445,14 +726,31 @@
                                     <h2>Projects treemap</h2>
                                     <span class="dmap-hint" id="treemap-hint">tile size = staff assigned · click a department tile to filter, a project tile for the staff list</span>
                                 </div>
-                                <div class="dmap-tabs" id="dmap-tabs">
-                                    <button class="dmap-tab active" data-view="dept">By Department</button>
-                                    <button class="dmap-tab" data-view="team">By Team</button>
-                                    <button class="dmap-tab" data-view="person">By Individual</button>
+                                <div class="dmap-treemap-tools">
+                                    <div class="dmap-tabs" id="dmap-tabs">
+                                        <button class="dmap-tab active" data-view="dept">By Department</button>
+                                        <button class="dmap-tab" data-view="team">By Team</button>
+                                        <button class="dmap-tab" data-view="person">By Individual</button>
+                                    </div>
+                                    <div class="search-box dmap-staff-search">
+                                        <span class="search-icon" aria-hidden="true">🔍</span>
+                                        <input type="text" id="dmap-staff-search" class="input input-sm"
+                                            placeholder="Search staff…" autocomplete="off" spellcheck="false"
+                                            aria-label="Filter the treemap by individual staff">
+                                        <button type="button" class="dmap-staff-search-clear" id="dmap-staff-search-clear"
+                                            hidden aria-label="Clear staff search" title="Clear staff search">✕</button>
+                                    </div>
                                 </div>
                                 <div class="dmap-chips" id="dmap-chips"></div>
                             </div>
-                            <div id="chart-treemap" class="dmap-chart dmap-chart-lg"></div>
+                            <div class="dmap-chart-wrap">
+                                <div id="chart-treemap" class="dmap-chart dmap-chart-lg"></div>
+                                <div class="dmap-chart-empty" id="treemap-empty" hidden>
+                                    <span class="dmap-empty-icon">🔍</span>
+                                    <span id="treemap-empty-text">No projects match the current filters.</span>
+                                </div>
+                            </div>
+                            <div class="dmap-emp-legend" id="treemap-emp-legend" hidden></div>
                             <div class="dmap-panel" id="dmap-panel" hidden>
                                 <div class="dmap-panel-head">
                                     <span class="dmap-panel-kind" id="dmap-panel-kind">Assignment</span>
@@ -476,6 +774,26 @@
         </div>
     </div>
 
+    <!-- People drawer: opened by clicking a pie slice. Non-modal (no backdrop)
+         so the pies / chips / treemap stay usable while it is open. -->
+    <aside class="dmap-drawer" id="dmap-drawer" role="dialog" aria-modal="false"
+        aria-labelledby="dmap-drawer-title" aria-hidden="true">
+        <div class="dmap-drawer-head">
+            <div>
+                <div class="dmap-drawer-kind" id="dmap-drawer-kind">Department</div>
+                <h2 class="dmap-drawer-title" id="dmap-drawer-title">—</h2>
+                <div class="dmap-drawer-sub" id="dmap-drawer-sub"></div>
+            </div>
+            <button class="dmap-drawer-close" id="dmap-drawer-close" type="button" title="Close" aria-label="Close">×</button>
+        </div>
+        <div class="dmap-drawer-search">
+            <input type="text" id="dmap-drawer-search" class="input input-sm"
+                placeholder="Search staff…" autocomplete="off" spellcheck="false"
+                aria-label="Search staff in this list">
+        </div>
+        <div class="dmap-drawer-body" id="dmap-drawer-body"></div>
+    </aside>
+
     <!-- Toast Container -->
     <div id="toast-container" class="toast-container"></div>
 
@@ -484,7 +802,7 @@
     <script src="/sidebar.js?v=20260826f"></script>
     <script src="/toast.js?v=20260826f"></script>
     <script src="/vendor/echarts.min.js?v=20260826f"></script>
-    <script src="/dept-project-map.js?v=20260903c"></script>
+    <script src="/dept-project-map.js?v=20260910h"></script>
 </body>
 
 </html>

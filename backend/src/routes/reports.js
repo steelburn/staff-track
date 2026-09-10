@@ -287,6 +287,8 @@ router.get('/projects', requireReporterOrManager, async (req, res) => {
         COALESCE(st.department, s.department) AS department,
         s.id as submission_id,
         COALESCE(st.manager_name, s.manager_name) AS manager_name,
+        st.employee_type,
+        st.employee_status,
         mp.type_infra, mp.type_software, mp.type_infra_support, mp.type_software_support,
         mp.coordinator_email
       FROM submission_projects p
@@ -780,6 +782,28 @@ router.get('/dashboard', verifyToken, async (req, res) => {
         };
         payload.departments = payload.headcount.byDepartment;
 
+        // Employment type / status mix (synced from BeeSuite user_info). Labels
+        // are free-form, so group dynamically rather than hardcoding categories;
+        // blanks collapse into "Unspecified" (BeeSuite leaves ~9% unset).
+        const [empTypeRows] = await db.query(
+            `SELECT COALESCE(NULLIF(TRIM(s.employee_type), ''), 'Unspecified') AS label, COUNT(*) AS count
+             FROM staff s ${activeJoin}
+             WHERE 1=1 ${sc} ${dc}
+             GROUP BY label ORDER BY count DESC, label ASC`,
+            params
+        );
+        const [empStatusRows] = await db.query(
+            `SELECT COALESCE(NULLIF(TRIM(s.employee_status), ''), 'Unspecified') AS label, COUNT(*) AS count
+             FROM staff s ${activeJoin}
+             WHERE 1=1 ${sc} ${dc}
+             GROUP BY label ORDER BY count DESC, label ASC`,
+            params
+        );
+        payload.employment = {
+            byType: empTypeRows.map(r => ({ type: r.label, count: Number(r.count) || 0 })),
+            byStatus: empStatusRows.map(r => ({ status: r.label, count: Number(r.count) || 0 }))
+        };
+
         // Org structure
         const [mgrRows] = await db.query(
             `SELECT s.manager_name AS name, COUNT(*) AS directReports,
@@ -815,7 +839,7 @@ router.get('/dashboard', verifyToken, async (req, res) => {
 
         // Profile completeness (per active staff)
         const [compRows] = await db.query(
-            `SELECT s.email, s.name, s.department,
+            `SELECT s.email, s.name, s.department, s.title, s.employee_type, s.employee_status,
                     (cp.id IS NOT NULL) AS hasProfile,
                     (cp.summary IS NOT NULL AND cp.summary <> '') AS hasSummary,
                     (SELECT COUNT(*) FROM submission_skills sk
@@ -850,12 +874,42 @@ router.get('/dashboard', verifyToken, async (req, res) => {
             skillTotal += Number(r.skillCount) || 0;
             completenessRows.push({ name: r.name, email: r.email, department: r.department, score, updatedByStaff: r.updatedByStaff === 1 || r.updatedByStaff === true });
         }
+
+        // Per-staff roster backing the employment-type / employment-status donut
+        // drill-down drawers. Built from the same active/scope/department-filtered
+        // query as the byType/byStatus counts above, so a slice's value always
+        // equals the number of rows its drawer shows. Blanks are labelled
+        // "Unspecified" to match the aggregation.
+        const empLabel = (v) => {
+            const s = v == null ? '' : String(v).trim();
+            return (s && !/^invalid/i.test(s)) ? s : 'Unspecified';
+        };
+        payload.employment.staff = compRows.map(r => ({
+            name: r.name, email: r.email,
+            department: r.department || null, title: r.title || null,
+            type: empLabel(r.employee_type), status: empLabel(r.employee_status)
+        }));
+        // "Needs attention" = active staff in the low completion band
+        // (score < 40, matching the red `scoreBadge` threshold), worst first —
+        // a curated shortlist, NOT every incomplete profile (otherwise the
+        // expanded list is effectively all staff). The dashboard previews the
+        // first 10 and expands to the full shortlist, so `attention` returns
+        // the whole cohort. `lowest` stays as the preview slice for backward
+        // compatibility; it now carries department too (previously dropped, so
+        // the column always showed "—").
+        const ATTENTION_SCORE_THRESHOLD = 40;
+        completenessRows.sort((a, b) => a.score - b.score || String(a.name).localeCompare(String(b.name)));
+        const attentionRows = completenessRows
+            .filter(r => r.score < ATTENTION_SCORE_THRESHOLD)
+            .map(({ name, email, department, score }) => ({ name, email, department, score }));
         payload.completeness = {
             staffWithProfile, staffWithSummary,
             avgSkillCount: compRows.length ? +(skillTotal / compRows.length).toFixed(1) : 0,
             zeroSkillStaff: zeroSkill,
             buckets: Object.entries(buckets).map(([bucket, count]) => ({ bucket, count })),
-            lowest: completenessRows.sort((a, b) => a.score - b.score).slice(0, 10).map(({ name, email, score }) => ({ name, email, score }))
+            lowest: attentionRows.slice(0, 10),
+            lowestTotal: attentionRows.length,
+            attention: attentionRows
         };
 
         // Engagement

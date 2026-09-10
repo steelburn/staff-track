@@ -57,23 +57,32 @@ async function runSeed(db) {
                 // Check if exists
                 const [existing] = await db.query('SELECT email FROM staff WHERE email = ?', [email]);
                 if (existing.length === 0) {
-                    // Get manager info
+                    // Get manager + employment type/status
                     let managerName = null;
+                    let employeeType = null;
+                    let employeeStatus = null;
                     try {
                         const empRes = await axios.get(
                             `${BEESUITE_API_BASE}/api/admin/user-info-details/employment-detail/${staff.id}`,
                             { headers: { 'Authorization': `JWT ${accessToken}` } }
                         );
-                        if (empRes.data?.employmentDetail?.reportingToName) {
-                            managerName = empRes.data.employmentDetail.reportingToName;
+                        const ed = empRes.data?.employmentDetail;
+                        if (ed) {
+                            managerName = ed.reportingToName || null;
+                            const clean = (v) => {
+                                const s = v == null ? '' : String(v).trim();
+                                return (s && !/^invalid/i.test(s)) ? s : null;
+                            };
+                            employeeType = clean(ed.employmentType);
+                            employeeStatus = clean(ed.employmentStatus);
                         }
                     } catch (e) {
                         // Ignore errors fetching employment details
                     }
 
                     await db.query(
-                        'INSERT INTO staff (email, name, title, department, manager_name) VALUES (?, ?, ?, ?, ?)',
-                        [email, name, title, department, managerName]
+                        'INSERT INTO staff (email, name, title, department, manager_name, employee_type, employee_status) VALUES (?, ?, ?, ?, ?, ?, ?)',
+                        [email, name, title, department, managerName, employeeType, employeeStatus]
                     );
                     added++;
                 }

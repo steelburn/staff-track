@@ -34,6 +34,7 @@ document.addEventListener('DOMContentLoaded', () => {
     wireInactiveToggle();
     wireDeptSelect();
     wireThemeCharts();
+    wireEmpDrawer();
     const retryBtn = document.getElementById('dash-retry');
     if (retryBtn) retryBtn.addEventListener('click', () => loadDashboard());
     window.addEventListener('resize', () => {
@@ -114,6 +115,9 @@ function renderDeptSelector() {
 
 // ── Data loading ──────────────────────────────────────────────────────────────
 async function loadDashboard() {
+    // A dept / include-inactive change re-fetches the roster the drawer renders
+    // from, so any open employment drawer would show stale rows — close it.
+    closeEmploymentDrawer();
     const loading = document.getElementById('dash-loading');
     const content = document.getElementById('dash-content');
     const errorBox = document.getElementById('dash-error');
@@ -185,6 +189,7 @@ function renderAll() {
     renderDeptSelector();
     renderScopeBanner();
     renderKpis();
+    renderEmployment();
     renderOrg();
     renderDeptChart();
     renderCompleteness();
@@ -571,6 +576,172 @@ function renderSkillsChart() {
             itemStyle: { color: col.primary, borderRadius: [0, 6, 6, 0] },
             label: { show: true, position: 'right', color: col.muted, fontSize: 11 }
         }]
+    });
+}
+
+// Fixed, semantic palette for well-known BeeSuite employment categories; any
+// other free-form value falls back to the generic series palette.
+const EMP_TYPE_COLORS = { Permanent: '#10b981', Contract: '#6366f1', Temporary: '#d97706', Intern: '#7dcfff' };
+const EMP_STATUS_COLORS = { Confirmed: '#10b981', Probation: '#d97706', Terminated: '#dc2626', Unspecified: '#94a3b8' };
+
+// Shared donut for the employment-type / employment-status cards. Renders an
+// "empty" message instead of a blank canvas when the sync hasn't populated yet.
+// `kind` ('type' | 'status') labels the drill-down drawer a slice click opens.
+function renderEmploymentDonut(chartId, data, colorMap, emptyMsg, kind) {
+    const c = mkChart(chartId);
+    if (!c) return;
+    const col = chartColors();
+    const rows = (data || []).filter(r => r && r.count > 0);
+    if (rows.length === 0) {
+        c.clear();
+        c.setOption({
+            title: {
+                text: emptyMsg, left: 'center', top: 'middle',
+                textStyle: { color: col.muted, fontSize: 12, fontWeight: 'normal' }
+            }
+        });
+        return;
+    }
+    const palette = ['#6366f1', '#10b981', '#d97706', '#7dcfff', '#bb9af7', '#f7768e', '#2ac3de', '#e0af68'];
+    c.setOption({
+        tooltip: {
+            trigger: 'item',
+            formatter: (p) => `${escapeHtml(p.name)}: ${p.value} (${p.percent}%)<br/><em>Click to list these staff</em>`
+        },
+        legend: { bottom: 0, textStyle: { color: col.muted, fontSize: 11 } },
+        series: [{
+            type: 'pie',
+            radius: ['45%', '70%'],
+            center: ['50%', '44%'],
+            avoidLabelOverlap: true,
+            // The selected slice pops outward as click feedback; the side drawer
+            // carries the actual detail (slice value == drawer row count).
+            selectedMode: 'single',
+            selectedOffset: 10,
+            itemStyle: { borderRadius: 6, borderColor: cssVar('--color-bg-surface') || '#fff', borderWidth: 2 },
+            label: { show: false },
+            data: rows.map((r, i) => ({
+                name: r.name, value: r.count,
+                itemStyle: { color: colorMap[r.name] || palette[i % palette.length] }
+            }))
+        }]
+    });
+    c.on('click', (params) => openEmploymentDrawer(kind, params.name));
+    // A theme toggle / re-render recreates this instance, so restore the
+    // selected-slice pop-out while its drawer is still open.
+    if (empDrawerState && empDrawerState.kind === kind) {
+        try { c.dispatchAction({ type: 'select', seriesIndex: 0, name: empDrawerState.label }); } catch (e) { /* noop */ }
+    }
+}
+
+function renderEmployment() {
+    const emp = payload.employment || {};
+    renderEmploymentDonut(
+        'chart-employment-type',
+        (emp.byType || []).map(r => ({ name: r.type, count: r.count })),
+        EMP_TYPE_COLORS,
+        'No employment type data yet — run a staff sync.',
+        'type'
+    );
+    renderEmploymentDonut(
+        'chart-employment-status',
+        (emp.byStatus || []).map(r => ({ name: r.status, count: r.count })),
+        EMP_STATUS_COLORS,
+        'No employment status data yet — run a staff sync.',
+        'status'
+    );
+}
+
+// ── Employment drill-down drawer ─────────────────────────────────────────────
+// Clicking an employment-type / employment-status donut slice slides a panel in
+// from the right listing the staff in that slice. The roster ships in
+// payload.employment.staff, already filtered to the active scope + department,
+// so a drawer's row count always equals the slice value it was opened from.
+let empDrawerState = null; // { kind: 'type'|'status', label }
+
+const EMP_DRAWER_META = {
+    type: { title: 'Employment type', other: 'status' },
+    status: { title: 'Employment status', other: 'type' },
+};
+
+function openEmploymentDrawer(kind, label) {
+    const meta = EMP_DRAWER_META[kind];
+    if (!meta) return;
+    const staff = (payload.employment && payload.employment.staff) || [];
+    const rows = staff.filter(s => s[kind] === label);
+
+    document.getElementById('emp-drawer-kind').textContent = meta.title;
+    document.getElementById('emp-drawer-title').textContent = label;
+    document.getElementById('emp-drawer-sub').textContent =
+        `${rows.length} staff${payload.department ? ` · ${payload.department}` : ''}`;
+
+    const body = document.getElementById('emp-drawer-body');
+    if (rows.length === 0) {
+        body.innerHTML = '<div class="dash-drawer-empty">No staff found in this category.</div>';
+    } else {
+        body.innerHTML = `<div class="emp-list">
+            ${rows.map(s => {
+                const search = `${s.name} ${s.department || ''} ${s.title || ''} ${s[meta.other] || ''}`.toLowerCase();
+                const metaText = [s.department, s.title].filter(Boolean).map(escapeHtml).join(' · ') || '—';
+                return `<a class="emp-row" data-search="${escapeHtml(search)}" href="/cv-profile.html?email=${encodeURIComponent(s.email)}">
+                    <div class="emp-row-main">
+                        <div class="emp-row-name">${escapeHtml(s.name)}</div>
+                        <div class="emp-row-meta">${metaText}</div>
+                    </div>
+                    <span class="emp-pill">${escapeHtml(s[meta.other] || '—')}</span>
+                </a>`;
+            }).join('')}
+        </div>`;
+    }
+
+    // Reset + wire the client-side search filter for this open.
+    const search = document.getElementById('emp-drawer-search');
+    search.value = '';
+    search.oninput = () => {
+        const q = search.value.trim().toLowerCase();
+        body.querySelectorAll('.emp-row').forEach(el => {
+            el.hidden = q ? !(el.dataset.search || '').includes(q) : false;
+        });
+    };
+
+    const drawer = document.getElementById('emp-drawer');
+    const overlay = document.getElementById('dash-drawer-overlay');
+    drawer.classList.add('open');
+    overlay.classList.add('open');
+    drawer.setAttribute('aria-hidden', 'false');
+    document.body.style.overflow = 'hidden';
+    empDrawerState = { kind, label };
+    const closeBtn = document.getElementById('emp-drawer-close');
+    if (closeBtn) setTimeout(() => closeBtn.focus(), 0);
+}
+
+function closeEmploymentDrawer() {
+    const drawer = document.getElementById('emp-drawer');
+    const overlay = document.getElementById('dash-drawer-overlay');
+    if (!drawer || !drawer.classList.contains('open')) return;
+    drawer.classList.remove('open');
+    overlay.classList.remove('open');
+    drawer.setAttribute('aria-hidden', 'true');
+    document.body.style.overflow = '';
+    const prev = empDrawerState;
+    empDrawerState = null;
+    // Clear the popped-out slice. ECharts' unselect must be told *which* item
+    // (by name) — a bare {seriesIndex} is a silent no-op.
+    ['chart-employment-type', 'chart-employment-status'].forEach(id => {
+        const c = charts[id];
+        if (c && prev) {
+            try { c.dispatchAction({ type: 'unselect', seriesIndex: 0, name: prev.label }); } catch (e) { /* noop */ }
+        }
+    });
+}
+
+function wireEmpDrawer() {
+    const closeBtn = document.getElementById('emp-drawer-close');
+    const overlay = document.getElementById('dash-drawer-overlay');
+    if (closeBtn) closeBtn.addEventListener('click', closeEmploymentDrawer);
+    if (overlay) overlay.addEventListener('click', closeEmploymentDrawer);
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && empDrawerState) closeEmploymentDrawer();
     });
 }
 
