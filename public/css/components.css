@@ -1757,6 +1757,55 @@ body > .toast {
     white-space: nowrap;
 }
 
+/* ─── Profile completion meter (All Staff) ──────────────────────────────── */
+.completion-cell {
+    display: inline-flex;
+    flex-direction: column;
+    gap: 3px;
+    min-width: 92px;
+    max-width: 120px;
+    vertical-align: middle;
+}
+
+.completion-track {
+    display: block;
+    width: 100%;
+    height: 6px;
+    border-radius: var(--radius-full);
+    background: var(--color-bg-muted);
+    overflow: hidden;
+}
+
+.completion-fill {
+    display: block;
+    height: 100%;
+    border-radius: var(--radius-full);
+    background: var(--color-text-muted);
+    transition: width var(--transition-fast);
+}
+
+.completion-value {
+    font-size: var(--font-size-xs);
+    font-weight: var(--font-weight-semibold);
+    line-height: 1;
+    color: var(--color-text-secondary);
+}
+
+.completion-cell.is-complete .completion-fill { background: var(--color-success); }
+.completion-cell.is-complete .completion-value { color: var(--color-success); }
+
+.completion-cell.is-high .completion-fill { background: var(--color-primary); }
+.completion-cell.is-high .completion-value { color: var(--color-primary); }
+
+.completion-cell.is-mid .completion-fill { background: var(--color-warning); }
+.completion-cell.is-mid .completion-value { color: var(--color-warning); }
+
+.completion-cell.is-low .completion-fill { background: var(--color-danger); }
+.completion-cell.is-low .completion-value { color: var(--color-danger); }
+
+.completion-cell.is-empty .completion-fill { background: transparent; }
+.completion-cell.is-empty .completion-value { color: var(--color-text-muted); }
+
 .btn-add {
     display: inline-flex;
     align-items: center;

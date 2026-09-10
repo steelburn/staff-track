@@ -8,7 +8,7 @@ let includeInactive = false;
 // ── Sort & column filter state ────────────────────────────────────────────────
 let sortKey = 'name';
 let sortDir = 'asc';
-const colFilters = { name: '', title: '', department: '', projects: '', skills: '', updated: '' };
+const colFilters = { name: '', title: '', department: '', completion: '', projects: '', skills: '', updated: '' };
 
 // ── Utility ───────────────────────────────────────────────────────────────────
 function hl(text, q) {
@@ -40,6 +40,7 @@ function sortValue(s) {
     switch (sortKey) {
         case 'projects': return s.projects.length;
         case 'skills': return s.skills.length;
+        case 'completion': return Number(s.profileCompletion) || 0;
         case 'updated': {
             const t = s.updatedAt ? new Date(s.updatedAt).getTime() : NaN;
             return isNaN(t) ? -Infinity : t;
@@ -74,17 +75,69 @@ function updateSortIndicators() {
     });
 }
 
-// ── Export CSV ────────────────────────────────────────────────────────────────
-function exportStaffCSV() {
-    const rows = [
-        ['Name', 'Title', 'Department', 'Email', 'Project Count', 'Projects (SOC)', 'Project Names', 'Roles', 'End Dates', 'Skill Count', 'Skills'],
-    ];
-    STAFF_REPORT.forEach(s => {
+// ── Profile completion helpers ────────────────────────────────────────────────
+// Score is computed server-side (see /api/reports/staff) using the same
+// criteria as the CV profile page:
+//   photo 15 · name 10 · summary 15 · phone 10 · skills 15 · projects 15 ·
+//   education 10 · certifications 10
+function completionLevel(score) {
+    const v = Number(score) || 0;
+    if (v >= 100) return 'complete';
+    if (v >= 75) return 'high';
+    if (v >= 50) return 'mid';
+    if (v > 0) return 'low';
+    return 'empty';
+}
+
+function completionCell(score) {
+    const v = Math.max(0, Math.min(100, Number(score) || 0));
+    return `<span class="completion-cell is-${completionLevel(v)}" title="Profile completion: ${v}%">
+        <span class="completion-track"><span class="completion-fill" style="width:${v}%"></span></span>
+        <span class="completion-value">${v}%</span>
+    </span>`;
+}
+
+function inCompletionRange(score, range) {
+    const v = Number(score) || 0;
+    switch (range) {
+        case 'complete': return v >= 100;
+        case 'high': return v >= 75 && v < 100;
+        case 'mid': return v >= 50 && v < 75;
+        case 'low': return v > 0 && v < 50;
+        case 'empty': return v === 0;
+        default: return true;
+    }
+}
+
+function inSkillRange(count, range) {
+    const v = Number(count) || 0;
+    switch (range) {
+        case '0': return v === 0;
+        case '1-5': return v >= 1 && v <= 5;
+        case '6-10': return v >= 6 && v <= 10;
+        case '11-15': return v >= 11 && v <= 15;
+        case '16-20': return v >= 16 && v <= 20;
+        case '21+': return v >= 21;
+        default: return true;
+    }
+}
+
+// ── Export (CSV + Excel) ──────────────────────────────────────────────────────
+// Exports the CURRENT filtered + sorted view (what the user sees on screen),
+// including the Profile Completion column.
+function buildExportRows() {
+    const rows = [[
+        'Name', 'Title', 'Department', 'Email', 'Profile Completion (%)',
+        'Project Count', 'Projects (SOC)', 'Project Names', 'Roles', 'End Dates',
+        'Skill Count', 'Skills',
+    ]];
+    getVisibleStaff(currentQuery()).forEach(s => {
         rows.push([
             s.staffName,
             s.title,
             s.department,
             s.email,
+            Number(s.profileCompletion) || 0,
             s.projects.length,
             s.projects.map(p => p.soc || '').join(' | '),
             s.projects.map(p => p.projectName || '').join(' | '),
@@ -94,10 +147,16 @@ function exportStaffCSV() {
             s.skills.map(sk => `${sk.skill}(${sk.rating}★)`).join(' | '),
         ]);
     });
+    return rows;
+}
+
+function exportStaffCSV() {
+    const rows = buildExportRows();
     const content = rows.map(r =>
-        r.map(v => `"${String(v || '').replace(/"/g, '""')}"`).join(',')
-    ).join('\n');
-    const blob = new Blob([content], { type: 'text/csv' });
+        r.map(v => `"${String(v ?? '').replace(/"/g, '""')}"`).join(',')
+    ).join('\r\n');
+    // Prepend a UTF-8 BOM so Excel renders non-ASCII (e.g. ★) correctly.
+    const blob = new Blob(['\ufeff' + content], { type: 'text/csv;charset=utf-8;' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
     a.download = 'stafftrack-all-staff.csv';
@@ -105,15 +164,29 @@ function exportStaffCSV() {
     URL.revokeObjectURL(a.href);
 }
 
-// ── Render table ──────────────────────────────────────────────────────────────
-function renderTable(q = '') {
-    const ql = q.toLowerCase();
-    const countEl = document.getElementById('staff-count');
-    const tbody = document.getElementById('staff-tbody');
-    const panel = document.getElementById('staff-detail-panel');
-    panel.style.display = 'none';
+function exportStaffExcel() {
+    if (typeof XLSX === 'undefined') {
+        alert('Excel export library failed to load. Please use Export CSV instead.');
+        return;
+    }
+    const rows = buildExportRows();
+    const ws = XLSX.utils.aoa_to_sheet(rows);
+    ws['!cols'] = [
+        { wch: 26 }, { wch: 22 }, { wch: 22 }, { wch: 30 }, { wch: 20 },
+        { wch: 12 }, { wch: 18 }, { wch: 40 }, { wch: 24 }, { wch: 16 },
+        { wch: 10 }, { wch: 50 },
+    ];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'All Staff');
+    XLSX.writeFile(wb, 'stafftrack-all-staff.xlsx');
+}
 
-    let list = STAFF_REPORT.filter(s => {
+// ── Filtering + sorting ───────────────────────────────────────────────────────
+// Single source of truth for the visible staff list — used by both the table
+// render and the CSV/Excel exports, so "what you see is what you export".
+function getVisibleStaff(q = '') {
+    const ql = q.toLowerCase();
+    const list = STAFF_REPORT.filter(s => {
         // Global search box (name / title / department / project / soc)
         if (ql && !(
             (s.staffName || '').toLowerCase().includes(ql) ||
@@ -129,22 +202,34 @@ function renderTable(q = '') {
         if (colFilters.name && !(s.staffName || '').toLowerCase().includes(colFilters.name)) return false;
         if (colFilters.title && !(s.title || '').toLowerCase().includes(colFilters.title)) return false;
         if (colFilters.department && !(s.department || '').toLowerCase().includes(colFilters.department)) return false;
+        if (colFilters.completion && !inCompletionRange(s.profileCompletion, colFilters.completion)) return false;
         if (colFilters.projects && !s.projects.some(p =>
             (p.projectName || '').toLowerCase().includes(colFilters.projects) ||
             (p.soc || '').toLowerCase().includes(colFilters.projects))) return false;
-        if (colFilters.skills && !s.skills.some(sk => (sk.skill || '').toLowerCase().includes(colFilters.skills))) return false;
+        if (colFilters.skills && !inSkillRange(s.skills.length, colFilters.skills)) return false;
         if (colFilters.updated === 'staff' && !s.updatedByStaff) return false;
         if (colFilters.updated === 'not-staff' && s.updatedByStaff) return false;
         return true;
     });
 
     list.sort(compareStaff);
+    return list;
+}
+
+// ── Render table ──────────────────────────────────────────────────────────────
+function renderTable(q = '') {
+    const countEl = document.getElementById('staff-count');
+    const tbody = document.getElementById('staff-tbody');
+    const panel = document.getElementById('staff-detail-panel');
+    panel.style.display = 'none';
+
+    const list = getVisibleStaff(q);
     updateSortIndicators();
 
     countEl.textContent = `${list.length} staff member${list.length !== 1 ? 's' : ''}`;
 
     if (!list.length) {
-        tbody.innerHTML = `<tr><td colspan="6" class="table-empty">${q ? 'No results for "' + q + '"' : 'No submissions yet.'}</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="7" class="table-empty">${q ? 'No results for "' + q + '"' : 'No submissions yet.'}</td></tr>`;
         return;
     }
 
@@ -166,6 +251,7 @@ function renderTable(q = '') {
       <td><span class="staff-name-cell">${hl(s.staffName, q)}</span>${staffUpdatedBadge}</td>
       <td><span style="font-size:.82rem;color:var(--text-secondary)">${hl(s.title, q) || '—'}</span></td>
       <td><span style="font-size:.82rem;color:var(--text-secondary)">${hl(s.department, q) || '—'}</span></td>
+      <td>${completionCell(s.profileCompletion)}</td>
       <td><div class="proj-pills">${projLabels}</div></td>
       <td>${skillCount}</td>
       <td><span style="font-size:.78rem;color:var(--text-muted)">${formatDate(s.updatedAt)}</span></td>
@@ -233,7 +319,8 @@ function showDetailPanel(s, q = '') {
       <span>${s.department || '—'}</span>
       ${s.email ? `<span class="separator">·</span><a href="mailto:${s.email}" style="color:var(--accent-blue)">${s.email}</a>` : ''}
     </div>
-    ${s.managerName ? `<div style="font-size:.82rem;color:var(--text-secondary);margin:.25rem 0 .75rem">📎 Reports to: <strong>${s.managerName}</strong></div>` : ''}
+    ${s.managerName ? `<div style="font-size:.82rem;color:var(--text-secondary);margin:.25rem 0 .25rem">📎 Reports to: <strong>${s.managerName}</strong></div>` : ''}
+    <div style="font-size:.82rem;color:var(--text-secondary);margin:.25rem 0 .75rem">✅ Profile completion: <strong>${Number(s.profileCompletion) || 0}%</strong></div>
     ${(authUser.isAdmin === true || authUser.is_hr === true || authUser.is_hr === 1)
             ? `<div style="margin-bottom:1rem; display:flex; gap:0.5rem; align-items:center;">
                  <a href="/cv-profile.html?email=${encodeURIComponent(s.email)}&tab=generate-cv"
@@ -336,8 +423,7 @@ async function init() {
         'col-filter-name': 'name',
         'col-filter-title': 'title',
         'col-filter-department': 'department',
-        'col-filter-projects': 'projects',
-        'col-filter-skills': 'skills'
+        'col-filter-projects': 'projects'
     };
     Object.entries(textFilterMap).forEach(([id, key]) => {
         const el = document.getElementById(id);
@@ -357,6 +443,24 @@ async function init() {
         });
     }
 
+    // Profile completion range filter
+    const completionFilter = document.getElementById('col-filter-completion');
+    if (completionFilter) {
+        completionFilter.addEventListener('change', e => {
+            colFilters.completion = e.target.value;
+            renderTable(currentQuery());
+        });
+    }
+
+    // Skills count range filter
+    const skillsFilter = document.getElementById('col-filter-skills');
+    if (skillsFilter) {
+        skillsFilter.addEventListener('change', e => {
+            colFilters.skills = e.target.value;
+            renderTable(currentQuery());
+        });
+    }
+
     document.getElementById('toggle-inactive').addEventListener('change', async e => {
         includeInactive = e.target.checked;
         await loadStaffData();
@@ -364,6 +468,7 @@ async function init() {
     });
 
     document.getElementById('btn-export-staff').addEventListener('click', exportStaffCSV);
+    document.getElementById('btn-export-staff-excel').addEventListener('click', exportStaffExcel);
 
     document.getElementById('detail-close').addEventListener('click', () => {
         document.getElementById('staff-detail-panel').style.display = 'none';

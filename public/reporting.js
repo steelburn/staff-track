@@ -347,21 +347,45 @@ function renderCompleteness() {
         Average <strong>${comp.avgSkillCount}</strong> skills per staff.</p>`;
 
     if (comp.lowest.length > 0) {
-        html += `
-            <h3 class="dash-muted" style="margin:var(--space-4) 0 var(--space-2); font-size:var(--font-size-base);">Needs attention</h3>
-            <table class="dash-table">
-                <thead><tr><th>Staff</th><th>Department</th><th class="num">Score</th></tr></thead>
-                <tbody>
-                    ${comp.lowest.map(p => `
-                        <tr>
+        // The API returns the full incomplete-staff ranking (attention) plus a
+        // 10-row preview (lowest). Preview 10 rows; "Show all" reveals the rest.
+        const attention = comp.attention || comp.lowest;
+        const ATTENTION_PREVIEW = 10;
+        const expandable = attention.length > ATTENTION_PREVIEW;
+        const rows = attention.map((p, i) => `
+                        <tr${i >= ATTENTION_PREVIEW ? ' class="attention-extra" hidden' : ''}>
                             <td><a href="/cv-profile.html?email=${encodeURIComponent(p.email)}">${escapeHtml(p.name)}</a></td>
                             <td>${escapeHtml(p.department || '—')}</td>
                             <td class="num">${scoreBadge(p.score)}</td>
-                        </tr>`).join('')}
-                </tbody>
-            </table>`;
+                        </tr>`).join('');
+        html += `
+            <div class="dash-section-head">
+                <h3 class="dash-muted">Needs attention</h3>
+                ${expandable ? `<button type="button" class="dash-showmore" id="btn-attention-toggle"
+                    aria-expanded="false" aria-controls="attention-rows" data-total="${attention.length}">Show all ${attention.length} ▾</button>` : ''}
+            </div>
+            <div class="dash-table-scroll">
+                <table class="dash-table" id="attention-rows">
+                    <thead><tr><th>Staff</th><th>Department</th><th class="num">Score</th></tr></thead>
+                    <tbody>${rows}</tbody>
+                </table>
+            </div>`;
     }
     el.innerHTML = html;
+    wireAttentionToggle(el);
+}
+
+// Expand/collapse the full "Needs attention" staff list. Extra rows are always
+// in the DOM (with `hidden`), so toggling never re-renders or loses state.
+function wireAttentionToggle(scope) {
+    const btn = scope.querySelector('#btn-attention-toggle');
+    if (!btn) return;
+    btn.addEventListener('click', () => {
+        const expanded = btn.getAttribute('aria-expanded') === 'true';
+        scope.querySelectorAll('tr.attention-extra').forEach(tr => { tr.hidden = expanded; });
+        btn.setAttribute('aria-expanded', String(!expanded));
+        btn.textContent = expanded ? `Show all ${btn.dataset.total} ▾` : 'Show fewer ▲';
+    });
 }
 
 function renderProjects() {

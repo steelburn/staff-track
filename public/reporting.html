@@ -190,7 +190,8 @@
             margin-bottom: var(--space-3);
         }
 
-        .dash-alert-toggle {
+        .dash-alert-toggle,
+        .dash-showmore {
             margin-left: auto;
             background: transparent;
             border: 1px solid currentColor;
@@ -204,7 +205,8 @@
             white-space: nowrap;
         }
 
-        .dash-alert-toggle:hover {
+        .dash-alert-toggle:hover,
+        .dash-showmore:hover {
             opacity: 1;
         }
 
@@ -242,6 +244,34 @@
         .dash-alert a {
             color: inherit;
             font-weight: var(--font-weight-semibold);
+        }
+
+        /* Section heading with an inline "Show all" expand/collapse control */
+        .dash-section-head {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: var(--space-2);
+            margin: var(--space-4) 0 var(--space-2);
+        }
+
+        .dash-section-head h3 {
+            margin: 0;
+            font-size: var(--font-size-base);
+        }
+
+        /* Expanded "Needs attention" list scrolls (sticky header) instead of
+           stretching the whole dashboard page for hundreds of rows. */
+        .dash-table-scroll {
+            max-height: 60vh;
+            overflow-y: auto;
+        }
+
+        .dash-table-scroll .dash-table th {
+            position: sticky;
+            top: 0;
+            z-index: 1;
+            background: var(--color-bg-surface);
         }
 
         /* ── Stat tiles (projects) ────────────────────────────────────── */
@@ -291,6 +321,13 @@
         #scope-banner {
             display: inline-flex;
             align-items: center;
+        }
+
+        /* hidden must win over the inline-flex above (UA [hidden] loses to an
+           author ID rule), otherwise clearing the dept filter leaves a stale
+           "Showing: <old dept>" banner next to the now-unscoped numbers. */
+        #scope-banner[hidden] {
+            display: none !important;
         }
 
         /* ── Slim status strip (loading + error, ≤30px, top of dashboard) ── */

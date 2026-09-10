@@ -47,6 +47,7 @@
                     </div>
                     <div class="page-actions">
                         <button class="btn btn-secondary" id="btn-export-staff">⬇ Export CSV</button>
+                        <button class="btn btn-secondary" id="btn-export-staff-excel">⬇ Export Excel</button>
                         <button class="btn btn-secondary" id="theme-toggle" data-theme-toggle>
                             <span class="theme-icon">🌙</span>
                             <span class="theme-label">Dark</span>
@@ -88,6 +89,7 @@
                                     <th data-sort="name" class="sortable">Name <span class="sort-ind"></span></th>
                                     <th data-sort="title" class="sortable">Title <span class="sort-ind"></span></th>
                                     <th data-sort="department" class="sortable">Department <span class="sort-ind"></span></th>
+                                    <th data-sort="completion" class="sortable">Profile Completion <span class="sort-ind"></span></th>
                                     <th data-sort="projects" class="sortable">Projects <span class="sort-ind"></span></th>
                                     <th data-sort="skills" class="sortable">Skills <span class="sort-ind"></span></th>
                                     <th data-sort="updated" class="sortable">Last Updated <span class="sort-ind"></span></th>
@@ -96,8 +98,28 @@
                                     <td><input type="text" class="input col-filter" id="col-filter-name" placeholder="Filter name..."></td>
                                     <td><input type="text" class="input col-filter" id="col-filter-title" placeholder="Filter title..."></td>
                                     <td><input type="text" class="input col-filter" id="col-filter-department" placeholder="Filter dept..."></td>
+                                    <td>
+                                        <select class="input col-filter" id="col-filter-completion">
+                                            <option value="">Any score</option>
+                                            <option value="complete">Complete (100%)</option>
+                                            <option value="high">High (75–99%)</option>
+                                            <option value="mid">Medium (50–74%)</option>
+                                            <option value="low">Low (1–49%)</option>
+                                            <option value="empty">Empty (0%)</option>
+                                        </select>
+                                    </td>
                                     <td><input type="text" class="input col-filter" id="col-filter-projects" placeholder="Filter project..."></td>
-                                    <td><input type="text" class="input col-filter" id="col-filter-skills" placeholder="Filter skill..."></td>
+                                    <td>
+                                        <select class="input col-filter" id="col-filter-skills">
+                                            <option value="">Any skills</option>
+                                            <option value="0">0 skills</option>
+                                            <option value="1-5">1–5 skills</option>
+                                            <option value="6-10">6–10 skills</option>
+                                            <option value="11-15">11–15 skills</option>
+                                            <option value="16-20">16–20 skills</option>
+                                            <option value="21+">21+ skills</option>
+                                        </select>
+                                    </td>
                                     <td>
                                         <select class="input col-filter" id="col-filter-updated">
                                             <option value="">Any update</option>
@@ -109,7 +131,7 @@
                             </thead>
                             <tbody id="staff-tbody">
                                 <tr>
-                                    <td colspan="6">
+                                    <td colspan="7">
                                         <div class="loading-state">
                                             <div class="spinner"></div>
                                             <p>Loading staff...</p>
@@ -140,7 +162,8 @@
     <script src="/menu.js?v=20260828a"></script>
     <script src="/sidebar.js?v=20260824d"></script>
     <script src="/toast.js?v=20260824d"></script>
-    <script src="/staff-view.js?v=20260828a"></script>
+    <script src="/vendor/xlsx.full.min.js?v=20260910a"></script>
+    <script src="/staff-view.js?v=20260910a"></script>
 </body>
 
 </html>

@@ -87,6 +87,36 @@ function hasReportAccess(user) {
     return isAdmin || isHR || isCoordinator;
 }
 
+// ── Profile completion score ───────────────────────────────────────────────
+// Weights MUST mirror the CV profile page (public/cv-profile.js). Each criterion
+// contributes a fixed number of points, totalling 100:
+//   photo 15 · name 10 · summary 15 · phone 10 · skills 15 · projects 15 ·
+//   education 10 · certifications 10
+const PROFILE_COMPLETION_WEIGHTS = {
+    photo: 15,
+    name: 10,
+    summary: 15,
+    phone: 10,
+    skills: 15,
+    projects: 15,
+    education: 10,
+    certifications: 10,
+};
+
+function profileCompletionScore(staff) {
+    const c = staff._completion || {};
+    let score = 0;
+    if (c.photo) score += PROFILE_COMPLETION_WEIGHTS.photo;
+    if (staff.staffName && String(staff.staffName).trim()) score += PROFILE_COMPLETION_WEIGHTS.name;
+    if (c.summary) score += PROFILE_COMPLETION_WEIGHTS.summary;
+    if (c.phone) score += PROFILE_COMPLETION_WEIGHTS.phone;
+    if (staff.skills.length > 0) score += PROFILE_COMPLETION_WEIGHTS.skills;
+    if (staff.projects.length > 0) score += PROFILE_COMPLETION_WEIGHTS.projects;
+    if (c.education > 0) score += PROFILE_COMPLETION_WEIGHTS.education;
+    if (c.certifications > 0) score += PROFILE_COMPLETION_WEIGHTS.certifications;
+    return score;
+}
+
 // ── Helpers: dashboard scope ───────────────────────────────────────────────
 // mysql2 prepared statements do NOT expand arrays for IN (?); build placeholders.
 function buildPlaceholders(arr) {
@@ -188,7 +218,12 @@ router.get('/staff', requireReporterOrManager, async (req, res) => {
                 mp.type_infra_support,
                 mp.type_software_support,
                 sk.skill,
-                sk.rating
+                sk.rating,
+                cp.has_photo,
+                cp.has_summary,
+                cp.has_phone,
+                ed.edu_count,
+                ce.cert_count
             FROM (
                 SELECT email FROM staff
                 UNION
@@ -200,6 +235,24 @@ router.get('/staff', requireReporterOrManager, async (req, res) => {
             LEFT JOIN submission_projects p ON s.id = p.submission_id
             LEFT JOIN managed_projects mp ON (mp.soc = p.soc OR (p.soc IS NULL AND mp.project_name = p.project_name))
             LEFT JOIN submission_skills sk ON s.id = sk.submission_id
+            LEFT JOIN (
+                SELECT LOWER(staff_email) AS email,
+                       MAX(CASE WHEN photo_path IS NOT NULL AND photo_path <> '' THEN 1 ELSE 0 END) AS has_photo,
+                       MAX(CASE WHEN summary IS NOT NULL AND TRIM(summary) <> '' THEN 1 ELSE 0 END) AS has_summary,
+                       MAX(CASE WHEN phone IS NOT NULL AND TRIM(phone) <> '' THEN 1 ELSE 0 END) AS has_phone
+                FROM cv_profiles
+                GROUP BY LOWER(staff_email)
+            ) cp ON cp.email = LOWER(people.email)
+            LEFT JOIN (
+                SELECT LOWER(staff_email) AS email, COUNT(*) AS edu_count
+                FROM education
+                GROUP BY LOWER(staff_email)
+            ) ed ON ed.email = LOWER(people.email)
+            LEFT JOIN (
+                SELECT LOWER(staff_email) AS email, COUNT(*) AS cert_count
+                FROM certifications
+                GROUP BY LOWER(staff_email)
+            ) ce ON ce.email = LOWER(people.email)
         `;
         
         const params = [];
@@ -227,7 +280,15 @@ router.get('/staff', requireReporterOrManager, async (req, res) => {
                     updatedAt: row.updated_at,
                     updatedByStaff: row.updated_by_staff,
                     projects: [],
-                    skills: []
+                    skills: [],
+                    // Raw completion inputs; converted to profileCompletion below.
+                    _completion: {
+                        photo: !!row.has_photo,
+                        summary: !!row.has_summary,
+                        phone: !!row.has_phone,
+                        education: Number(row.edu_count) || 0,
+                        certifications: Number(row.cert_count) || 0,
+                    }
                 });
             }
 
@@ -257,6 +318,12 @@ router.get('/staff', requireReporterOrManager, async (req, res) => {
                     rating: row.rating
                 });
             }
+        });
+
+        // Derive the weighted profile-completion score, then drop the raw inputs.
+        staffMap.forEach(staff => {
+            staff.profileCompletion = profileCompletionScore(staff);
+            delete staff._completion;
         });
 
         res.json(Array.from(staffMap.values()));
