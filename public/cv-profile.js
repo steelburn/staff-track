@@ -135,7 +135,7 @@ function applyViewOnlyMode() {
         .btn-edit-award, .btn-delete-award,
         .btn-edit-work-history, .btn-delete-work-history,
         .btn-edit-past-project, .btn-delete-past-project,
-        .btn-edit-project, .btn-delete-project,
+        .btn-edit-project, .btn-move-project, .btn-delete-project,
         .btn-remove`).forEach(btn => {
         btn.disabled = true;
         btn.style.opacity = '0.5';
@@ -844,8 +844,9 @@ function renderProjectsSub() {
                     <div style="color:var(--text-secondary); font-size:0.82rem; margin-bottom:0.5rem;">${startDate} – ${endDate}</div>
                     ${technologies ? '<div style="font-size:0.78rem; color:var(--accent-amber); margin-bottom:0.5rem;">' + technologies + '</div>' : ''}
                     ${description ? '<div class="preserve-newlines" style="font-size:0.85rem; color:var(--text-secondary);">' + description + '</div>' : ''}
-                    ${isViewOnly ? '' : `<div style="display:flex; gap:0.5rem; margin-top:1rem;">
+                    ${isViewOnly ? '' : `<div style="display:flex; gap:0.5rem; margin-top:1rem; flex-wrap:wrap;">
                         <button class="btn-secondary btn-edit-project" data-id="${proj.id}" style="padding:0.35rem 0.75rem; font-size:0.8rem;">✏️ Edit</button>
+                        <button class="btn-secondary btn-move-project" data-id="${proj.id}" style="padding:0.35rem 0.75rem; font-size:0.8rem;" title="Move this project to Past Projects">📁 Move to Past</button>
                         <button class="btn-remove btn-delete-project" data-id="${proj.id}" style="width:auto; padding:0.35rem 0.75rem; font-size:0.8rem;">🗑 Delete</button>
                     </div>`}
                 </div>
@@ -861,6 +862,10 @@ function renderProjectsSub() {
 
         list.querySelectorAll('.btn-delete-project').forEach(btn => {
             btn.addEventListener('click', () => deleteProject(btn.dataset.id));
+        });
+
+        list.querySelectorAll('.btn-move-project').forEach(btn => {
+            btn.addEventListener('click', () => moveProjectToPast(btn.dataset.id));
         });
     }
     updateProjectsCountSub();
@@ -952,17 +957,123 @@ function saveProject() {
     showToast('Project saved');
 }
 
+// Delete one active-project row from the backend. A project added in this
+// session may have been autosaved with a server-generated id (different from
+// its local uid), so fall back to matching by project name before giving up.
+async function deleteActiveProjectRow(proj) {
+    if (!proj || !AppState.submissionId) return;
+    const subId = AppState.submissionId;
+
+    if (proj._persisted) {
+        await window.StaffTrackAuth.apiFetch(`/api/submissions/${subId}/projects/${proj.id}`, { method: 'DELETE' }).catch(() => {});
+        return;
+    }
+
+    const name = (proj.project_name || proj.projectName || '').trim().toLowerCase();
+    if (!name) return;
+    try {
+        const res = await window.StaffTrackAuth.apiFetch(`/api/submissions/${subId}`);
+        if (!res.ok) return;
+        const data = await res.json();
+        const match = (data.projects || []).find(p =>
+            String(p.projectName || p.project_name || '').trim().toLowerCase() === name
+        );
+        if (match?.id) {
+            await window.StaffTrackAuth.apiFetch(`/api/submissions/${subId}/projects/${match.id}`, { method: 'DELETE' }).catch(() => {});
+        }
+    } catch (err) {
+        console.error('Error deleting active project row:', err);
+    }
+}
+
 async function deleteProject(id) {
     if (!confirm('Delete this project?')) return;
     const proj = AppState.projects.find(p => p.id === id);
-    // Explicitly delete persisted rows from the backend; unsaved rows are just dropped locally
-    if (proj?._persisted && AppState.submissionId) {
-        await window.StaffTrackAuth.apiFetch(`/api/submissions/${AppState.submissionId}/projects/${proj.id}`, { method: 'DELETE' }).catch(() => {});
-    }
+    await deleteActiveProjectRow(proj);
     AppState.projects = AppState.projects.filter(p => p.id !== id);
     renderProjectsSub();
     scheduleAutoSave();
     showToast('Project deleted');
+}
+
+// ── Move an Active Project to Past Projects ─────────────────────────────
+function moveProjectToPast(id) {
+    if (isViewOnly) return;
+    const proj = AppState.projects.find(p => p.id === id);
+    if (!proj) return;
+
+    const current = getCurrentEmployer();
+    const projectName = proj.project_name || proj.projectName || 'this project';
+
+    const backdrop = document.createElement('div');
+    backdrop.className = 'modal-backdrop active';
+    backdrop.innerHTML = `
+      <div class="modal" role="dialog" aria-modal="true" style="max-width:520px">
+        <div class="modal-header">
+          <h2>📁 Move to Past Projects</h2>
+          <button class="modal-close" title="Close">✕</button>
+        </div>
+        <div class="modal-body">
+          <p style="font-size:.9rem;color:var(--text-secondary);margin-bottom:.9rem">
+            Move <strong>${esc(projectName)}</strong> out of Active Projects and into your CV's Past Projects history.
+          </p>
+          <div class="form-group">
+            <label class="form-label" for="move-pp-employer">Associated Company</label>
+            <select id="move-pp-employer" class="input">${buildEmployerOptions(current ? current.id : '')}</select>
+            <p style="margin-top:var(--space-1);font-size:var(--font-size-xs);color:var(--color-text-muted)">
+              ${current
+                  ? `Defaults to your current company: <strong>${esc(current.employer)}</strong>.`
+                  : 'No current company found in Work History — pick one or leave unassociated.'}
+            </p>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-secondary modal-close-btn">Cancel</button>
+          <button class="btn btn-primary" id="btn-confirm-move-project">📁 Move to Past</button>
+        </div>
+      </div>`;
+    document.body.appendChild(backdrop);
+
+    const close = () => backdrop.remove();
+    backdrop.querySelector('.modal-close').addEventListener('click', close);
+    backdrop.querySelector('.modal-close-btn').addEventListener('click', close);
+    backdrop.addEventListener('click', e => { if (e.target === backdrop) close(); });
+
+    backdrop.querySelector('#btn-confirm-move-project').addEventListener('click', () => {
+        const workHistoryId = backdrop.querySelector('#move-pp-employer')?.value || null;
+        const employer = workHistoryData.find(wh => String(wh.id) === String(workHistoryId)) || null;
+        const body = {
+            project_name: proj.project_name || proj.projectName || '',
+            work_history_id: workHistoryId,
+            role: proj.role || '',
+            start_date: proj.startDate || proj.start_date || null,
+            // Moving out of Active Projects means the engagement has ended; if
+            // no end date was recorded, close it today rather than showing
+            // the past project as still running ("Present").
+            end_date: proj.endDate || proj.end_date || new Date().toISOString().slice(0, 10),
+            technologies: proj.technologies || '',
+            description: proj.description || ''
+        };
+        close();
+
+        const onMoved = () => removeActiveProjectAfterMove(id);
+        const conflicts = getPastProjectDateConflicts(body, employer);
+        if (conflicts.length) {
+            confirmPastProjectDates(body, null, employer, conflicts, onMoved);
+        } else {
+            submitPastProject(body, null, { onSuccess: onMoved });
+        }
+    });
+}
+
+async function removeActiveProjectAfterMove(id) {
+    const proj = AppState.projects.find(p => p.id === id);
+    // Delete the persisted row first so the next autosave can't resurrect it.
+    await deleteActiveProjectRow(proj);
+    AppState.projects = AppState.projects.filter(p => p.id !== id);
+    renderProjectsSub();
+    scheduleAutoSave();
+    showToast('Project moved to Past Projects');
 }
 
 function initProjectAutocomplete() {
@@ -2516,15 +2627,27 @@ async function deleteWorkHistory(id) {
 
 // Rebuild the Associated Employer dropdown in the Past Project form
 // using the current workHistoryData (call after any WH save/delete).
-function refreshEmployerDropdown() {
-    const select = document.getElementById('pp-work-history-id');
-    if (!select) return;
-    const currentVal = select.value;
+function getCurrentEmployer() {
+    return workHistoryData.find(wh => Number(wh.is_current) === 1) || null;
+}
+
+function employerOptionLabel(wh) {
+    return `${esc(wh.employer || 'Employer')}${Number(wh.is_current) === 1 ? ' (Current Company)' : ''}`;
+}
+
+function buildEmployerOptions(selectedId = '') {
     let html = '<option value="">— No Association —</option>';
     workHistoryData.forEach(wh => {
-        html += `<option value="${wh.id}"${wh.id === currentVal ? ' selected' : ''}>${wh.employer}${wh.is_current ? ' (Current)' : ''}</option>`;
+        html += `<option value="${wh.id}"${String(wh.id) === String(selectedId) ? ' selected' : ''}>${employerOptionLabel(wh)}</option>`;
     });
-    select.innerHTML = html;
+    return html;
+}
+
+function refreshEmployerDropdown(selectedId) {
+    const select = document.getElementById('pp-work-history-id');
+    if (!select) return;
+    const currentVal = selectedId !== undefined ? selectedId : select.value;
+    select.innerHTML = buildEmployerOptions(currentVal);
 }
 
 // ── Past Projects Functions ───
@@ -2596,11 +2719,12 @@ function renderPastProjectsList() {
             // Find associated employer
             const employer = workHistoryData.find(wh => wh.id === entry.work_history_id);
             const employerName = employer ? employer.employer : null;
+            const employerIsCurrent = !!(employer && Number(employer.is_current) === 1);
 
             html += `
                 <div class="section-card" style="padding:1.25rem; position:relative;" data-id="${entry.id}">
                     <div style="font-weight:700; font-size:1rem; margin-bottom:0.25rem;">${projectName}</div>
-                    ${employerName ? `<div style="font-size:0.82rem; color:var(--text-muted); margin-bottom:0.25rem;">📍 ${employerName}</div>` : ''}
+                    ${employerName ? `<div style="font-size:0.82rem; color:var(--text-muted); margin-bottom:0.25rem;">📍 ${esc(employerName)}${employerIsCurrent ? ' <span style="color:var(--accent-blue); font-weight:600;">(Current Company)</span>' : ''}</div>` : ''}
                     <div style="color:var(--accent-blue); font-size:0.9rem; margin-bottom:0.25rem;">${role}</div>
                     <div style="color:var(--text-secondary); font-size:0.82rem; margin-bottom:0.5rem;">${startDate} – ${endDate}</div>
                     ${technologies ? '<div style="font-size:0.78rem; color:var(--accent-amber); margin-bottom:0.5rem;">' + technologies + '</div>' : ''}
@@ -2646,13 +2770,15 @@ function showPastProjectForm(entry = null) {
     const technologiesInput = document.getElementById('pp-technologies');
     const descriptionInput = document.getElementById('pp-description');
 
-    // Populate employer dropdown
+    // Populate employer dropdown. New entries default to the staff's current
+    // company (the work-history row flagged Current), so a past project can be
+    // attributed to it without an extra click.
+    const defaultEmployerId = entry
+        ? (entry.work_history_id || '')
+        : (getCurrentEmployer()?.id || '');
     if (workHistoryIdInput) {
-        let html = '<option value="">— No Association —</option>';
-        workHistoryData.forEach(wh => {
-            html += `<option value="${wh.id}">${wh.employer} ${wh.is_current ? '(Current)' : ''}</option>`;
-        });
-        workHistoryIdInput.innerHTML = html;
+        workHistoryIdInput.innerHTML = buildEmployerOptions(defaultEmployerId);
+        workHistoryIdInput.value = defaultEmployerId;
     }
 
     // Load catalog if needed
@@ -2661,16 +2787,17 @@ function showPastProjectForm(entry = null) {
     }
 
     // Set up autocomplete event
+    let updateAutocomplete = null;
     if (workHistoryIdInput && projectNameInput) {
-        const updateAutocomplete = () => {
+        updateAutocomplete = () => {
             const whId = workHistoryIdInput.value;
-            const employer = workHistoryData.find(e => e.id === whId);
+            const employer = workHistoryData.find(e => String(e.id) === String(whId));
             const datalist = document.getElementById('project-catalog-list');
 
-            if (employer && employer.is_current && datalist) {
+            if (employer && Number(employer.is_current) === 1 && datalist) {
                 let optionsHtml = '';
                 projectCatalog.forEach(p => {
-                    optionsHtml += `<option value="${p.project_name}">`;
+                    optionsHtml += `<option value="${esc(p.project_name)}">`;
                 });
                 datalist.innerHTML = optionsHtml;
             } else if (datalist) {
@@ -2691,14 +2818,11 @@ function showPastProjectForm(entry = null) {
         if (endDateInput) endDateInput.value = entry.end_date || '';
         if (technologiesInput) technologiesInput.value = entry.technologies || '';
         if (descriptionInput) descriptionInput.value = entry.description || '';
-
-        // Trigger initial autocomplete setup if needed
-        if (projectNameInput.onchange) projectNameInput.onchange();
     } else {
         // Add mode
         if (title) title.textContent = 'Add Past Project';
         if (idInput) idInput.value = '';
-        if (workHistoryIdInput) workHistoryIdInput.value = '';
+        if (workHistoryIdInput) workHistoryIdInput.value = defaultEmployerId;
         if (projectNameInput) projectNameInput.value = '';
         if (roleInput) roleInput.value = '';
         if (startDateInput) startDateInput.value = '';
@@ -2706,6 +2830,10 @@ function showPastProjectForm(entry = null) {
         if (technologiesInput) technologiesInput.value = '';
         if (descriptionInput) descriptionInput.value = '';
     }
+
+    // Sync the catalog datalist with the selected company (including the
+    // current-company default chosen above).
+    if (updateAutocomplete) updateAutocomplete();
 
     if (form) form.style.display = '';
     if (form) form.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -2731,6 +2859,18 @@ function hidePastProjectForm() {
     if (descriptionInput) descriptionInput.value = '';
     const datalist = document.getElementById('project-catalog-list');
     if (datalist) datalist.innerHTML = '';
+}
+
+function getPastProjectDateConflicts(body, employer) {
+    const conflicts = [];
+    if (!employer) return conflicts;
+    if (body.start_date && employer.start_date && body.start_date < employer.start_date) {
+        conflicts.push(`Start date (${body.start_date}) is before the employer period (${employer.start_date}).`);
+    }
+    if (body.end_date && employer.end_date && body.end_date > employer.end_date) {
+        conflicts.push(`End date (${body.end_date}) is after the employer period (${employer.end_date}).`);
+    }
+    return conflicts;
 }
 
 async function savePastProject() {
@@ -2768,21 +2908,11 @@ async function savePastProject() {
     // Dates outside the employer's period are NOT a hard error (projects often
     // span before/after a formal employment window, or the association is only
     // approximate) — surface a confirm modal, then save on approval.
-    if (workHistoryId) {
-        const employer = workHistoryData.find(e => e.id === workHistoryId);
-        if (employer) {
-            const conflicts = [];
-            if (startDate && employer.start_date && startDate < employer.start_date) {
-                conflicts.push(`Start date (${startDate}) is before the employer period (${employer.start_date}).`);
-            }
-            if (endDate && employer.end_date && endDate > employer.end_date) {
-                conflicts.push(`End date (${endDate}) is after the employer period (${employer.end_date}).`);
-            }
-            if (conflicts.length) {
-                confirmPastProjectDates(body, id, employer, conflicts);
-                return;
-            }
-        }
+    const employer = workHistoryData.find(e => String(e.id) === String(workHistoryId)) || null;
+    const conflicts = getPastProjectDateConflicts(body, employer);
+    if (conflicts.length) {
+        confirmPastProjectDates(body, id, employer, conflicts);
+        return;
     }
 
     await submitPastProject(body, id);
@@ -2795,8 +2925,8 @@ function esc(s) {
     return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
 
-function confirmPastProjectDates(body, id, employer, conflicts) {
-    pendingPastProjectSave = { body, id };
+function confirmPastProjectDates(body, id, employer, conflicts, onSuccess = null) {
+    pendingPastProjectSave = { body, id, onSuccess };
     const backdrop = document.createElement('div');
     backdrop.className = 'modal-backdrop active';
     const periodEnd = employer.end_date || 'Present';
@@ -2830,11 +2960,12 @@ function confirmPastProjectDates(body, id, employer, conflicts) {
         const pending = pendingPastProjectSave;
         pendingPastProjectSave = null;
         backdrop.remove();
-        if (pending) await submitPastProject(pending.body, pending.id);
+        if (pending) await submitPastProject(pending.body, pending.id, { onSuccess: pending.onSuccess });
     });
 }
 
-async function submitPastProject(body, id) {
+async function submitPastProject(body, id, options = {}) {
+    const { onSuccess } = options;
     const email = targetProfileEmail;
     try {
         let res;
@@ -2853,10 +2984,14 @@ async function submitPastProject(body, id) {
         }
 
         if (res.ok) {
-            showToast('Past project saved successfully');
             pastProjectsLoaded = false;
-            loadPastProjects();
+            await loadPastProjects();
             hidePastProjectForm();
+            if (onSuccess) {
+                await onSuccess();
+            } else {
+                showToast('Past project saved successfully');
+            }
         } else {
             const errData = await res.json().catch(() => ({}));
             showToast(errData.error || 'Failed to save past project', true);

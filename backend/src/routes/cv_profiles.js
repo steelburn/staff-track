@@ -384,7 +384,7 @@ router.get('/:email', verifyToken, async (req, res) => {
         let pastProjects = [];
         try {
             const [projRows] = await db.query(
-                'SELECT id, project_name, description, role, start_date, end_date, technologies FROM cv_past_projects WHERE LOWER(staff_email) = ? ORDER BY start_date DESC',
+                'SELECT id, project_name, work_history_id, description, role, start_date, end_date, technologies FROM cv_past_projects WHERE LOWER(staff_email) = ? ORDER BY start_date DESC',
                 [email.toLowerCase()]
             );
             pastProjects = projRows;
@@ -733,7 +733,7 @@ router.post('/:email/generate', verifyToken, async (req, res) => {
         let pastProjects = [];
         try {
             const [projRows] = await db.query(
-                'SELECT id, project_name, description, role, start_date, end_date, technologies FROM cv_past_projects WHERE LOWER(staff_email) = ? ORDER BY start_date DESC',
+                'SELECT id, project_name, work_history_id, description, role, start_date, end_date, technologies FROM cv_past_projects WHERE LOWER(staff_email) = ? ORDER BY start_date DESC',
                 [email.toLowerCase()]
             );
             pastProjects = projRows || [];
@@ -881,7 +881,15 @@ router.post('/:email/generate', verifyToken, async (req, res) => {
             certifications: absoluteCertifications,
             awards: absoluteAwards,
             workHistory: formattedWorkHistory,
-            projects: formattedSubmissionProjects.length > 0 ? formattedSubmissionProjects : formattedPastProjects,
+            // CVs show project experience as a single section: current
+            // assignments plus historical (past) projects. Historical rows must
+            // not disappear just because the staff still has active projects.
+            projects: [...formattedSubmissionProjects, ...formattedPastProjects].sort((a, b) => {
+                if (!a.start_date && !b.start_date) return 0;
+                if (!a.start_date) return 1;
+                if (!b.start_date) return -1;
+                return String(b.start_date).localeCompare(String(a.start_date));
+            }),
             skills: submissionSkills,
             photo: profile.photo_path ? true : false,
             photo_path: absolutePhotoPath
