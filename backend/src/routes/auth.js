@@ -10,6 +10,15 @@ const BEESUITE_API_BASE = process.env.BEESUITE_API_URL || 'https://appcore.beesu
 // ── Auto-sync user from BeeSuite if not in local DB ────────────────────────
 async function syncUserFromBeeSuite(db, email, beesuiteToken) {
     try {
+        // Canonical form. BeeSuite's /api/users/staff returns some emails with a
+        // trailing space (e.g. "luqman.syahmi@zen.com.my "). An exact string
+        // compare against a trimmed login email never matched those accounts,
+        // so auto-sync returned null and the user saw "User not found in roles
+        // table" even though their credentials were valid. Trim + lowercase
+        // both sides before comparing or writing anything to the local DB.
+        const normalizedEmail = String(email || '').trim().toLowerCase();
+        if (!normalizedEmail) return null;
+
         // Fetch staff list from BeeSuite to find this user
         const staffResponse = await axios.get(`${BEESUITE_API_BASE}/api/users/staff`, {
             headers: { 'Authorization': `JWT ${beesuiteToken}` }
@@ -18,8 +27,8 @@ async function syncUserFromBeeSuite(db, email, beesuiteToken) {
         let staffList = staffResponse.data;
         if (!Array.isArray(staffList)) return null;
 
-        // Find the matching user by email
-        const beesuiteUser = staffList.find(s => s.email?.toLowerCase() === email.toLowerCase());
+        // Find the matching user by email (trim BeeSuite's copy too)
+        const beesuiteUser = staffList.find(s => String(s.email || '').trim().toLowerCase() === normalizedEmail);
         if (!beesuiteUser) {
             console.log(`Auto-sync: user ${email} not found in BeeSuite staff list`);
             return null;
@@ -61,31 +70,31 @@ async function syncUserFromBeeSuite(db, email, beesuiteToken) {
         const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
 
         // Insert or update staff record
-        const [existingStaff] = await db.query('SELECT email FROM staff WHERE email = ?', [email]);
+        const [existingStaff] = await db.query('SELECT email FROM staff WHERE email = ?', [normalizedEmail]);
         if (existingStaff.length === 0) {
             await db.query(
                 'INSERT INTO staff (email, name, title, department, manager_name, employee_type, employee_status) VALUES (?, ?, ?, ?, ?, ?, ?)',
-                [email, name, title, department, managerName, employeeType, employeeStatus]
+                [normalizedEmail, name, title, department, managerName, employeeType, employeeStatus]
             );
-            console.log(`Auto-sync: created staff record for ${email}`);
+            console.log(`Auto-sync: created staff record for ${normalizedEmail}`);
         } else {
             await db.query(
                 'UPDATE staff SET name = ?, title = ?, department = ?, manager_name = ?, employee_type = COALESCE(?, employee_type), employee_status = COALESCE(?, employee_status) WHERE email = ?',
-                [name, title, department, managerName, employeeType, employeeStatus, email]
+                [name, title, department, managerName, employeeType, employeeStatus, normalizedEmail]
             );
         }
 
         // Insert default user_roles if not exists
-        const [existingRole] = await db.query('SELECT email FROM user_roles WHERE email = ?', [email]);
+        const [existingRole] = await db.query('SELECT email FROM user_roles WHERE email = ?', [normalizedEmail]);
         if (existingRole.length === 0) {
             await db.query(
                 'INSERT INTO user_roles (email, role, is_hr, is_coordinator, is_active, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
-                [email, 'staff', 0, 0, 1, now, now]
+                [normalizedEmail, 'staff', 0, 0, 1, now, now]
             );
-            console.log(`Auto-sync: created user_roles for ${email}`);
+            console.log(`Auto-sync: created user_roles for ${normalizedEmail}`);
         }
 
-        return { email, name, title, department, role: 'staff', is_hr: 0, is_coordinator: 0 };
+        return { email: normalizedEmail, name, title, department, role: 'staff', is_hr: 0, is_coordinator: 0 };
     } catch (err) {
         console.error(`Auto-sync error for ${email}:`, err.message);
         return null;
@@ -272,7 +281,12 @@ router.get('/audit', verifyToken, requireRole('admin', 'hr'), async (req, res) =
 // Update the login route to forward requests to the external API
 router.post('/login', async (req, res) => {
     try {
-        const { email, password } = req.body;
+        // Normalise the login email once, up front. Every downstream lookup
+        // (BeeSuite auth, user_roles, auto-sync, staff name, session capture)
+        // must agree on a single canonical form, otherwise a stray space or a
+        // case difference silently turns into "User not found in roles table".
+        const email = String(req.body.email || '').trim().toLowerCase();
+        const password = req.body.password;
 
         if (!email || !password) {
             return res.status(400).json({ error: 'Email and password are required' });

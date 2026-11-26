@@ -840,7 +840,7 @@ router.post('/sync-staff', verifyToken, requireRole('admin'), async (req, res) =
 
             const referenceCompanyId = staffList.length > 0 ? staffList[0].companyId : null;
             const filteredStaffList = staffList.filter(s => s.companyId === referenceCompanyId);
-            const validEmails = new Set(filteredStaffList.map(s => s.email?.toLowerCase()).filter(Boolean));
+            const validEmails = new Set(filteredStaffList.map(s => String(s.email || '').trim().toLowerCase()).filter(Boolean));
 
             syncStatus.total = filteredStaffList.length;
 
@@ -904,7 +904,7 @@ router.post('/sync-staff', verifyToken, requireRole('admin'), async (req, res) =
                             };
                             const hasManagerInfo = !!(detail.reportingToName || detail.dateOfResignation);
                             if (hasManagerInfo || detail.employeeType || detail.employeeStatus) {
-                                details.set(staff.email.toLowerCase(), detail);
+                                details.set(String(staff.email || '').trim().toLowerCase(), detail);
                             }
                             // AppCore is the fallback for manager/resignation when the
                             // bulk row can't supply it; keep any employment fields the
@@ -935,7 +935,7 @@ router.post('/sync-staff', verifyToken, requireRole('admin'), async (req, res) =
                         if (detail) {
                             // Merge over any bulk-derived fields so an AppCore response
                             // that omits type/status doesn't wipe what the bulk query found.
-                            const key = staff.email.toLowerCase();
+                            const key = String(staff.email || '').trim().toLowerCase();
                             const prev = details.get(key) || {};
                             const merged = { ...prev };
                             for (const [k, v] of Object.entries(detail)) {
@@ -959,7 +959,7 @@ router.post('/sync-staff', verifyToken, requireRole('admin'), async (req, res) =
             syncStatus.progress = 0;
             for (let i = 0; i < filteredStaffList.length; i++) {
                 const staff = filteredStaffList[i];
-                const email = staff.email;
+                const email = String(staff.email || '').trim().toLowerCase();
                 const name = staff.employeeName;
                 const title = staff.designation;
                 const department = staff.department;
