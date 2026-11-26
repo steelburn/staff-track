@@ -5,52 +5,212 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>StaffTrack — My CV Profile</title>
-    <link rel="stylesheet" href="/css/main.css?v=20260824d">
+    <link rel="stylesheet" href="/css/main.css?v=20261126a">
     <script src="/theme.js?v=20260824d"></script>
     <style>
-        .profile-layout {
-            display: grid;
-            grid-template-columns: 280px 1fr;
-            gap: var(--space-6);
+        /* ═══════════════════════════════════════════════════════════════════
+           MY CV PROFILE — modernized workspace
+           Scoped to this page. Builds on /css/main.css design tokens.
+           ═══════════════════════════════════════════════════════════════════ */
+
+        :root {
+            --cv-gradient: linear-gradient(135deg, #6366f1 0%, #8b5cf6 55%, #a855f7 100%);
+            --cv-gradient-soft: linear-gradient(135deg, rgba(99, 102, 241, 0.14), rgba(168, 85, 247, 0.10));
+            --cv-shell: color-mix(in srgb, var(--color-bg-surface) 82%, transparent);
+            --cv-type-edu-bg: rgba(99, 102, 241, 0.12);
+            --cv-type-edu-fg: #6366f1;
+            --cv-type-cert-bg: rgba(245, 158, 11, 0.14);
+            --cv-type-cert-fg: #d97706;
+            --cv-type-award-bg: rgba(234, 179, 8, 0.16);
+            --cv-type-award-fg: #b45309;
+            --cv-type-work-bg: rgba(16, 185, 129, 0.12);
+            --cv-type-work-fg: #059669;
+            --cv-type-project-bg: rgba(59, 130, 246, 0.12);
+            --cv-type-project-fg: #2563eb;
+            --cv-type-past-bg: rgba(100, 116, 139, 0.14);
+            --cv-type-past-fg: #64748b;
         }
 
-        @media (max-width: 1024px) {
+        [data-theme="dark"] {
+            --cv-gradient-soft: linear-gradient(135deg, rgba(129, 140, 248, 0.18), rgba(168, 85, 247, 0.14));
+            --cv-type-edu-bg: rgba(129, 140, 248, 0.18);
+            --cv-type-edu-fg: #a5b4fc;
+            --cv-type-cert-bg: rgba(251, 191, 36, 0.16);
+            --cv-type-cert-fg: #fbbf24;
+            --cv-type-award-bg: rgba(251, 191, 36, 0.18);
+            --cv-type-award-fg: #fcd34d;
+            --cv-type-work-bg: rgba(52, 211, 153, 0.16);
+            --cv-type-work-fg: #34d399;
+            --cv-type-project-bg: rgba(96, 165, 250, 0.16);
+            --cv-type-project-fg: #93c5fd;
+            --cv-type-past-bg: rgba(148, 163, 184, 0.16);
+            --cv-type-past-fg: #cbd5e1;
+        }
+
+        /* ─── Page shell ─────────────────────────────────────────────────── */
+        html,
+        body {
+            overflow-x: clip;
+        }
+
+        html {
+            scroll-padding-bottom: 100px;
+        }
+
+        .main-content {
+            min-width: 0;
+        }
+
+        .content-area {
+            min-width: 0;
+        }
+
+        .page-header {
+            padding-top: 18px;
+            padding-bottom: 16px;
+            background:
+                radial-gradient(1200px 240px at 8% -40%, var(--color-primary-light), transparent 70%),
+                var(--color-bg-surface);
+        }
+
+        .page-header-top {
+            margin-bottom: 0;
+        }
+
+        .cv-page-heading {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+
+        .cv-eyebrow {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 10.5px;
+            font-weight: 700;
+            letter-spacing: 0.09em;
+            text-transform: uppercase;
+            color: var(--color-primary);
+        }
+
+        .cv-eyebrow::before {
+            content: '';
+            width: 18px;
+            height: 2px;
+            border-radius: 2px;
+            background: var(--cv-gradient);
+        }
+
+        .page-title {
+            font-size: clamp(1.35rem, 1.1rem + 0.7vw, 1.65rem);
+            letter-spacing: -0.02em;
+        }
+
+        .cv-viewing-chip {
+            display: none;
+            align-items: center;
+            gap: 6px;
+            margin-top: 6px;
+            padding: 4px 10px;
+            border-radius: 999px;
+            background: var(--color-primary-light);
+            color: var(--color-primary);
+            border: 1px solid color-mix(in srgb, var(--color-primary) 22%, transparent);
+            font-size: 11.5px;
+            font-weight: 600;
+            width: fit-content;
+        }
+
+        .cv-viewing-chip:not(:empty) {
+            display: inline-flex;
+        }
+
+        .cv-viewing-chip::before {
+            content: '';
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: currentColor;
+        }
+
+        /* ─── Layout ─────────────────────────────────────────────────────── */
+        .profile-layout {
+            display: grid;
+            grid-template-columns: 296px minmax(0, 1fr);
+            gap: var(--space-6);
+            align-items: start;
+            max-width: 1560px;
+            margin: 0 auto;
+        }
+
+        .profile-layout > * {
+            min-width: 0;
+        }
+
+        .cv-main {
+            min-width: 0;
+        }
+
+        @media (max-width: 1180px) {
             .profile-layout {
-                grid-template-columns: 1fr;
+                grid-template-columns: minmax(0, 1fr);
             }
         }
 
+        /* ─── Profile sidebar ────────────────────────────────────────────── */
         .profile-sidebar {
             display: flex;
             flex-direction: column;
             gap: var(--space-4);
+            min-width: 0;
         }
 
         .profile-card {
+            position: relative;
             background: var(--color-bg-surface);
             border: 1px solid var(--color-border);
-            border-radius: var(--radius-lg);
-            padding: var(--space-6);
+            border-radius: var(--radius-xl);
+            padding: 0 var(--space-5) var(--space-4);
             text-align: center;
+            overflow: hidden;
+            box-shadow: var(--shadow-xs);
+        }
+
+        .profile-card::before {
+            content: '';
+            display: block;
+            height: 78px;
+            margin: 0 calc(-1 * var(--space-5));
+            background:
+                radial-gradient(120px 80px at 20% 10%, rgba(255, 255, 255, 0.35), transparent 70%),
+                var(--cv-gradient);
         }
 
         .profile-avatar {
-            width: 100px;
-            height: 100px;
+            position: relative;
+            width: 104px;
+            height: 104px;
             border-radius: 50%;
-            background: linear-gradient(135deg, var(--color-primary), #8b5cf6);
+            background: var(--cv-gradient);
             display: flex;
             align-items: center;
             justify-content: center;
-            color: white;
-            font-size: 36px;
+            color: #fff;
+            font-size: 34px;
             font-weight: 700;
-            margin: 0 auto var(--space-4);
+            margin: -52px auto var(--space-3);
             overflow: hidden;
+            box-shadow:
+                0 0 0 4px var(--color-bg-surface),
+                0 12px 24px -10px rgba(99, 102, 241, 0.65);
+            letter-spacing: -0.02em;
         }
+
         .profile-avatar.has-photo {
-            background: none;
+            background: var(--color-bg-muted);
         }
+
         .profile-avatar img {
             width: 100%;
             height: 100%;
@@ -58,185 +218,1691 @@
         }
 
         .profile-name {
-            font-size: var(--font-size-xl);
-            font-weight: var(--font-weight-bold);
+            font-size: 15.5px;
+            font-weight: 700;
+            letter-spacing: -0.01em;
             color: var(--color-text-primary);
-            margin-bottom: var(--space-1);
+            margin-bottom: 2px;
+            overflow-wrap: anywhere;
         }
 
         .profile-title {
             font-size: var(--font-size-sm);
             color: var(--color-text-secondary);
-            margin-bottom: var(--space-4);
+            margin-bottom: var(--space-3);
+            overflow-wrap: anywhere;
+        }
+
+        #photo-upload-section {
+            margin-top: 0 !important;
+            padding-top: 0 !important;
+            border-top: none !important;
+        }
+
+        #btn-upload-photo {
+            display: inline-flex !important;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            width: auto !important;
+            padding: 7px 12px !important;
+            border-radius: 999px !important;
+            font-size: 11.5px !important;
+            font-weight: 600;
+            background: var(--color-bg-muted);
+            border-color: transparent;
+        }
+
+        #btn-upload-photo svg {
+            width: 14px;
+            height: 14px;
+        }
+
+        #btn-upload-photo:hover {
+            background: var(--color-primary-light);
+            color: var(--color-primary);
         }
 
         .profile-stats {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: var(--space-3);
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
             margin-top: var(--space-4);
-            padding-top: var(--space-4);
+            padding-top: var(--space-3);
             border-top: 1px solid var(--color-border);
         }
 
         .profile-stat {
-            text-align: center;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 7px 8px;
+            border-radius: 10px;
+            text-align: left;
+            transition: background var(--transition-fast);
         }
 
-        .profile-stat-value {
-            font-size: var(--font-size-xl);
-            font-weight: var(--font-weight-bold);
-            color: var(--color-text-primary);
+        .profile-stat:hover {
+            background: var(--color-bg-hover);
+        }
+
+        .profile-stat-ico {
+            display: grid;
+            place-items: center;
+            width: 28px;
+            height: 28px;
+            border-radius: 8px;
+            background: var(--cv-gradient-soft);
+            color: var(--color-primary);
+            flex: 0 0 28px;
+        }
+
+        .profile-stat-ico svg {
+            width: 14px;
+            height: 14px;
         }
 
         .profile-stat-label {
-            font-size: var(--font-size-xs);
-            color: var(--color-text-muted);
+            flex: 1;
+            font-size: 11.5px;
+            font-weight: 600;
+            color: var(--color-text-secondary);
+            letter-spacing: 0.01em;
         }
 
+        .profile-stat-value {
+            font-size: 14px;
+            font-weight: 700;
+            color: var(--color-text-primary);
+            font-variant-numeric: tabular-nums;
+        }
+
+        /* ─── Completion ─────────────────────────────────────────────────── */
         .completion-card {
             background: var(--color-bg-surface);
             border: 1px solid var(--color-border);
-            border-radius: var(--radius-lg);
-            padding: var(--space-4);
+            border-radius: var(--radius-xl);
+            padding: var(--space-5);
+            box-shadow: var(--shadow-xs);
         }
 
         .completion-header {
             display: flex;
-            justify-content: space-between;
             align-items: center;
+            gap: var(--space-4);
             margin-bottom: var(--space-3);
         }
 
-        .completion-title {
-            font-size: var(--font-size-sm);
-            font-weight: var(--font-weight-semibold);
-            color: var(--color-text-primary);
+        .completion-ring {
+            --pct: 0%;
+            position: relative;
+            width: 64px;
+            height: 64px;
+            flex: 0 0 64px;
+            border-radius: 50%;
+            background: conic-gradient(var(--color-primary) var(--pct), var(--color-bg-muted) 0);
+            display: grid;
+            place-items: center;
+            transition: background 400ms ease;
+        }
+
+        .completion-ring::before {
+            content: '';
+            position: absolute;
+            inset: 6px;
+            border-radius: 50%;
+            background: var(--color-bg-surface);
         }
 
         .completion-percent {
-            font-size: var(--font-size-sm);
-            font-weight: var(--font-weight-bold);
+            position: relative;
+            z-index: 1;
+            font-size: 13px;
+            font-weight: 700;
             color: var(--color-primary);
+            font-variant-numeric: tabular-nums;
+        }
+
+        .completion-copy {
+            min-width: 0;
+        }
+
+        .completion-title {
+            display: block;
+            font-size: var(--font-size-sm);
+            font-weight: 700;
+            color: var(--color-text-primary);
+            margin-bottom: 2px;
+        }
+
+        .completion-hint {
+            font-size: 11px;
+            line-height: 1.45;
+            color: var(--color-text-secondary);
         }
 
         .completion-bar {
-            height: 8px;
+            height: 5px;
             background: var(--color-bg-muted);
             border-radius: var(--radius-full);
             overflow: hidden;
+            margin-bottom: var(--space-3);
         }
 
         .completion-fill {
             height: 100%;
-            background: linear-gradient(90deg, var(--color-primary), #8b5cf6);
+            background: var(--cv-gradient);
             border-radius: var(--radius-full);
-            transition: width 0.5s ease;
+            transition: width 0.5s cubic-bezier(0.4, 0, 0.2, 1);
         }
 
-        .tabs-nav {
+        .completion-list {
+            list-style: none;
+            display: grid;
+            gap: 6px;
+            margin: 0;
+            padding: 0;
+        }
+
+        .completion-list li {
             display: flex;
-            gap: var(--space-1);
-            border-bottom: 2px solid var(--color-border);
-            margin-bottom: var(--space-6);
-            overflow-x: auto;
-            scrollbar-width: none;
+            align-items: center;
+            gap: 8px;
+            font-size: 11.5px;
+            color: var(--color-text-secondary);
         }
 
-        .tabs-nav::-webkit-scrollbar {
-            display: none;
+        .completion-list li.done {
+            color: var(--color-text-secondary);
+        }
+
+        .completion-check {
+            display: grid;
+            place-items: center;
+            width: 15px;
+            height: 15px;
+            flex: 0 0 15px;
+            border: 1.5px solid var(--color-border);
+            border-radius: 50%;
+            color: transparent;
+            transition: all var(--transition-fast);
+        }
+
+        .completion-check svg {
+            width: 9px;
+            height: 9px;
+        }
+
+        .completion-list li.done .completion-check {
+            background: var(--color-success);
+            border-color: var(--color-success);
+            color: #fff;
+        }
+
+        /* ─── Tabs ───────────────────────────────────────────────────────── */
+        .tabs-nav {
+            position: relative;
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 4px;
+            padding: 6px;
+            margin-bottom: var(--space-5);
+            background: var(--color-bg-surface);
+            border: 1px solid var(--color-border);
+            border-radius: var(--radius-xl);
+            box-shadow: var(--shadow-xs);
+            overflow: visible;
         }
 
         .tab-btn {
-            display: flex;
+            display: inline-flex;
             align-items: center;
-            gap: var(--space-2);
-            padding: var(--space-3) var(--space-4);
-            border: none;
+            gap: 7px;
+            padding: 8px 12px;
+            border: 1px solid transparent;
+            border-radius: 10px;
             background: transparent;
             color: var(--color-text-secondary);
-            font-size: var(--font-size-sm);
-            font-weight: var(--font-weight-semibold);
+            font-size: 12.5px;
+            font-weight: 600;
+            letter-spacing: 0.005em;
             cursor: pointer;
-            transition: all var(--transition-fast);
             white-space: nowrap;
-            border-bottom: 2px solid transparent;
-            margin-bottom: -2px;
+            transition: background var(--transition-fast), color var(--transition-fast), box-shadow var(--transition-fast), transform var(--transition-fast);
+        }
+
+        .tab-btn svg {
+            width: 15px;
+            height: 15px;
+            flex: 0 0 15px;
+            opacity: 0.72;
         }
 
         .tab-btn:hover {
-            color: var(--color-text-primary);
             background: var(--color-bg-hover);
+            color: var(--color-text-primary);
+            border-color: transparent;
+        }
+
+        .tab-btn:focus-visible {
+            outline: none;
+            box-shadow: 0 0 0 2px var(--color-bg-surface), 0 0 0 4px var(--color-primary);
         }
 
         .tab-btn.active {
-            color: var(--color-primary);
-            border-bottom-color: var(--color-primary);
+            background: var(--cv-gradient);
+            color: #fff;
+            border-color: transparent;
+            box-shadow: 0 6px 16px -6px rgba(99, 102, 241, 0.65);
+        }
+
+        .tab-btn.active svg {
+            opacity: 1;
+        }
+
+        .tab-badge {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 18px;
+            height: 18px;
+            padding: 0 5px;
+            border-radius: 999px;
+            background: var(--color-bg-muted);
+            color: var(--color-text-secondary);
+            font-size: 10px;
+            font-weight: 700;
+            font-variant-numeric: tabular-nums;
+            line-height: 1;
+        }
+
+        .tab-btn.active .tab-badge {
+            background: rgba(255, 255, 255, 0.24);
+            color: #fff;
+        }
+
+        .tab-badge[hidden] {
+            display: none;
+        }
+
+        .tab-sep {
+            width: 1px;
+            align-self: stretch;
+            margin: 4px 6px;
+            background: var(--color-border);
+        }
+
+        @media (max-width: 720px) {
+            .tabs-nav {
+                flex-wrap: nowrap;
+                overflow-x: auto;
+                scrollbar-width: none;
+                -webkit-overflow-scrolling: touch;
+                border-radius: 14px;
+            }
+
+            .tabs-nav::-webkit-scrollbar {
+                display: none;
+            }
+
+            .tab-sep {
+                display: none;
+            }
         }
 
         .tab-content {
             display: none;
+            animation: cvFadeUp 220ms ease;
         }
 
         .tab-content.active {
             display: block;
         }
 
-        /* CV Preview */
-        .cv-preview-frame {
-            width: 100%;
-            height: 800px;
-            border: 1px solid var(--color-border);
-            border-radius: var(--radius-lg);
-            background: white;
+        @keyframes cvFadeUp {
+            from {
+                opacity: 0;
+                transform: translateY(4px);
+            }
+            to {
+                opacity: 1;
+                transform: none;
+            }
         }
 
-        /* Template Picker */
+        /* ─── Cards ──────────────────────────────────────────────────────── */
+        .tab-content > .card {
+            margin-bottom: var(--space-4);
+        }
+
+        .card {
+            min-width: 0;
+            border-radius: var(--radius-xl);
+            border-color: var(--color-border);
+            box-shadow: var(--shadow-xs);
+        }
+
+        .tab-content > .card > .card-header {
+            padding: 16px 20px;
+            background:
+                linear-gradient(180deg, color-mix(in srgb, var(--color-bg-muted) 55%, transparent), transparent);
+        }
+
+        .cv-card-heading {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            min-width: 0;
+        }
+
+        .cv-card-heading .card-title {
+            font-size: 14.5px;
+            font-weight: 700;
+            letter-spacing: -0.01em;
+        }
+
+        .cv-card-heading .card-subtitle {
+            margin-top: 2px;
+            line-height: 1.45;
+        }
+
+        .cv-ico {
+            display: grid;
+            place-items: center;
+            width: 36px;
+            height: 36px;
+            flex: 0 0 36px;
+            border-radius: 10px;
+            background: var(--cv-gradient-soft);
+            color: var(--color-primary);
+            border: 1px solid color-mix(in srgb, var(--color-primary) 16%, transparent);
+        }
+
+        .cv-ico svg {
+            width: 17px;
+            height: 17px;
+        }
+
+        .cv-add-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 7px 12px 7px 10px;
+            border: 1px solid transparent;
+            border-radius: 9px;
+            background: var(--cv-gradient);
+            color: #fff;
+            font-size: 11.5px;
+            font-weight: 700;
+            line-height: 1;
+            cursor: pointer;
+            white-space: nowrap;
+            box-shadow: 0 4px 12px -4px rgba(99, 102, 241, 0.6);
+            transition: transform var(--transition-fast), box-shadow var(--transition-fast), filter var(--transition-fast);
+        }
+
+        .cv-add-btn svg {
+            width: 13px;
+            height: 13px;
+        }
+
+        .cv-add-btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 8px 18px -6px rgba(99, 102, 241, 0.7);
+            filter: saturate(1.08);
+        }
+
+        .cv-add-btn:disabled {
+            opacity: 0.5;
+            pointer-events: none;
+        }
+
+        .cv-form-card {
+            border-left: 3px solid var(--color-primary);
+        }
+
+        .cv-form-card .card-header {
+            background: var(--cv-gradient-soft) !important;
+        }
+
+        /* ─── Empty states ───────────────────────────────────────────────── */
+        .empty-state {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            padding: 44px var(--space-6);
+            margin: var(--space-4);
+            border: 1px dashed var(--color-border-hover);
+            border-radius: var(--radius-lg);
+            background:
+                radial-gradient(420px 160px at 50% 0%, var(--color-primary-lighter), transparent 72%);
+        }
+
+        .empty-state-icon {
+            display: grid;
+            place-items: center;
+            width: 56px;
+            height: 56px;
+            margin-bottom: var(--space-4);
+            border-radius: 16px;
+            background: var(--cv-gradient-soft);
+            border: 1px solid color-mix(in srgb, var(--color-primary) 16%, transparent);
+            color: var(--color-primary);
+            font-size: 26px;
+        }
+
+        .empty-state-title {
+            font-size: 14.5px;
+            font-weight: 700;
+            margin-bottom: 4px;
+        }
+
+        .empty-state-text {
+            font-size: 12.5px;
+            max-width: 380px;
+            margin-bottom: var(--space-4);
+        }
+
+        .empty-state-cta {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 7px 13px;
+            border-radius: 9px;
+            border: 1px solid var(--color-border);
+            background: var(--color-bg-surface);
+            color: var(--color-text-primary);
+            font-size: 11.5px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all var(--transition-fast);
+        }
+
+        .empty-state-cta svg {
+            width: 13px;
+            height: 13px;
+            color: var(--color-primary);
+        }
+
+        .empty-state-cta:hover {
+            border-color: var(--color-primary);
+            color: var(--color-primary);
+            background: var(--color-primary-light);
+        }
+
+        /* ─── Entry cards (rendered by JS) ───────────────────────────────── */
+        #education-list,
+        #certifications-list,
+        #awards-list,
+        #work-history-list,
+        #projects-list,
+        #past-projects-list {
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            align-items: start;
+            gap: var(--space-3);
+        }
+
+        .cv-entry {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            min-width: 0;
+            padding: 16px;
+            background: var(--color-bg-surface);
+            border: 1px solid var(--color-border);
+            border-radius: var(--radius-lg);
+            box-shadow: var(--shadow-xs);
+            position: relative;
+            overflow: hidden;
+            transition: transform var(--transition-base), box-shadow var(--transition-base), border-color var(--transition-base);
+        }
+
+        .cv-entry::after {
+            content: '';
+            position: absolute;
+            inset: 0 auto 0 0;
+            width: 3px;
+            background: var(--cv-gradient);
+            opacity: 0;
+            transition: opacity var(--transition-base);
+        }
+
+        .cv-entry:hover {
+            transform: translateY(-2px);
+            border-color: var(--color-border-hover);
+            box-shadow: var(--shadow-md);
+        }
+
+        .cv-entry:hover::after {
+            opacity: 1;
+        }
+
+        .cv-entry-top {
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+            min-width: 0;
+        }
+
+        .cv-entry-ico {
+            display: grid;
+            place-items: center;
+            width: 34px;
+            height: 34px;
+            flex: 0 0 34px;
+            border-radius: 9px;
+        }
+
+        .cv-entry-ico svg {
+            width: 16px;
+            height: 16px;
+        }
+
+        .cv-entry-ico.edu {
+            background: var(--cv-type-edu-bg);
+            color: var(--cv-type-edu-fg);
+        }
+
+        .cv-entry-ico.cert {
+            background: var(--cv-type-cert-bg);
+            color: var(--cv-type-cert-fg);
+        }
+
+        .cv-entry-ico.award {
+            background: var(--cv-type-award-bg);
+            color: var(--cv-type-award-fg);
+        }
+
+        .cv-entry-ico.work {
+            background: var(--cv-type-work-bg);
+            color: var(--cv-type-work-fg);
+        }
+
+        .cv-entry-ico.project {
+            background: var(--cv-type-project-bg);
+            color: var(--cv-type-project-fg);
+        }
+
+        .cv-entry-ico.past {
+            background: var(--cv-type-past-bg);
+            color: var(--cv-type-past-fg);
+        }
+
+        .cv-entry-heading {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .cv-entry-title {
+            font-size: 13.5px;
+            font-weight: 700;
+            line-height: 1.4;
+            color: var(--color-text-primary);
+            letter-spacing: -0.005em;
+            overflow-wrap: anywhere;
+        }
+
+        .cv-entry-sub {
+            margin-top: 1px;
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--color-primary);
+            overflow-wrap: anywhere;
+        }
+
+        .cv-entry-meta {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 6px 12px;
+            font-size: 11px;
+            color: var(--color-text-secondary);
+        }
+
+        .cv-meta-item {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            min-width: 0;
+        }
+
+        .cv-meta-item svg {
+            width: 12px;
+            height: 12px;
+            flex: 0 0 12px;
+            opacity: 0.8;
+        }
+
+        .cv-meta-item span {
+            overflow-wrap: anywhere;
+        }
+
+        .cv-chip-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 5px;
+        }
+
+        .cv-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            max-width: 100%;
+            padding: 2px 8px;
+            border-radius: 999px;
+            background: var(--color-bg-muted);
+            border: 1px solid transparent;
+            color: var(--color-text-secondary);
+            font-size: 10px;
+            font-weight: 600;
+            line-height: 1.6;
+            overflow-wrap: anywhere;
+        }
+
+        .cv-chip.current {
+            background: var(--color-success-light);
+            color: var(--color-success);
+        }
+
+        .cv-chip.tech {
+            background: var(--color-primary-light);
+            color: var(--color-primary);
+        }
+
+        .cv-chip.accent {
+            background: var(--color-info-light);
+            color: var(--color-info);
+        }
+
+        .cv-entry-desc {
+            font-size: 12px;
+            line-height: 1.65;
+            color: var(--color-text-secondary);
+            white-space: pre-line;
+            overflow-wrap: anywhere;
+            display: -webkit-box;
+            -webkit-line-clamp: 4;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+
+        .cv-entry-desc.short {
+            -webkit-line-clamp: 2;
+        }
+
+        .cv-entry-actions {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: flex-end;
+            gap: 4px;
+            margin-top: auto;
+            padding-top: 10px;
+            border-top: 1px solid var(--color-border);
+        }
+
+        .cv-act {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            padding: 5px 9px;
+            border: 1px solid transparent;
+            border-radius: 7px;
+            background: transparent;
+            color: var(--color-text-secondary);
+            font-size: 11px;
+            font-weight: 600;
+            line-height: 1;
+            cursor: pointer;
+            transition: all var(--transition-fast);
+        }
+
+        .cv-act svg {
+            width: 12px;
+            height: 12px;
+        }
+
+        .cv-act:hover {
+            background: var(--color-bg-hover);
+            color: var(--color-text-primary);
+        }
+
+        .cv-act.danger:hover {
+            background: var(--color-danger-light);
+            color: var(--color-danger);
+        }
+
+        .cv-proof-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            width: fit-content;
+            padding: 3px 8px;
+            border-radius: 6px;
+            background: var(--color-warning-light);
+            color: var(--color-warning);
+            font-size: 10.5px;
+            font-weight: 700;
+            text-decoration: none;
+            transition: filter var(--transition-fast);
+        }
+
+        .cv-proof-link svg {
+            width: 11px;
+            height: 11px;
+        }
+
+        .cv-proof-link:hover {
+            filter: brightness(0.95);
+        }
+
+        .cv-chip svg {
+            width: 10px;
+            height: 10px;
+            flex: 0 0 10px;
+        }
+
+        /* ─── Work history ───────────────────────────────────────────────── */
+        .wh-company {
+            display: block !important;
+            padding: 16px !important;
+            border-radius: var(--radius-lg) !important;
+            box-shadow: var(--shadow-xs);
+        }
+
+        .wh-company:hover {
+            box-shadow: var(--shadow-md);
+        }
+
+        #work-history-list {
+            grid-template-columns: minmax(0, 1fr);
+        }
+
+        .wh-company-head {
+            gap: 12px;
+        }
+
+        .wh-company-id {
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+            min-width: 0;
+        }
+
+        .wh-company-id > div {
+            min-width: 0;
+        }
+
+        .wh-company-name {
+            font-size: 14px;
+            font-weight: 700;
+            letter-spacing: -0.01em;
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .wh-company-dates {
+            font-size: 11.5px;
+            color: var(--color-text-muted);
+            margin-top: 2px;
+        }
+
+        .wh-company-progression {
+            font-size: 11.5px;
+            color: var(--color-text-secondary);
+        }
+
+        .wh-current-badge {
+            display: inline-flex;
+            align-items: center;
+            padding: 1px 7px;
+            border-radius: 999px;
+            background: var(--color-success-light);
+            color: var(--color-success);
+            font-size: 9.5px;
+            font-weight: 700;
+            letter-spacing: 0.03em;
+            text-transform: uppercase;
+        }
+
+        .wh-role-list {
+            margin-top: 12px;
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+
+        .wh-role {
+            gap: 10px;
+            padding: 8px 0;
+        }
+
+        .wh-role-title {
+            font-size: 12.5px;
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .wh-role-dates {
+            font-size: 10.5px;
+            color: var(--color-text-muted);
+        }
+
+        .wh-role-desc {
+            font-size: 11.5px;
+            line-height: 1.62;
+            color: var(--color-text-secondary);
+            margin-top: 4px;
+            overflow-wrap: anywhere;
+        }
+
+        .wh-role-actions {
+            gap: 4px;
+            margin-top: 6px;
+        }
+
+        .wh-role-actions .btn-secondary,
+        .wh-role-actions .btn-remove,
+        .btn-add-role {
+            display: inline-flex !important;
+            align-items: center;
+            gap: 4px;
+            width: auto !important;
+            padding: 4px 8px !important;
+            border: 1px solid transparent !important;
+            border-radius: 6px !important;
+            background: transparent !important;
+            color: var(--color-text-secondary) !important;
+            font-size: 10.5px !important;
+            font-weight: 600 !important;
+            box-shadow: none !important;
+            cursor: pointer;
+        }
+
+        .wh-role-actions .btn-secondary:hover,
+        .btn-add-role:hover {
+            background: var(--color-bg-hover) !important;
+            color: var(--color-text-primary) !important;
+        }
+
+        .wh-role-actions .btn-remove:hover {
+            background: var(--color-danger-light) !important;
+            color: var(--color-danger) !important;
+        }
+
+        .btn-add-role {
+            border: 1px solid var(--color-border) !important;
+            background: var(--color-bg-surface) !important;
+        }
+
+        /* ─── Skills table ───────────────────────────────────────────────── */
+        #skills-tab .card-body {
+            padding: 0;
+        }
+
+        #skills-tab .table-container {
+            border: none;
+            border-radius: 0 var(--radius-xl) var(--radius-xl) 0;
+        }
+
+        #skills-tab .table th {
+            padding: 9px 16px;
+            background: var(--color-bg-muted);
+            border-bottom: 1px solid var(--color-border);
+        }
+
+        #skills-tab .table td {
+            padding: 8px 16px;
+        }
+
+        #skills-tab .table td:first-child {
+            width: 55%;
+        }
+
+        #skills-tab .table tr:hover td {
+            background: var(--color-bg-hover);
+        }
+
+        #skills-tbody input[type="text"] {
+            width: 100%;
+            padding: 6px 8px;
+            border: 1px solid transparent;
+            border-radius: 7px;
+            background: transparent;
+            color: var(--color-text-primary);
+            font: inherit;
+            font-size: 12.5px;
+            font-weight: 600;
+            transition: all var(--transition-fast);
+        }
+
+        #skills-tbody input[type="text"]:hover {
+            background: var(--color-bg-muted);
+        }
+
+        #skills-tbody input[type="text"]:focus {
+            outline: none;
+            background: var(--color-bg-surface);
+            border-color: var(--color-primary);
+            box-shadow: 0 0 0 3px var(--color-primary-light);
+        }
+
+        #skills-tab .star-rating {
+            padding: 2px;
+            border-radius: 8px;
+            gap: 1px;
+            background: var(--color-bg-muted);
+        }
+
+        #skills-tab .star-rating button {
+            min-width: 25px;
+            height: 22px;
+            border-radius: 6px;
+            font-size: 10.5px;
+            font-weight: 700;
+        }
+
+        #skills-tab .star-rating button.on {
+            background: var(--color-warning);
+            box-shadow: 0 2px 6px -2px rgba(245, 158, 11, 0.8);
+        }
+
+        #skills-tab .star-rating .rating-level {
+            font-size: 10px;
+            margin-left: 6px;
+            min-width: 56px;
+            color: var(--color-text-muted);
+        }
+
+        #skills-tab .btn-remove {
+            width: 24px;
+            height: 24px;
+            border: none;
+            background: transparent;
+            color: var(--color-text-muted);
+            font-size: 12px;
+            border-radius: 6px;
+        }
+
+        #skills-tab .btn-remove:hover {
+            background: var(--color-danger-light);
+            color: var(--color-danger);
+        }
+
+        /* ─── Tables (snapshots, audit) ──────────────────────────────────── */
+        .cv-table-wrap {
+            border-radius: var(--radius-lg);
+            border: 1px solid var(--color-border);
+            overflow: auto;
+        }
+
+        #generate-cv-tab .table-container,
+        #audit-tab .table-container {
+            border-radius: var(--radius-lg);
+        }
+
+        #generate-cv-tab .table th,
+        #audit-tab .table th {
+            padding: 9px 14px;
+        }
+
+        #generate-cv-tab .table td,
+        #audit-tab .table td {
+            padding: 9px 14px;
+            font-size: 12px;
+        }
+
+        #audit-tbody tr {
+            transition: background var(--transition-fast);
+        }
+
+        .cv-section-pill {
+            display: inline-flex;
+            align-items: center;
+            padding: 2px 8px;
+            border-radius: 999px;
+            background: var(--color-bg-muted);
+            color: var(--color-text-secondary);
+            font-size: 10.5px;
+            font-weight: 600;
+            white-space: nowrap;
+        }
+
+        .cv-when {
+            display: inline-flex;
+            flex-direction: column;
+            gap: 1px;
+            white-space: nowrap;
+            font-size: 11px;
+            color: var(--color-text-secondary);
+            font-variant-numeric: tabular-nums;
+        }
+
+        .cv-when small {
+            font-size: 9.5px;
+            color: var(--color-text-muted);
+            letter-spacing: 0.02em;
+            text-transform: uppercase;
+        }
+
+        .cv-table-actions {
+            display: flex;
+            gap: 4px;
+            align-items: center;
+        }
+
+        /* ─── Generate CV ────────────────────────────────────────────────── */
         .template-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-            gap: var(--space-4);
+            grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+            gap: var(--space-3);
         }
 
         .template-card {
-            background: var(--color-bg-muted);
-            border: 2px solid var(--color-border);
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            min-width: 0;
+            padding: 16px !important;
+            background: var(--color-bg-surface);
+            border: 1.5px solid var(--color-border);
             border-radius: var(--radius-lg);
-            padding: var(--space-4);
             cursor: pointer;
-            transition: all var(--transition-fast);
-            text-align: center;
+            text-align: left;
+            box-shadow: none;
+            transition: all var(--transition-base);
         }
 
         .template-card:hover {
-            border-color: var(--color-primary);
+            border-color: var(--color-border-hover);
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-sm);
         }
 
         .template-card.selected {
             border-color: var(--color-primary);
-            background: var(--color-primary-light);
+            background: var(--color-primary-lighter);
+            box-shadow: 0 0 0 3px var(--color-primary-light);
         }
 
-        .template-icon {
-            font-size: 32px;
-            margin-bottom: var(--space-2);
+        .template-card .template-icon {
+            display: grid;
+            place-items: center;
+            width: 38px;
+            height: 38px;
+            margin-bottom: 4px;
+            border-radius: 10px;
+            background: var(--cv-gradient-soft);
+            font-size: 20px;
         }
 
         .template-name {
-            font-size: var(--font-size-sm);
-            font-weight: var(--font-weight-semibold);
+            font-size: 13px;
+            font-weight: 700;
             color: var(--color-text-primary);
         }
 
-        /* Snapshots Table */
+        .template-card .template-desc {
+            font-size: 11px;
+            line-height: 1.5;
+            color: var(--color-text-muted);
+        }
+
+        .template-check {
+            position: absolute;
+            top: 12px;
+            right: 12px;
+            display: grid;
+            place-items: center;
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            border: 1.5px solid var(--color-border);
+            color: transparent;
+            background: var(--color-bg-surface);
+        }
+
+        .template-check svg {
+            width: 10px;
+            height: 10px;
+        }
+
+        .template-card.selected .template-check {
+            background: var(--color-primary);
+            border-color: var(--color-primary);
+            color: #fff;
+        }
+
+        .cv-toolbar {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            justify-content: space-between;
+            gap: var(--space-3);
+            margin-bottom: var(--space-4);
+        }
+
+        .cv-toolbar-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: var(--space-2);
+        }
+
+        .cv-subhead {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: var(--space-3);
+            margin: var(--space-6) 0 var(--space-3);
+            padding-top: var(--space-5);
+            border-top: 1px solid var(--color-border);
+        }
+
+        .cv-subhead-label {
+            display: inline-flex;
+            align-items: center;
+            gap: 7px;
+            font-size: 12px;
+            font-weight: 700;
+            color: var(--color-text-secondary);
+        }
+
+        .cv-subhead-label svg {
+            width: 14px;
+            height: 14px;
+            color: var(--color-primary);
+        }
+
+        .cv-preview-shell {
+            border: 1px solid var(--color-border);
+            border-radius: var(--radius-lg);
+            overflow: hidden;
+            background: var(--color-bg-muted);
+        }
+
+        .cv-preview-bar {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 8px 12px;
+            background: var(--color-bg-surface);
+            border-bottom: 1px solid var(--color-border);
+        }
+
+        .cv-preview-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--color-border-hover);
+        }
+
+        .cv-preview-dot:nth-child(1) {
+            background: #f87171;
+        }
+
+        .cv-preview-dot:nth-child(2) {
+            background: #fbbf24;
+        }
+
+        .cv-preview-dot:nth-child(3) {
+            background: #34d399;
+        }
+
+        .cv-preview-label {
+            margin-left: 6px;
+            font-size: 10.5px;
+            font-weight: 600;
+            color: var(--color-text-muted);
+        }
+
+        .cv-preview-frame {
+            display: block;
+            width: 100%;
+            height: 800px;
+            border: 0;
+            background: #fff;
+        }
+
+        /* ─── Forms ──────────────────────────────────────────────────────── */
+        .cv-form-card .card-body {
+            padding: var(--space-5);
+        }
+
+        .cv-form-card .form-label {
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+            color: var(--color-text-muted);
+        }
+
+        .cv-form-card .input {
+            font-size: 13px;
+        }
+
+        /* In view-only mode keep values legible instead of stacking opacities. */
+        #my-submission-tab .input:disabled,
+        #my-submission-tab .input[readonly] {
+            opacity: 1;
+            color: var(--color-text-secondary);
+            background: var(--color-bg-muted);
+        }
+
+        .cv-proof-label {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            margin-bottom: var(--space-2);
+            font-size: var(--font-size-sm);
+            font-weight: 700;
+            color: var(--color-text-secondary);
+        }
+
+        .cv-proof-label svg {
+            width: 14px;
+            height: 14px;
+            color: var(--color-primary);
+        }
+
+        .cv-proof-label span {
+            font-weight: 500;
+            color: var(--color-text-muted);
+        }
+
+        .cv-proof-current {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 8px;
+            font-size: 11.5px;
+            color: var(--color-text-secondary);
+        }
+
+        .cv-proof-current > svg {
+            width: 13px;
+            height: 13px;
+            color: var(--color-warning);
+        }
+
+        .cv-proof-current a {
+            color: var(--color-primary);
+            font-weight: 600;
+            text-decoration: none;
+            overflow-wrap: anywhere;
+        }
+
+        .cv-proof-current a:hover {
+            text-decoration: underline;
+        }
+
+        .cv-proof-box {
+            margin-top: var(--space-4) !important;
+            padding: var(--space-3) !important;
+            background: var(--color-bg-muted) !important;
+            border: 1px dashed var(--color-border-hover) !important;
+            border-radius: var(--radius-md) !important;
+        }
+
+        .cv-form-actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: var(--space-2) !important;
+            margin-top: var(--space-5) !important;
+            padding-top: var(--space-4);
+            border-top: 1px solid var(--color-border);
+        }
+
+        /* ─── My Submission ──────────────────────────────────────────────── */
+        .cv-fieldset-note {
+            display: flex;
+            align-items: center;
+            gap: 7px;
+            margin-bottom: var(--space-3);
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: 0.05em;
+            text-transform: uppercase;
+            color: var(--color-text-muted);
+        }
+
+        .cv-fieldset-note::after {
+            content: '';
+            flex: 1;
+            height: 1px;
+            background: var(--color-border);
+        }
+
+        .cv-actionbar {
+            position: sticky;
+            bottom: 16px;
+            z-index: 20;
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            justify-content: flex-end;
+            gap: var(--space-2);
+            margin-top: var(--space-4);
+            padding: 10px 12px;
+            border: 1px solid var(--color-border);
+            border-radius: 14px;
+            background: var(--color-bg-surface);
+            background: color-mix(in srgb, var(--color-bg-surface) 86%, transparent);
+            -webkit-backdrop-filter: blur(10px);
+            backdrop-filter: blur(10px);
+            box-shadow: var(--shadow-lg);
+        }
+
+        .cv-actionbar-status {
+            margin-right: auto;
+            font-size: 11.5px;
+            font-weight: 600;
+            color: var(--color-success);
+            padding-left: 4px;
+        }
+
+        .cv-actionbar .btn {
+            padding: 8px 12px;
+            font-size: 11.5px;
+            border-radius: 9px;
+        }
+
+        /* ─── View-only banner ───────────────────────────────────────────── */
+        .cv-viewonly-banner {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: var(--space-4);
+            padding: 10px 14px;
+            border-radius: 12px;
+            border: 1px solid color-mix(in srgb, var(--color-warning) 35%, transparent);
+            background: var(--color-warning-light);
+            color: var(--color-warning);
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .cv-viewonly-banner svg {
+            width: 15px;
+            height: 15px;
+            flex: 0 0 15px;
+        }
+
+        /* ─── Misc ───────────────────────────────────────────────────────── */
         .snapshot-actions {
             display: flex;
             gap: var(--space-2);
         }
+
+        .preserve-newlines {
+            white-space: pre-line;
+        }
+
+        @media (max-width: 720px) {
+            .profile-layout {
+                gap: var(--space-4);
+            }
+
+            .page-header {
+                padding-top: 14px;
+                padding-bottom: 12px;
+            }
+
+            .page-header-top {
+                flex-direction: row;
+                align-items: flex-start;
+                flex-wrap: nowrap;
+                gap: 8px;
+            }
+
+            .page-actions {
+                width: auto;
+                margin-left: auto;
+                flex-wrap: nowrap;
+            }
+
+            .page-actions .theme-label {
+                display: none;
+            }
+
+            .page-actions .btn {
+                padding: 9px 10px;
+            }
+
+            .profile-card {
+                padding: 0 16px 14px;
+            }
+
+            .profile-card::before {
+                height: 54px;
+                margin: 0 -16px;
+            }
+
+            .profile-avatar {
+                width: 76px;
+                height: 76px;
+                margin-top: -38px;
+                margin-bottom: 8px;
+                font-size: 24px;
+            }
+
+            .profile-name {
+                font-size: 14px;
+            }
+
+            .profile-title {
+                font-size: 11.5px;
+                margin-bottom: 8px;
+            }
+
+            #btn-upload-photo {
+                padding: 5px 10px !important;
+                font-size: 10.5px !important;
+            }
+
+            .profile-stats {
+                display: grid;
+                grid-template-columns: repeat(5, minmax(0, 1fr));
+                gap: 4px;
+                margin-top: 12px;
+                padding-top: 10px;
+            }
+
+            .profile-stat {
+                flex-direction: column;
+                gap: 2px;
+                padding: 4px 0;
+                text-align: center;
+            }
+
+            .profile-stat-ico {
+                width: 24px;
+                height: 24px;
+                flex: 0 0 24px;
+            }
+
+            .profile-stat-ico svg {
+                width: 12px;
+                height: 12px;
+            }
+
+            .profile-stat-label {
+                display: none;
+            }
+
+            .profile-stat-value {
+                font-size: 12px;
+            }
+
+            .completion-card {
+                padding: 14px;
+            }
+
+            .completion-header {
+                margin-bottom: 8px;
+            }
+
+            .completion-ring {
+                width: 52px;
+                height: 52px;
+                flex: 0 0 52px;
+            }
+
+            .completion-list {
+                display: none;
+            }
+
+            .cv-actionbar {
+                position: static;
+            }
+
+            .cv-entry-actions {
+                justify-content: flex-start;
+            }
+
+            .cv-preview-frame {
+                height: 560px;
+            }
+
+            .card-header {
+                flex-wrap: wrap;
+            }
+
+            .card-body {
+                padding: var(--space-4);
+            }
+
+            .cv-add-btn {
+                width: 100%;
+                justify-content: center;
+                margin-top: 4px;
+            }
+        }
+        /* Stacked (tablet / small laptop): keep the profile summary compact. */
+        @media (min-width: 721px) and (max-width: 1180px) {
+            .profile-sidebar {
+                display: grid;
+                grid-template-columns: minmax(0, 1.6fr) minmax(240px, 1fr);
+                align-items: start;
+                gap: var(--space-4);
+            }
+
+            .profile-card {
+                display: grid;
+                grid-template-columns: 76px minmax(0, 1fr);
+                align-items: center;
+                column-gap: 14px;
+                row-gap: 0;
+                padding: 16px 18px;
+                text-align: left;
+            }
+
+            .profile-card::before {
+                display: none;
+            }
+
+            .profile-avatar {
+                grid-row: 1 / span 3;
+                width: 76px;
+                height: 76px;
+                margin: 0;
+                font-size: 24px;
+                box-shadow:
+                    0 0 0 3px var(--color-bg-surface),
+                    0 8px 18px -8px rgba(99, 102, 241, 0.6);
+            }
+
+            .profile-name {
+                align-self: end;
+                font-size: 15px;
+            }
+
+            .profile-title {
+                align-self: start;
+                margin-bottom: 6px;
+            }
+
+            #photo-upload-section {
+                grid-column: 2;
+                justify-self: start;
+            }
+
+            .profile-stats {
+                grid-column: 1 / -1;
+                display: grid;
+                grid-template-columns: repeat(5, minmax(0, 1fr));
+                gap: 4px;
+                margin-top: 14px;
+                padding-top: 12px;
+            }
+
+            .profile-stat {
+                flex-direction: column;
+                gap: 2px;
+                padding: 4px 0;
+                text-align: center;
+            }
+
+            .profile-stat-label {
+                display: block;
+                font-size: 9px;
+                line-height: 1.2;
+            }
+
+            .profile-stat-value {
+                font-size: 12.5px;
+            }
+
+            .completion-list {
+                grid-template-columns: 1fr;
+            }
+        }
+
     </style>
 </head>
 
 <body>
+    <!-- ═══ Icon sprite (stroke icons, currentColor) ═══════════════════════ -->
+    <svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+        <defs>
+            <symbol id="i-user" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></symbol>
+            <symbol id="i-graduation" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M22 10 12 5 2 10l10 5 10-5Z"/><path d="M6 12v5c0 1.7 2.7 3 6 3s6-1.3 6-3v-5"/></symbol>
+            <symbol id="i-badge" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="5"/><path d="m8.5 12.5-1 8 4.5-3 4.5 3-1-8"/></symbol>
+            <symbol id="i-trophy" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 0 1-10 0V4Z"/><path d="M17 5h3v2a3 3 0 0 1-3 3M7 5H4v2a3 3 0 0 0 3 3"/></symbol>
+            <symbol id="i-briefcase" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M2 13h20"/></symbol>
+            <symbol id="i-wrench" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a4 4 0 0 1-5.4 5.4L4 17l3 3 5.3-5.3a4 4 0 0 0 5.4-5.4l-2.5 2.5-2.4-2.4 2.5-2.5Z"/></symbol>
+            <symbol id="i-folder" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7Z"/></symbol>
+            <symbol id="i-printer" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9V3h12v6M6 18H4a2 2 0 0 1-2-2v-4a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="7" rx="1"/></symbol>
+            <symbol id="i-shield" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z"/><path d="m9 12 2 2 4-4"/></symbol>
+            <symbol id="i-plus" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></symbol>
+            <symbol id="i-camera" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2v11Z"/><circle cx="12" cy="13" r="4"/></symbol>
+            <symbol id="i-pencil" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.8 2.8 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3Z"/></symbol>
+            <symbol id="i-trash" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/></symbol>
+            <symbol id="i-arrow-right" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></symbol>
+            <symbol id="i-eye" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></symbol>
+            <symbol id="i-download" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></symbol>
+            <symbol id="i-upload" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21V9M7 14l5-5 5 5M5 3h14"/></symbol>
+            <symbol id="i-paperclip" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m21 11-9.5 9.5a5.5 5.5 0 0 1-7.8-7.8L13 3.4a4 4 0 0 1 5.7 5.7L9.2 18.6a2.5 2.5 0 0 1-3.5-3.5l9-9"/></symbol>
+            <symbol id="i-calendar" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 11h18"/></symbol>
+            <symbol id="i-building" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="3" width="16" height="18" rx="1"/><path d="M9 7h2M13 7h2M9 11h2M13 11h2M9 15h2M13 15h2M10 21v-3h4v3"/></symbol>
+            <symbol id="i-star" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3 2.7 5.6 6.3.9-4.5 4.4 1 6.1-5.5-2.9-5.5 2.9 1-6.1L3 9.5l6.3-.9L12 3Z"/></symbol>
+            <symbol id="i-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m4 12 5 5L20 6"/></symbol>
+            <symbol id="i-refresh" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-3-6.7M21 3v6h-6"/></symbol>
+            <symbol id="i-save" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2Z"/><path d="M7 3v6h8V3M7 21v-7h10v7"/></symbol>
+            <symbol id="i-link" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1.5 1.5"/><path d="M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1.5-1.5"/></symbol>
+            <symbol id="i-sparkle" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3 1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9L12 3Z"/></symbol>
+            <symbol id="i-move" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7Z"/><path d="M12 10v6M9 13l3 3 3-3"/></symbol>
+            <symbol id="i-id" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><circle cx="8.5" cy="11" r="2"/><path d="M5 16.5c.6-1.3 1.9-2 3.5-2s2.9.7 3.5 2M14.5 10h4M14.5 13.5h4"/></symbol>
+            <symbol id="i-alert" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4M12 17h.01"/><path d="M10.3 3.9 2 18a2 2 0 0 0 1.7 3h16.6a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/></symbol>
+            <symbol id="i-image" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-5-5L5 21"/></symbol>
+        </defs>
+    </svg>
+
     <div class="app-layout">
         <!-- ═══ Sidebar ═══════════════════════════════════════════════════════ -->
         <aside class="sidebar" id="sidebar">
@@ -265,11 +1931,13 @@
             <!-- Page Header -->
             <header class="page-header">
                 <div class="page-header-top">
-                    <div style="display:flex; align-items:center; gap:12px;">
+                    <div style="display:flex; align-items:center; gap:12px; min-width:0;">
                         <button class="mobile-menu-btn" id="mobileMenuBtn">☰</button>
-                        <div>
-                            <h1 class="page-title">My CV Profile <span id="target-staff-mention" style="color: var(--color-primary); font-size: var(--font-size-base); font-weight: normal;"></span></h1>
+                        <div class="cv-page-heading">
+                            <span class="cv-eyebrow">Professional Profile</span>
+                            <h1 class="page-title">My CV Profile</h1>
                             <p class="page-subtitle">Manage your CV and professional profile</p>
+                            <span id="target-staff-mention" class="cv-viewing-chip"></span>
                         </div>
                     </div>
                     <div class="page-actions">
@@ -290,92 +1958,124 @@
                             <div class="profile-avatar" id="profile-avatar">?</div>
                             <div class="profile-name" id="profile-name">Loading...</div>
                             <div class="profile-title" id="profile-title">—</div>
-                            <div id="photo-upload-section" style="margin-top: var(--space-4); padding-top: var(--space-4); border-top: 1px solid var(--color-border);">
+                            <div id="photo-upload-section">
                                 <input type="file" id="cv-photo" accept="image/*" style="display:none;">
-                                <label for="cv-photo" class="btn btn-secondary btn-sm" id="btn-upload-photo" style="width:100%; display:inline-block; text-align:center; cursor:pointer;">📷 Upload Photo</label>
+                                <label for="cv-photo" class="btn btn-secondary btn-sm" id="btn-upload-photo">
+                                    <svg aria-hidden="true"><use href="#i-camera"/></svg> Upload Photo
+                                </label>
                             </div>
                             <div class="profile-stats">
-                                <div class="profile-stat">
-                                    <div class="profile-stat-value" id="stat-skills">0</div>
-                                    <div class="profile-stat-label">Skills</div>
+                                <div class="profile-stat" title="Skills">
+                                    <span class="profile-stat-ico"><svg aria-hidden="true"><use href="#i-wrench"/></svg></span>
+                                    <span class="profile-stat-label">Skills</span>
+                                    <span class="profile-stat-value" id="stat-skills">0</span>
                                 </div>
-                                <div class="profile-stat">
-                                    <div class="profile-stat-value" id="stat-projects">0</div>
-                                    <div class="profile-stat-label">Projects</div>
+                                <div class="profile-stat" title="Active projects">
+                                    <span class="profile-stat-ico"><svg aria-hidden="true"><use href="#i-briefcase"/></svg></span>
+                                    <span class="profile-stat-label">Active projects</span>
+                                    <span class="profile-stat-value" id="stat-projects">0</span>
                                 </div>
-                                <div class="profile-stat">
-                                    <div class="profile-stat-value" id="stat-education">0</div>
-                                    <div class="profile-stat-label">Education</div>
+                                <div class="profile-stat" title="Education">
+                                    <span class="profile-stat-ico"><svg aria-hidden="true"><use href="#i-graduation"/></svg></span>
+                                    <span class="profile-stat-label">Education</span>
+                                    <span class="profile-stat-value" id="stat-education">0</span>
                                 </div>
-                                <div class="profile-stat">
-                                    <div class="profile-stat-value" id="stat-certs">0</div>
-                                    <div class="profile-stat-label">Certs</div>
+                                <div class="profile-stat" title="Certifications">
+                                    <span class="profile-stat-ico"><svg aria-hidden="true"><use href="#i-badge"/></svg></span>
+                                    <span class="profile-stat-label">Certifications</span>
+                                    <span class="profile-stat-value" id="stat-certs">0</span>
                                 </div>
-                                <div class="profile-stat">
-                                    <div class="profile-stat-value" id="stat-awards">0</div>
-                                    <div class="profile-stat-label">Awards</div>
+                                <div class="profile-stat" title="Awards">
+                                    <span class="profile-stat-ico"><svg aria-hidden="true"><use href="#i-trophy"/></svg></span>
+                                    <span class="profile-stat-label">Awards</span>
+                                    <span class="profile-stat-value" id="stat-awards">0</span>
                                 </div>
                             </div>
                         </div>
 
                         <div class="completion-card">
                             <div class="completion-header">
-                                <span class="completion-title">Profile Completion</span>
-                                <span class="completion-percent" id="completion-percent">0%</span>
+                                <div class="completion-ring" id="completion-ring">
+                                    <span class="completion-percent" id="completion-percent">0%</span>
+                                </div>
+                                <div class="completion-copy">
+                                    <span class="completion-title">Profile completion</span>
+                                    <span class="completion-hint">Fill every section to make your CV stand out.</span>
+                                </div>
                             </div>
                             <div class="completion-bar">
                                 <div class="completion-fill" id="completion-fill" style="width: 0%;"></div>
                             </div>
+                            <ul class="completion-list" id="completion-list">
+                                <li data-check="photo"><span class="completion-check"><svg aria-hidden="true"><use href="#i-check"/></svg></span>Professional photo</li>
+                                <li data-check="summary"><span class="completion-check"><svg aria-hidden="true"><use href="#i-check"/></svg></span>Professional summary</li>
+                                <li data-check="contact"><span class="completion-check"><svg aria-hidden="true"><use href="#i-check"/></svg></span>Contact details</li>
+                                <li data-check="skills"><span class="completion-check"><svg aria-hidden="true"><use href="#i-check"/></svg></span>Core skills</li>
+                                <li data-check="projects"><span class="completion-check"><svg aria-hidden="true"><use href="#i-check"/></svg></span>Active project</li>
+                                <li data-check="education"><span class="completion-check"><svg aria-hidden="true"><use href="#i-check"/></svg></span>Education</li>
+                                <li data-check="certs"><span class="completion-check"><svg aria-hidden="true"><use href="#i-check"/></svg></span>Certification</li>
+                            </ul>
                         </div>
                     </aside>
 
                     <!-- Main Content -->
-                    <div>
+                    <div class="cv-main">
                         <!-- Tab Navigation -->
-                        <div class="tabs-nav">
-                            <button class="tab-btn active" data-tab="my-submission">
-                                <span>📋</span> My Submission
+                        <div class="tabs-nav" role="tablist" aria-label="CV profile sections">
+                            <button class="tab-btn active" data-tab="my-submission" role="tab" aria-selected="true" aria-controls="my-submission-tab">
+                                <svg aria-hidden="true"><use href="#i-user"/></svg><span>My Submission</span>
                             </button>
-                            <button class="tab-btn" data-tab="education">
-                                <span>🎓</span> Education
+                            <button class="tab-btn" data-tab="education" role="tab" aria-selected="false" aria-controls="education-tab">
+                                <svg aria-hidden="true"><use href="#i-graduation"/></svg><span>Education</span>
+                                <span class="tab-badge" id="tab-count-education" hidden>0</span>
                             </button>
-                            <button class="tab-btn" data-tab="certifications">
-                                <span>📜</span> Certifications
+                            <button class="tab-btn" data-tab="certifications" role="tab" aria-selected="false" aria-controls="certifications-tab">
+                                <svg aria-hidden="true"><use href="#i-badge"/></svg><span>Certifications</span>
+                                <span class="tab-badge" id="tab-count-certifications" hidden>0</span>
                             </button>
-                            <button class="tab-btn" data-tab="awards">
-                                <span>🏆</span> Awards & Accomplishments
+                            <button class="tab-btn" data-tab="awards" role="tab" aria-selected="false" aria-controls="awards-tab">
+                                <svg aria-hidden="true"><use href="#i-trophy"/></svg><span>Awards</span>
+                                <span class="tab-badge" id="tab-count-awards" hidden>0</span>
                             </button>
-                            <button class="tab-btn" data-tab="work-history">
-                                <span>🏢</span> Work History
+                            <button class="tab-btn" data-tab="work-history" role="tab" aria-selected="false" aria-controls="work-history-tab">
+                                <svg aria-hidden="true"><use href="#i-building"/></svg><span>Work History</span>
+                                <span class="tab-badge" id="tab-count-work-history" hidden>0</span>
                             </button>
-                            <button class="tab-btn" data-tab="skills">
-                                <span>🛠</span> Skills
+                            <button class="tab-btn" data-tab="skills" role="tab" aria-selected="false" aria-controls="skills-tab">
+                                <svg aria-hidden="true"><use href="#i-wrench"/></svg><span>Skills</span>
+                                <span class="tab-badge" id="tab-count-skills" hidden>0</span>
                             </button>
-                            <button class="tab-btn" data-tab="active-projects">
-                                <span>🗂</span> Active Projects
+                            <button class="tab-btn" data-tab="active-projects" role="tab" aria-selected="false" aria-controls="active-projects-tab">
+                                <svg aria-hidden="true"><use href="#i-briefcase"/></svg><span>Active Projects</span>
+                                <span class="tab-badge" id="tab-count-projects" hidden>0</span>
                             </button>
-                            <button class="tab-btn" data-tab="past-projects">
-                                <span>📁</span> Past Projects
+                            <button class="tab-btn" data-tab="past-projects" role="tab" aria-selected="false" aria-controls="past-projects-tab">
+                                <svg aria-hidden="true"><use href="#i-folder"/></svg><span>Past Projects</span>
+                                <span class="tab-badge" id="tab-count-past-projects" hidden>0</span>
                             </button>
-                            <button class="tab-btn" data-tab="generate-cv">
-                                <span>🖨️</span> Generate CV
+                            <span class="tab-sep" aria-hidden="true"></span>
+                            <button class="tab-btn" data-tab="generate-cv" role="tab" aria-selected="false" aria-controls="generate-cv-tab">
+                                <svg aria-hidden="true"><use href="#i-printer"/></svg><span>Generate CV</span>
                             </button>
-                            <button class="tab-btn" data-tab="audit">
-                                <span>🧾</span> Audit Trail
+                            <button class="tab-btn" data-tab="audit" role="tab" aria-selected="false" aria-controls="audit-tab">
+                                <svg aria-hidden="true"><use href="#i-shield"/></svg><span>Audit Trail</span>
                             </button>
                         </div>
 
                         <!-- Tab Content: My Submission -->
                         <div class="tab-content active" id="my-submission-tab">
-                            <!-- Staff Details Section -->
-                            <section class="card" style="margin-bottom: var(--space-6);">
+                            <section class="card">
                                 <div class="card-header">
-                                    <div>
-                                        <div class="card-title">👤 Staff Details</div>
-                                        <div class="card-subtitle">Verify your identity and reporting line.</div>
+                                    <div class="cv-card-heading">
+                                        <span class="cv-ico"><svg aria-hidden="true"><use href="#i-user"/></svg></span>
+                                        <div>
+                                            <div class="card-title">Identity &amp; role</div>
+                                            <div class="card-subtitle">These details appear at the top of your generated CV.</div>
+                                        </div>
                                     </div>
                                 </div>
                                 <div class="card-body">
+                                    <div class="cv-fieldset-note">Who you are</div>
                                     <div class="grid grid-2">
                                         <div class="form-group">
                                             <label class="form-label" for="staff-name">Name</label>
@@ -393,37 +2093,44 @@
                                             <label class="form-label" for="staff-manager">Reporting Manager</label>
                                             <input type="text" id="staff-manager" class="input" placeholder="e.g. Jane Doe">
                                         </div>
-                                        <div class="form-group">
+                                        <div class="form-group" style="grid-column: 1 / -1;">
                                             <label class="form-label" for="staff-email">Email</label>
                                             <input type="email" id="staff-email" class="input">
                                         </div>
+                                    </div>
+
+                                    <div class="cv-fieldset-note" style="margin-top: var(--space-5);">How to reach you</div>
+                                    <div class="grid grid-2">
                                         <div class="form-group">
                                             <label class="form-label" for="cv-phone">Phone</label>
                                             <input type="tel" id="cv-phone" class="input" placeholder="+60 (12) 345-6789">
-                                        </div>
-                                        <div class="form-group">
-                                            <label class="form-label" for="cv-linkedin">LinkedIn URL</label>
-                                            <input type="url" id="cv-linkedin" class="input" placeholder="https://linkedin.com/in/...">
                                         </div>
                                         <div class="form-group">
                                             <label class="form-label" for="cv-location">Location</label>
                                             <input type="text" id="cv-location" class="input" placeholder="City, Country">
                                         </div>
                                         <div class="form-group" style="grid-column: 1 / -1;">
-                                            <label class="form-label" for="cv-summary">Professional Summary</label>
-                                            <textarea id="cv-summary" class="input textarea" rows="4" placeholder="Brief professional summary..."></textarea>
+                                            <label class="form-label" for="cv-linkedin">LinkedIn URL</label>
+                                            <input type="url" id="cv-linkedin" class="input" placeholder="https://linkedin.com/in/...">
                                         </div>
+                                    </div>
+
+                                    <div class="cv-fieldset-note" style="margin-top: var(--space-5);">Professional summary</div>
+                                    <div class="form-group">
+                                        <label class="form-label" for="cv-summary">Summary</label>
+                                        <textarea id="cv-summary" class="input textarea" rows="5" placeholder="A short professional summary — your experience, strengths, and what you are looking for next."></textarea>
+                                        <p class="form-hint">Two to four sentences works best. This is the first thing a reader sees.</p>
                                     </div>
                                 </div>
                             </section>
 
                             <!-- Save Actions -->
-                            <div style="display: flex; justify-content: flex-end; gap: var(--space-3); flex-wrap: wrap; padding: var(--space-4) 0;">
-                                <span id="save-status" style="align-self: center; font-size: var(--font-size-sm); color: var(--color-success);"></span>
-                                <button class="btn btn-secondary" id="btn-load-previous">📂 Load Previous</button>
-                                <button class="btn btn-secondary" id="btn-summary">📄 Summary</button>
-                                <button class="btn btn-danger" id="btn-clear">🗑 Reset</button>
-                                <button class="btn btn-primary" id="btn-save">💾 Save Progress</button>
+                            <div class="cv-actionbar">
+                                <span id="save-status" class="cv-actionbar-status"></span>
+                                <button class="btn btn-secondary" id="btn-load-previous"><svg width="14" height="14" aria-hidden="true"><use href="#i-refresh"/></svg> Load Previous</button>
+                                <button class="btn btn-secondary" id="btn-summary"><svg width="14" height="14" aria-hidden="true"><use href="#i-eye"/></svg> Summary</button>
+                                <button class="btn btn-danger" id="btn-clear"><svg width="14" height="14" aria-hidden="true"><use href="#i-trash"/></svg> Reset</button>
+                                <button class="btn btn-primary" id="btn-save"><svg width="14" height="14" aria-hidden="true"><use href="#i-save"/></svg> Save Progress</button>
                             </div>
                         </div>
 
@@ -431,29 +2138,36 @@
                         <div class="tab-content" id="education-tab">
                             <section class="card">
                                 <div class="card-header">
-                                    <div>
-                                        <div class="card-title">🎓 Education</div>
-                                        <div class="card-subtitle">Your academic qualifications</div>
+                                    <div class="cv-card-heading">
+                                        <span class="cv-ico"><svg aria-hidden="true"><use href="#i-graduation"/></svg></span>
+                                        <div>
+                                            <div class="card-title">Education</div>
+                                            <div class="card-subtitle">Your academic qualifications</div>
+                                        </div>
                                     </div>
-                                    <button class="btn btn-success btn-sm" id="btn-add-education">
-                                        <span>+</span>
-                                        Add Education
+                                    <button class="cv-add-btn" id="btn-add-education">
+                                        <svg aria-hidden="true"><use href="#i-plus"/></svg>
+                                        Add education
                                     </button>
                                 </div>
                                 <div class="card-body">
                                     <div id="education-empty" class="empty-state">
-                                        <div class="empty-state-icon">🎓</div>
-                                        <div class="empty-state-title">No education entries</div>
-                                        <div class="empty-state-text">Click "Add Education" to get started.</div>
+                                        <div class="empty-state-icon"><svg width="26" height="26" aria-hidden="true"><use href="#i-graduation"/></svg></div>
+                                        <div class="empty-state-title">No education entries yet</div>
+                                        <div class="empty-state-text">Add your degrees and institutions — they will appear on your generated CV.</div>
+                                        <button class="empty-state-cta" data-add-target="btn-add-education"><svg aria-hidden="true"><use href="#i-plus"/></svg> Add education</button>
                                     </div>
-                                    <div id="education-list" class="grid grid-2" style="display: none;"></div>
+                                    <div id="education-list" class="grid" style="display: none;"></div>
                                 </div>
                             </section>
 
                             <!-- Education Form (hidden by default) -->
-                            <section class="card" id="education-form" style="display: none; margin-top: var(--space-4);">
+                            <section class="card cv-form-card" id="education-form" style="display: none; margin-top: var(--space-4);">
                                 <div class="card-header">
-                                    <div class="card-title" id="education-form-title">➕ Add Education</div>
+                                    <div class="cv-card-heading">
+                                        <span class="cv-ico"><svg aria-hidden="true"><use href="#i-graduation"/></svg></span>
+                                        <div class="card-title" id="education-form-title">Add Education</div>
+                                    </div>
                                 </div>
                                 <div class="card-body">
                                     <input type="hidden" id="education-id">
@@ -483,17 +2197,17 @@
                                         <label class="form-label" for="edu-description">Description</label>
                                         <textarea id="edu-description" class="input textarea" rows="3" placeholder="Additional details about your studies..."></textarea>
                                     </div>
-                                    <p id="edu-proof-hint" style="font-size: var(--font-size-xs); color: var(--color-text-muted); margin-top: var(--space-3);">💡 Tip: You can attach a proof document (PDF, image) now or later via Edit.</p>
-                                    <div id="edu-proof-section" style="display: none; margin-top: var(--space-4); padding: var(--space-4); background: var(--color-bg-muted); border: 1px dashed var(--color-border); border-radius: var(--radius-md);">
-                                        <div style="font-size: var(--font-size-sm); font-weight: 600; color: var(--color-text-secondary); margin-bottom: var(--space-2);">📎 Proof Document (optional)</div>
+                                    <p id="edu-proof-hint" class="form-hint" style="margin-top: var(--space-3);">Tip: You can attach a proof document (PDF or image) now or later via Edit.</p>
+                                    <div id="edu-proof-section" class="cv-proof-box" style="display: none;">
+                                        <div class="cv-proof-label"><svg aria-hidden="true"><use href="#i-paperclip"/></svg> Proof document <span>(optional)</span></div>
                                         <div id="edu-proof-existing" style="display: none; margin-bottom: var(--space-2);"></div>
                                         <div style="display: flex; gap: var(--space-2); align-items: center; flex-wrap: wrap;">
                                             <input type="file" id="edu-proof" accept=".pdf,.jpg,.jpeg,.png,.gif,.webp" style="flex: 1; min-width: 0;">
-                                            <button class="btn btn-secondary btn-sm" id="btn-upload-edu-proof">⬆ Upload</button>
+                                            <button class="btn btn-secondary btn-sm" id="btn-upload-edu-proof"><svg width="13" height="13" aria-hidden="true"><use href="#i-upload"/></svg> Upload</button>
                                         </div>
                                     </div>
-                                    <div style="display: flex; justify-content: flex-end; gap: var(--space-3); margin-top: var(--space-6);">
-                                        <button class="btn btn-primary" id="btn-save-education">💾 Save Education</button>
+                                    <div class="cv-form-actions">
+                                        <button class="btn btn-primary" id="btn-save-education"><svg width="14" height="14" aria-hidden="true"><use href="#i-save"/></svg> Save Education</button>
                                         <button class="btn btn-secondary" id="btn-cancel-education">Cancel</button>
                                     </div>
                                 </div>
@@ -504,29 +2218,36 @@
                         <div class="tab-content" id="certifications-tab">
                             <section class="card">
                                 <div class="card-header">
-                                    <div>
-                                        <div class="card-title">📜 Certifications</div>
-                                        <div class="card-subtitle">Your professional certifications</div>
+                                    <div class="cv-card-heading">
+                                        <span class="cv-ico"><svg aria-hidden="true"><use href="#i-badge"/></svg></span>
+                                        <div>
+                                            <div class="card-title">Certifications</div>
+                                            <div class="card-subtitle">Professional certifications and credentials</div>
+                                        </div>
                                     </div>
-                                    <button class="btn btn-success btn-sm" id="btn-add-certification">
-                                        <span>+</span>
-                                        Add Certification
+                                    <button class="cv-add-btn" id="btn-add-certification">
+                                        <svg aria-hidden="true"><use href="#i-plus"/></svg>
+                                        Add certification
                                     </button>
                                 </div>
                                 <div class="card-body">
                                     <div id="certifications-empty" class="empty-state">
-                                        <div class="empty-state-icon">📜</div>
-                                        <div class="empty-state-title">No certifications</div>
-                                        <div class="empty-state-text">Click "Add Certification" to get started.</div>
+                                        <div class="empty-state-icon"><svg width="26" height="26" aria-hidden="true"><use href="#i-badge"/></svg></div>
+                                        <div class="empty-state-title">No certifications yet</div>
+                                        <div class="empty-state-text">Add certifications to show verified expertise and keep your credentials in one place.</div>
+                                        <button class="empty-state-cta" data-add-target="btn-add-certification"><svg aria-hidden="true"><use href="#i-plus"/></svg> Add certification</button>
                                     </div>
-                                    <div id="certifications-list" class="grid grid-2" style="display: none;"></div>
+                                    <div id="certifications-list" class="grid" style="display: none;"></div>
                                 </div>
                             </section>
 
                             <!-- Certification Form (hidden by default) -->
-                            <section class="card" id="certification-form" style="display: none; margin-top: var(--space-4);">
+                            <section class="card cv-form-card" id="certification-form" style="display: none; margin-top: var(--space-4);">
                                 <div class="card-header">
-                                    <div class="card-title" id="certification-form-title">➕ Add Certification</div>
+                                    <div class="cv-card-heading">
+                                        <span class="cv-ico"><svg aria-hidden="true"><use href="#i-badge"/></svg></span>
+                                        <div class="card-title" id="certification-form-title">Add Certification</div>
+                                    </div>
                                 </div>
                                 <div class="card-body">
                                     <input type="hidden" id="certification-id">
@@ -556,17 +2277,17 @@
                                         <label class="form-label" for="cert-description">Description</label>
                                         <textarea id="cert-description" class="input textarea" rows="3" placeholder="Additional details about your certification..."></textarea>
                                     </div>
-                                    <p id="cert-proof-hint" style="font-size: var(--font-size-xs); color: var(--color-text-muted); margin-top: var(--space-3);">💡 Tip: You can attach a proof document (PDF, image) now or later via Edit.</p>
-                                    <div id="cert-proof-section" style="display: none; margin-top: var(--space-4); padding: var(--space-4); background: var(--color-bg-muted); border: 1px dashed var(--color-border); border-radius: var(--radius-md);">
-                                        <div style="font-size: var(--font-size-sm); font-weight: 600; color: var(--color-text-secondary); margin-bottom: var(--space-2);">📎 Proof Document (optional)</div>
+                                    <p id="cert-proof-hint" class="form-hint" style="margin-top: var(--space-3);">Tip: You can attach a proof document (PDF or image) now or later via Edit.</p>
+                                    <div id="cert-proof-section" class="cv-proof-box" style="display: none;">
+                                        <div class="cv-proof-label"><svg aria-hidden="true"><use href="#i-paperclip"/></svg> Proof document <span>(optional)</span></div>
                                         <div id="cert-proof-existing" style="display: none; margin-bottom: var(--space-2);"></div>
                                         <div style="display: flex; gap: var(--space-2); align-items: center; flex-wrap: wrap;">
                                             <input type="file" id="cert-proof" accept=".pdf,.jpg,.jpeg,.png,.gif,.webp" style="flex: 1; min-width: 0;">
-                                            <button class="btn btn-secondary btn-sm" id="btn-upload-cert-proof">⬆ Upload</button>
+                                            <button class="btn btn-secondary btn-sm" id="btn-upload-cert-proof"><svg width="13" height="13" aria-hidden="true"><use href="#i-upload"/></svg> Upload</button>
                                         </div>
                                     </div>
-                                    <div style="display: flex; justify-content: flex-end; gap: var(--space-3); margin-top: var(--space-6);">
-                                        <button class="btn btn-primary" id="btn-save-certification">💾 Save Certification</button>
+                                    <div class="cv-form-actions">
+                                        <button class="btn btn-primary" id="btn-save-certification"><svg width="14" height="14" aria-hidden="true"><use href="#i-save"/></svg> Save Certification</button>
                                         <button class="btn btn-secondary" id="btn-cancel-certification">Cancel</button>
                                     </div>
                                 </div>
@@ -577,29 +2298,36 @@
                         <div class="tab-content" id="awards-tab">
                             <section class="card">
                                 <div class="card-header">
-                                    <div>
-                                        <div class="card-title">🏆 Awards & Accomplishments</div>
-                                        <div class="card-subtitle">Recognition, awards, and notable achievements</div>
+                                    <div class="cv-card-heading">
+                                        <span class="cv-ico"><svg aria-hidden="true"><use href="#i-trophy"/></svg></span>
+                                        <div>
+                                            <div class="card-title">Awards &amp; accomplishments</div>
+                                            <div class="card-subtitle">Recognition, awards, and notable achievements</div>
+                                        </div>
                                     </div>
-                                    <button class="btn btn-success btn-sm" id="btn-add-award">
-                                        <span>+</span>
-                                        Add Award
+                                    <button class="cv-add-btn" id="btn-add-award">
+                                        <svg aria-hidden="true"><use href="#i-plus"/></svg>
+                                        Add award
                                     </button>
                                 </div>
                                 <div class="card-body">
                                     <div id="awards-empty" class="empty-state">
-                                        <div class="empty-state-icon">🏆</div>
+                                        <div class="empty-state-icon"><svg width="26" height="26" aria-hidden="true"><use href="#i-trophy"/></svg></div>
                                         <div class="empty-state-title">No awards yet</div>
-                                        <div class="empty-state-text">Click "Add Award" to get started.</div>
+                                        <div class="empty-state-text">Log the recognition you have earned — awards, commendations, and standout contributions.</div>
+                                        <button class="empty-state-cta" data-add-target="btn-add-award"><svg aria-hidden="true"><use href="#i-plus"/></svg> Add award</button>
                                     </div>
-                                    <div id="awards-list" class="grid grid-2" style="display: none;"></div>
+                                    <div id="awards-list" class="grid" style="display: none;"></div>
                                 </div>
                             </section>
 
                             <!-- Award Form (hidden by default) -->
-                            <section class="card" id="award-form" style="display: none; margin-top: var(--space-4);">
+                            <section class="card cv-form-card" id="award-form" style="display: none; margin-top: var(--space-4);">
                                 <div class="card-header">
-                                    <div class="card-title" id="award-form-title">➕ Add Award</div>
+                                    <div class="cv-card-heading">
+                                        <span class="cv-ico"><svg aria-hidden="true"><use href="#i-trophy"/></svg></span>
+                                        <div class="card-title" id="award-form-title">Add Award</div>
+                                    </div>
                                 </div>
                                 <div class="card-body">
                                     <input type="hidden" id="award-id">
@@ -621,17 +2349,17 @@
                                         <label class="form-label" for="award-description">Description</label>
                                         <textarea id="award-description" class="input textarea" rows="3" placeholder="What was this award for?"></textarea>
                                     </div>
-                                    <p id="award-proof-hint" style="font-size: var(--font-size-xs); color: var(--color-text-muted); margin-top: var(--space-3);">💡 Tip: You can attach a proof document (PDF, image) now or later via Edit.</p>
-                                    <div id="award-proof-section" style="display: none; margin-top: var(--space-4); padding: var(--space-4); background: var(--color-bg-muted); border: 1px dashed var(--color-border); border-radius: var(--radius-md);">
-                                        <div style="font-size: var(--font-size-sm); font-weight: 600; color: var(--color-text-secondary); margin-bottom: var(--space-2);">📎 Proof Document (optional)</div>
+                                    <p id="award-proof-hint" class="form-hint" style="margin-top: var(--space-3);">Tip: You can attach a proof document (PDF or image) now or later via Edit.</p>
+                                    <div id="award-proof-section" class="cv-proof-box" style="display: none;">
+                                        <div class="cv-proof-label"><svg aria-hidden="true"><use href="#i-paperclip"/></svg> Proof document <span>(optional)</span></div>
                                         <div id="award-proof-existing" style="display: none; margin-bottom: var(--space-2);"></div>
                                         <div style="display: flex; gap: var(--space-2); align-items: center; flex-wrap: wrap;">
                                             <input type="file" id="award-proof" accept=".pdf,.jpg,.jpeg,.png,.gif,.webp" style="flex: 1; min-width: 0;">
-                                            <button class="btn btn-secondary btn-sm" id="btn-upload-award-proof">⬆ Upload</button>
+                                            <button class="btn btn-secondary btn-sm" id="btn-upload-award-proof"><svg width="13" height="13" aria-hidden="true"><use href="#i-upload"/></svg> Upload</button>
                                         </div>
                                     </div>
-                                    <div style="display: flex; justify-content: flex-end; gap: var(--space-3); margin-top: var(--space-6);">
-                                        <button class="btn btn-primary" id="btn-save-award">💾 Save Award</button>
+                                    <div class="cv-form-actions">
+                                        <button class="btn btn-primary" id="btn-save-award"><svg width="14" height="14" aria-hidden="true"><use href="#i-save"/></svg> Save Award</button>
                                         <button class="btn btn-secondary" id="btn-cancel-award">Cancel</button>
                                     </div>
                                 </div>
@@ -642,36 +2370,45 @@
                         <div class="tab-content" id="work-history-tab">
                             <section class="card">
                                 <div class="card-header">
-                                    <div>
-                                        <div class="card-title">🏢 Work History</div>
-                                        <div class="card-subtitle">Your prior employer history (most recent first)</div>
+                                    <div class="cv-card-heading">
+                                        <span class="cv-ico"><svg aria-hidden="true"><use href="#i-building"/></svg></span>
+                                        <div>
+                                            <div class="card-title">Work History</div>
+                                            <div class="card-subtitle">Grouped by company — roles at the same company show your progression.</div>
+                                        </div>
                                     </div>
-                                    <button class="btn btn-success btn-sm" id="btn-add-work-history">
-                                        <span>+</span>
-                                        Add Work History
+                                    <button class="cv-add-btn" id="btn-add-work-history">
+                                        <svg aria-hidden="true"><use href="#i-plus"/></svg>
+                                        Add work history
                                     </button>
                                 </div>
                                 <div class="card-body">
                                     <div id="work-history-empty" class="empty-state">
-                                        <div class="empty-state-icon">🏢</div>
-                                        <div class="empty-state-title">No work history</div>
-                                        <div class="empty-state-text">Click "Add Work History" to get started.</div>
+                                        <div class="empty-state-icon"><svg width="26" height="26" aria-hidden="true"><use href="#i-building"/></svg></div>
+                                        <div class="empty-state-title">No work history yet</div>
+                                        <div class="empty-state-text">Add your employers and roles. Promotions at the same company are grouped into one timeline.</div>
+                                        <button class="empty-state-cta" data-add-target="btn-add-work-history"><svg aria-hidden="true"><use href="#i-plus"/></svg> Add work history</button>
                                     </div>
-                                    <div id="work-history-list" class="grid grid-2" style="display: none;"></div>
+                                    <div id="work-history-list" class="grid" style="display: none;"></div>
                                 </div>
                             </section>
 
                             <!-- Work History Form (hidden by default) -->
-                            <section class="card" id="work-history-form" style="display: none; margin-top: var(--space-4);">
+                            <section class="card cv-form-card" id="work-history-form" style="display: none; margin-top: var(--space-4);">
                                 <div class="card-header">
-                                    <div class="card-title" id="work-history-form-title">➕ Add Work History</div>
+                                    <div class="cv-card-heading">
+                                        <span class="cv-ico"><svg aria-hidden="true"><use href="#i-building"/></svg></span>
+                                        <div class="card-title" id="work-history-form-title">Add Work History</div>
+                                    </div>
                                 </div>
                                 <div class="card-body">
                                     <input type="hidden" id="work-history-id">
                                     <div class="grid grid-2">
                                         <div class="form-group">
                                             <label class="form-label" for="wh-employer">Employer *</label>
-                                            <input type="text" id="wh-employer" class="input" placeholder="e.g., Tech Corp Inc." required>
+                                            <input type="text" id="wh-employer" class="input" placeholder="e.g., Tech Corp Inc." list="wh-employer-suggestions" required>
+                                            <datalist id="wh-employer-suggestions"></datalist>
+                                            <p class="form-hint" style="margin-top:var(--space-1);font-size:var(--font-size-xs);color:var(--color-text-muted)">Repeat an existing company to add a promotion/role change.</p>
                                         </div>
                                         <div class="form-group">
                                             <label class="form-label" for="wh-job-title">Job Title</label>
@@ -694,8 +2431,8 @@
                                         <label class="form-label" for="wh-description">Description</label>
                                         <textarea id="wh-description" class="input textarea" rows="3" placeholder="Key responsibilities and achievements..."></textarea>
                                     </div>
-                                    <div style="display: flex; justify-content: flex-end; gap: var(--space-3); margin-top: var(--space-6);">
-                                        <button class="btn btn-primary" id="btn-save-work-history">💾 Save Work History</button>
+                                    <div class="cv-form-actions">
+                                        <button class="btn btn-primary" id="btn-save-work-history"><svg width="14" height="14" aria-hidden="true"><use href="#i-save"/></svg> Save Work History</button>
                                         <button class="btn btn-secondary" id="btn-cancel-work-history">Cancel</button>
                                     </div>
                                 </div>
@@ -706,13 +2443,16 @@
                         <div class="tab-content" id="skills-tab">
                             <section class="card">
                                 <div class="card-header">
-                                    <div>
-                                        <div class="card-title">🛠 Core Capabilities</div>
-                                        <div class="card-subtitle">List your key skills and rate your proficiency (1–5 stars).</div>
+                                    <div class="cv-card-heading">
+                                        <span class="cv-ico"><svg aria-hidden="true"><use href="#i-wrench"/></svg></span>
+                                        <div>
+                                            <div class="card-title">Core capabilities</div>
+                                            <div class="card-subtitle">List your key skills and rate your proficiency from 1 to 5.</div>
+                                        </div>
                                     </div>
-                                    <button class="btn btn-success btn-sm" id="btn-add-skill">
-                                        <span>+</span>
-                                        Add Skill
+                                    <button class="cv-add-btn" id="btn-add-skill">
+                                        <svg aria-hidden="true"><use href="#i-plus"/></svg>
+                                        Add skill
                                     </button>
                                 </div>
                                 <div class="card-body" style="padding: 0;">
@@ -720,18 +2460,19 @@
                                         <table class="table">
                                             <thead>
                                                 <tr>
-                                                    <th>Skill Name</th>
-                                                    <th style="width: 160px;">Proficiency</th>
-                                                    <th style="width: 60px;"></th>
+                                                    <th>Skill</th>
+                                                    <th style="width: 200px;">Proficiency</th>
+                                                    <th style="width: 48px;"></th>
                                                 </tr>
                                             </thead>
                                             <tbody id="skills-tbody"></tbody>
                                         </table>
                                     </div>
-                                    <div id="skills-empty" class="empty-state" style="padding: var(--space-8);">
-                                        <div class="empty-state-icon">🛠</div>
-                                        <div class="empty-state-title">No skills added</div>
-                                        <div class="empty-state-text">Click "Add Skill" to begin.</div>
+                                    <div id="skills-empty" class="empty-state">
+                                        <div class="empty-state-icon"><svg width="26" height="26" aria-hidden="true"><use href="#i-wrench"/></svg></div>
+                                        <div class="empty-state-title">No skills added yet</div>
+                                        <div class="empty-state-text">Add the tools, technologies, and strengths you want to be known for.</div>
+                                        <button class="empty-state-cta" data-add-target="btn-add-skill"><svg aria-hidden="true"><use href="#i-plus"/></svg> Add skill</button>
                                     </div>
                                 </div>
                             </section>
@@ -741,29 +2482,36 @@
                         <div class="tab-content" id="active-projects-tab">
                             <section class="card">
                                 <div class="card-header">
-                                    <div>
-                                        <div class="card-title">🗂 Active Projects</div>
-                                        <div class="card-subtitle">List your current project assignments.</div>
+                                    <div class="cv-card-heading">
+                                        <span class="cv-ico"><svg aria-hidden="true"><use href="#i-briefcase"/></svg></span>
+                                        <div>
+                                            <div class="card-title">Active Projects</div>
+                                            <div class="card-subtitle">Current project assignments and your role on each.</div>
+                                        </div>
                                     </div>
-                                    <button class="btn btn-success btn-sm" id="btn-add-project">
-                                        <span>+</span>
-                                        Add Project
+                                    <button class="cv-add-btn" id="btn-add-project">
+                                        <svg aria-hidden="true"><use href="#i-plus"/></svg>
+                                        Add project
                                     </button>
                                 </div>
                                 <div class="card-body">
                                     <div id="projects-empty" class="empty-state">
-                                        <div class="empty-state-icon">🗂</div>
-                                        <div class="empty-state-title">No projects assigned</div>
-                                        <div class="empty-state-text">Click "Add Project" to begin.</div>
+                                        <div class="empty-state-icon"><svg width="26" height="26" aria-hidden="true"><use href="#i-briefcase"/></svg></div>
+                                        <div class="empty-state-title">No active projects</div>
+                                        <div class="empty-state-text">Add a project from the catalog or enter one manually to show what you are working on now.</div>
+                                        <button class="empty-state-cta" data-add-target="btn-add-project"><svg aria-hidden="true"><use href="#i-plus"/></svg> Add project</button>
                                     </div>
-                                    <div id="projects-list" class="grid grid-2" style="display: none;"></div>
+                                    <div id="projects-list" class="grid" style="display: none;"></div>
                                 </div>
                             </section>
 
                             <!-- Active Project Form (hidden by default) -->
-                            <section class="card" id="project-form" style="display: none; margin-top: var(--space-4);">
+                            <section class="card cv-form-card" id="project-form" style="display: none; margin-top: var(--space-4);">
                                 <div class="card-header">
-                                    <div class="card-title" id="project-form-title">➕ Add Project</div>
+                                    <div class="cv-card-heading">
+                                        <span class="cv-ico"><svg aria-hidden="true"><use href="#i-briefcase"/></svg></span>
+                                        <div class="card-title" id="project-form-title">Add Project</div>
+                                    </div>
                                 </div>
                                 <div class="card-body">
                                     <input type="hidden" id="project-id">
@@ -802,8 +2550,8 @@
                                         <label class="form-label" for="ap-description">Description</label>
                                         <textarea id="ap-description" class="input textarea" rows="4" placeholder="Describe the project, your responsibilities, and achievements..."></textarea>
                                     </div>
-                                    <div style="display: flex; justify-content: flex-end; gap: var(--space-3); margin-top: var(--space-6);">
-                                        <button class="btn btn-primary" id="btn-save-project">💾 Save Project</button>
+                                    <div class="cv-form-actions">
+                                        <button class="btn btn-primary" id="btn-save-project"><svg width="14" height="14" aria-hidden="true"><use href="#i-save"/></svg> Save Project</button>
                                         <button class="btn btn-secondary" id="btn-cancel-project">Cancel</button>
                                     </div>
                                 </div>
@@ -814,29 +2562,36 @@
                         <div class="tab-content" id="past-projects-tab">
                             <section class="card">
                                 <div class="card-header">
-                                    <div>
-                                        <div class="card-title">📁 Past Projects</div>
-                                        <div class="card-subtitle">Add projects that are not in the managed projects database</div>
+                                    <div class="cv-card-heading">
+                                        <span class="cv-ico"><svg aria-hidden="true"><use href="#i-folder"/></svg></span>
+                                        <div>
+                                            <div class="card-title">Past Projects</div>
+                                            <div class="card-subtitle">Projects outside the managed project database</div>
+                                        </div>
                                     </div>
-                                    <button class="btn btn-success btn-sm" id="btn-add-past-project">
-                                        <span>+</span>
-                                        Add Past Project
+                                    <button class="cv-add-btn" id="btn-add-past-project">
+                                        <svg aria-hidden="true"><use href="#i-plus"/></svg>
+                                        Add past project
                                     </button>
                                 </div>
                                 <div class="card-body">
                                     <div id="past-projects-empty" class="empty-state">
-                                        <div class="empty-state-icon">📁</div>
-                                        <div class="empty-state-title">No past projects</div>
-                                        <div class="empty-state-text">Click "Add Past Project" to get started.</div>
+                                        <div class="empty-state-icon"><svg width="26" height="26" aria-hidden="true"><use href="#i-folder"/></svg></div>
+                                        <div class="empty-state-title">No past projects yet</div>
+                                        <div class="empty-state-text">Add projects you delivered before joining — useful for showing the full breadth of your experience.</div>
+                                        <button class="empty-state-cta" data-add-target="btn-add-past-project"><svg aria-hidden="true"><use href="#i-plus"/></svg> Add past project</button>
                                     </div>
-                                    <div id="past-projects-list" class="grid grid-2" style="display: none;"></div>
+                                    <div id="past-projects-list" class="grid" style="display: none;"></div>
                                 </div>
                             </section>
 
                             <!-- Past Project Form (hidden by default) -->
-                            <section class="card" id="past-project-form" style="display: none; margin-top: var(--space-4);">
+                            <section class="card cv-form-card" id="past-project-form" style="display: none; margin-top: var(--space-4);">
                                 <div class="card-header">
-                                    <div class="card-title" id="past-project-form-title">➕ Add Past Project</div>
+                                    <div class="cv-card-heading">
+                                        <span class="cv-ico"><svg aria-hidden="true"><use href="#i-folder"/></svg></span>
+                                        <div class="card-title" id="past-project-form-title">Add Past Project</div>
+                                    </div>
                                 </div>
                                 <div class="card-body">
                                     <input type="hidden" id="past-project-id">
@@ -874,8 +2629,8 @@
                                         <label class="form-label" for="pp-description">Description</label>
                                         <textarea id="pp-description" class="input textarea" rows="4" placeholder="Describe the project, your responsibilities, and achievements..."></textarea>
                                     </div>
-                                    <div style="display: flex; justify-content: flex-end; gap: var(--space-3); margin-top: var(--space-6);">
-                                        <button class="btn btn-primary" id="btn-save-past-project">💾 Save Past Project</button>
+                                    <div class="cv-form-actions">
+                                        <button class="btn btn-primary" id="btn-save-past-project"><svg width="14" height="14" aria-hidden="true"><use href="#i-save"/></svg> Save Past Project</button>
                                         <button class="btn btn-secondary" id="btn-cancel-past-project">Cancel</button>
                                     </div>
                                 </div>
@@ -886,66 +2641,75 @@
                         <div class="tab-content" id="generate-cv-tab">
                             <section class="card">
                                 <div class="card-header">
-                                    <div>
-                                        <div class="card-title">🖨️ Generate & Export CV</div>
-                                        <div class="card-subtitle">Choose a style, generate your CV, then print or save as PDF</div>
+                                    <div class="cv-card-heading">
+                                        <span class="cv-ico"><svg aria-hidden="true"><use href="#i-printer"/></svg></span>
+                                        <div>
+                                            <div class="card-title">Generate &amp; export CV</div>
+                                            <div class="card-subtitle">Choose a style, generate your CV, then print or save as PDF.</div>
+                                        </div>
                                     </div>
                                 </div>
                                 <div class="card-body">
                                     <!-- Template Picker -->
-                                    <div style="margin-bottom: var(--space-6);">
-                                        <label class="form-label" style="margin-bottom: var(--space-3); display: block;">📐 Choose Template Style</label>
-                                        <div id="template-picker" class="template-grid">
-                                            <div style="color: var(--color-text-muted); font-size: var(--font-size-sm); grid-column: 1 / -1; text-align: center; padding: var(--space-8);">
-                                                Loading templates...
-                                            </div>
+                                    <div class="cv-subhead" style="margin-top: 0; padding-top: 0; border-top: none;">
+                                        <span class="cv-subhead-label"><svg aria-hidden="true"><use href="#i-sparkle"/></svg> Choose a template style</span>
+                                    </div>
+                                    <div id="template-picker" class="template-grid">
+                                        <div style="color: var(--color-text-muted); font-size: var(--font-size-sm); grid-column: 1 / -1; text-align: center; padding: var(--space-8);">
+                                            Loading templates...
                                         </div>
                                     </div>
 
                                     <!-- Generate Action -->
-                                    <div style="display: flex; justify-content: flex-end; gap: var(--space-3); margin-bottom: var(--space-6);">
-                                        <button class="btn btn-primary" id="btn-generate-cv">✨ Generate CV</button>
-                                        <button class="btn btn-secondary" id="btn-download-certs">📎 Download Certificates</button>
-                                        <span id="gen-status" style="align-self: center; font-size: var(--font-size-sm); color: var(--color-text-muted);"></span>
+                                    <div class="cv-toolbar" style="margin-top: var(--space-5);">
+                                        <span id="gen-status" class="form-hint"></span>
+                                        <div class="cv-toolbar-actions">
+                                            <button class="btn btn-secondary" id="btn-download-certs"><svg width="14" height="14" aria-hidden="true"><use href="#i-paperclip"/></svg> Download Certificates</button>
+                                            <button class="btn btn-primary" id="btn-generate-cv"><svg width="14" height="14" aria-hidden="true"><use href="#i-sparkle"/></svg> Generate CV</button>
+                                        </div>
                                     </div>
 
                                     <!-- CV Preview -->
                                     <div id="cv-preview-section" style="display: none;">
-                                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-3);">
-                                            <label class="form-label">👁 CV Preview</label>
-                                            <div style="display: flex; gap: var(--space-2); flex-wrap: wrap;">
-                                                <button class="btn btn-primary btn-sm" id="btn-save-snapshot">💾 Save Snapshot</button>
-                                                <button class="btn btn-secondary btn-sm" id="btn-print-cv">🖨️ Print / Save PDF</button>
-                                                <button class="btn btn-secondary btn-sm" id="btn-open-cv">↗ Open in New Tab</button>
+                                        <div class="cv-subhead">
+                                            <span class="cv-subhead-label"><svg aria-hidden="true"><use href="#i-eye"/></svg> CV preview</span>
+                                            <div class="cv-toolbar-actions">
+                                                <button class="btn btn-secondary btn-sm" id="btn-save-snapshot"><svg width="13" height="13" aria-hidden="true"><use href="#i-save"/></svg> Save Snapshot</button>
+                                                <button class="btn btn-secondary btn-sm" id="btn-print-cv"><svg width="13" height="13" aria-hidden="true"><use href="#i-printer"/></svg> Print / Save PDF</button>
+                                                <button class="btn btn-secondary btn-sm" id="btn-open-cv"><svg width="13" height="13" aria-hidden="true"><use href="#i-arrow-right"/></svg> Open in New Tab</button>
                                             </div>
                                         </div>
-                                        <iframe id="cv-preview-frame" class="cv-preview-frame" sandbox="allow-scripts allow-modals"></iframe>
+                                        <div class="cv-preview-shell">
+                                            <div class="cv-preview-bar">
+                                                <span class="cv-preview-dot"></span><span class="cv-preview-dot"></span><span class="cv-preview-dot"></span>
+                                                <span class="cv-preview-label" id="cv-preview-label">Generated CV preview</span>
+                                            </div>
+                                            <iframe id="cv-preview-frame" class="cv-preview-frame" sandbox="allow-scripts allow-modals"></iframe>
+                                        </div>
                                     </div>
 
                                     <!-- Snapshots History -->
-                                    <div style="margin-top: var(--space-8); border-top: 1px solid var(--color-border); padding-top: var(--space-6);">
-                                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-4);">
-                                            <label class="form-label">📸 CV Snapshot History</label>
-                                            <button class="btn btn-danger btn-sm" id="btn-clear-snapshots" style="display: none;">🗑 Clear All</button>
-                                        </div>
-                                        <div id="snapshots-empty" class="empty-state" style="padding: var(--space-8);">
-                                            <div class="empty-state-icon">📸</div>
-                                            <div class="empty-state-title">No snapshots yet</div>
-                                            <div class="empty-state-text">Generate a CV to create your first snapshot.</div>
-                                        </div>
-                                        <div class="table-container" id="snapshots-table-container" style="display: none;">
-                                            <table class="table">
-                                                <thead>
-                                                    <tr>
-                                                        <th>Generated On</th>
-                                                        <th>Template</th>
-                                                        <th>Generated By</th>
-                                                        <th>Actions</th>
-                                                    </tr>
-                                                </thead>
-                                                <tbody id="snapshots-tbody"></tbody>
-                                            </table>
-                                        </div>
+                                    <div class="cv-subhead" style="margin-top: var(--space-8);">
+                                        <span class="cv-subhead-label"><svg aria-hidden="true"><use href="#i-image"/></svg> Snapshot history</span>
+                                        <button class="btn btn-danger btn-sm" id="btn-clear-snapshots" style="display: none;"><svg width="13" height="13" aria-hidden="true"><use href="#i-trash"/></svg> Clear All</button>
+                                    </div>
+                                    <div id="snapshots-empty" class="empty-state">
+                                        <div class="empty-state-icon"><svg width="26" height="26" aria-hidden="true"><use href="#i-image"/></svg></div>
+                                        <div class="empty-state-title">No snapshots yet</div>
+                                        <div class="empty-state-text">Every generated CV is saved here so you can revisit or download an earlier version.</div>
+                                    </div>
+                                    <div class="table-container" id="snapshots-table-container" style="display: none;">
+                                        <table class="table">
+                                            <thead>
+                                                <tr>
+                                                    <th>Generated On</th>
+                                                    <th>Template</th>
+                                                    <th>Generated By</th>
+                                                    <th style="width: 140px;">Actions</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody id="snapshots-tbody"></tbody>
+                                        </table>
                                     </div>
                                 </div>
                             </section>
@@ -955,16 +2719,19 @@
                         <div class="tab-content" id="audit-tab">
                             <section class="card">
                                 <div class="card-header">
-                                    <div>
-                                        <div class="card-title">🧾 Audit Trail</div>
-                                        <div class="card-subtitle">Every time you update any personal entry — staff details, skills, projects, education, certifications, work history or photo — it is recorded here.</div>
+                                    <div class="cv-card-heading">
+                                        <span class="cv-ico"><svg aria-hidden="true"><use href="#i-shield"/></svg></span>
+                                        <div>
+                                            <div class="card-title">Audit Trail</div>
+                                            <div class="card-subtitle">A record of every update to your profile, skills, projects, education, certifications, work history, and photo.</div>
+                                        </div>
                                     </div>
                                 </div>
                                 <div class="card-body">
-                                    <div id="audit-empty" class="empty-state" style="padding: var(--space-8);">
-                                        <div class="empty-state-icon">🧾</div>
+                                    <div id="audit-empty" class="empty-state">
+                                        <div class="empty-state-icon"><svg width="26" height="26" aria-hidden="true"><use href="#i-shield"/></svg></div>
                                         <div class="empty-state-title">No updates recorded yet</div>
-                                        <div class="empty-state-text">Your profile updates will appear here.</div>
+                                        <div class="empty-state-text">Changes you make to your profile will be recorded here automatically.</div>
                                     </div>
                                     <div class="table-container" id="audit-table-container" style="display: none;">
                                         <table class="table">
@@ -995,7 +2762,7 @@
     <script src="/menu.js?v=20260828a"></script>
     <script src="/sidebar.js?v=20260824d"></script>
     <script src="/toast.js?v=20260824d"></script>
-    <script src="/cv-profile.js?v=20260828a"></script>
+    <script src="/cv-profile.js?v=20261126a"></script>
 </body>
 
 </html>

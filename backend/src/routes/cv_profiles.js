@@ -104,6 +104,87 @@ function formatDatesInArray(items, dateFields) {
     });
 }
 
+/**
+ * Group flat work-history rows by employer.
+ *
+ * A person can hold several roles at the same company (e.g. System Engineer →
+ * Senior System Engineer → Delivery Manager). The database keeps one row per
+ * role; this collapses those rows into one company entry with a `positions`
+ * array ordered oldest → newest so CVs can show the progression path once
+ * instead of repeating the company block for every promotion.
+ */
+function groupWorkHistoryByEmployer(rows) {
+    if (!Array.isArray(rows)) return [];
+
+    const groups = new Map();
+    for (const row of rows) {
+        const employer = String(row.employer || '').trim();
+        const key = employer.toLowerCase() || '__unknown__';
+
+        if (!groups.has(key)) {
+            groups.set(key, {
+                employer: employer || '—',
+                positions: [],
+                start_date: null,
+                end_date: null,
+                is_current: 0,
+                job_title: '',
+                description: '',
+                roles_summary: ''
+            });
+        }
+
+        const group = groups.get(key);
+        group.positions.push({
+            id: row.id,
+            job_title: row.job_title || '',
+            start_date: row.start_date || null,
+            end_date: row.end_date || null,
+            description: row.description || '',
+            is_current: Number(row.is_current) ? 1 : 0
+        });
+        if (Number(row.is_current)) group.is_current = 1;
+    }
+
+    for (const group of groups.values()) {
+        // Progression path: oldest role first, undated roles last.
+        group.positions.sort((a, b) => {
+            if (!a.start_date && !b.start_date) return 0;
+            if (!a.start_date) return 1;
+            if (!b.start_date) return -1;
+            return String(a.start_date).localeCompare(String(b.start_date));
+        });
+
+        const startDates = group.positions.map(p => p.start_date).filter(Boolean).sort();
+        group.start_date = startDates[0] || null;
+
+        // Any open-ended role keeps the company span open ("Present").
+        const hasOpenRole = group.is_current === 1 || group.positions.some(p => !p.end_date);
+        if (hasOpenRole) {
+            group.end_date = null;
+        } else {
+            const endDates = group.positions.map(p => p.end_date).filter(Boolean).sort();
+            group.end_date = endDates[endDates.length - 1] || null;
+        }
+
+        // Latest role drives the summary fields used by other features.
+        const latest = group.positions[group.positions.length - 1];
+        group.job_title = latest ? latest.job_title : '';
+        group.description = latest ? latest.description : '';
+        group.roles_summary = group.positions.map(p => p.job_title).filter(Boolean).join(' → ');
+        // Keep a stable id for consumers that only understand one id per company
+        // (past projects, etc.) — the most recent role row.
+        group.id = latest ? latest.id : group.positions[0]?.id;
+    }
+
+    // Current employers first, then by most recent activity.
+    const activityKey = group => group.is_current ? '9999-12-31' : (group.end_date || group.start_date || '');
+    return [...groups.values()].sort((a, b) => {
+        if (a.is_current !== b.is_current) return b.is_current - a.is_current;
+        return String(activityKey(b)).localeCompare(String(activityKey(a)));
+    });
+}
+
 // ── Photo upload setup ────────────────────────────────────────────────────────
 const UPLOAD_DIR = '/data/uploads/photos';
 const PROOF_DIR = '/data/uploads/proofs';
@@ -392,12 +473,15 @@ router.get('/:email', verifyToken, async (req, res) => {
             console.log('Past projects table not available:', e.code);
         }
 
+        const formattedWorkHistory = formatDatesInArray(workHistory, ['start_date', 'end_date']);
+
         res.json({
             profile,
             education,
             certifications: formatDatesInArray(certifications, ['date_obtained', 'expiry_date']),
             awards: formatDatesInArray(awards, ['date_received']),
-            workHistory: formatDatesInArray(workHistory, ['start_date', 'end_date']),
+            workHistory: formattedWorkHistory,
+            workHistoryGrouped: groupWorkHistoryByEmployer(formattedWorkHistory),
             pastProjects: formatDatesInArray(pastProjects, ['start_date', 'end_date'])
         });
     } catch (err) {
@@ -532,28 +616,30 @@ function processTemplate(template, data) {
         const value = data[arrayName];
         
         // Helper function to process nested conditionals within an item
+        function applyVars(content, itemData) {
+            return content.replace(/\{\{([^}]+)\}\}/g, (_match, varName) => {
+                const value = itemData[String(varName).trim()];
+                return value == null ? '' : String(value);
+            });
+        }
+
         function processItemContent(itemContent, itemData) {
-            // First, process nested conditional blocks: {{#fieldName}}...{{/fieldName}}
-            const nestedCondRegex = /\{\{#(\w+)\}\}([\s\S]*?)\{\{\/\1\}\}/g;
-            itemContent = itemContent.replace(nestedCondRegex, (nestedMatch, fieldName, nestedContent) => {
+            // Nested blocks first: {{#positions}}...{{/positions}} inside a
+            // company loop. Arrays iterate, truthy scalars act as conditionals.
+            const nestedRegex = /\{\{#(\w+)\}\}([\s\S]*?)\{\{\/\1\}\}/g;
+            itemContent = itemContent.replace(nestedRegex, (_match, fieldName, nestedContent) => {
                 const fieldValue = itemData[fieldName];
+                if (Array.isArray(fieldValue)) {
+                    return fieldValue.map(child => processItemContent(nestedContent, child)).join('');
+                }
                 if (fieldValue) {
-                    // Replace variables in nested content
-                    const varRegex = /\{\{([^}]+)\}\}/g;
-                    return nestedContent.replace(varRegex, (varMatch, varName) => {
-                        return itemData[varName] || varMatch;
-                    });
+                    return applyVars(nestedContent, itemData);
                 }
                 return '';
             });
-            
-            // Then, replace simple variables
-            const varRegex = /\{\{([^}]+)\}\}/g;
-            itemContent = itemContent.replace(varRegex, (varMatch, varName) => {
-                return itemData[varName] || varMatch;
-            });
-            
-            return itemContent;
+
+            // Then, replace simple variables.
+            return applyVars(itemContent, itemData);
         }
         
         // Handle boolean/truthy values
@@ -830,6 +916,17 @@ router.post('/:email/generate', verifyToken, async (req, res) => {
         const formattedCertifications = formatDatesInArray(certifications, ['date_obtained', 'expiry_date']);
         const formattedAwards = formatDatesInArray(awards, ['date_received']);
         const formattedWorkHistory = formatDatesInArray(workHistory, ['start_date', 'end_date']);
+        const formattedWorkHistoryGrouped = groupWorkHistoryByEmployer(formattedWorkHistory)
+            // Template-facing copy: open-ended roles read "Present" instead of
+            // rendering an empty end date.
+            .map(group => ({
+                ...group,
+                end_date: group.end_date || 'Present',
+                positions: group.positions.map(position => ({
+                    ...position,
+                    end_date: position.end_date || 'Present'
+                }))
+            }));
         const formattedPastProjects = formatDatesInArray(pastProjects, ['start_date', 'end_date']);
         const formattedSubmissionProjects = formatDatesInArray(submissionProjects, ['start_date', 'end_date']);
 
@@ -881,6 +978,7 @@ router.post('/:email/generate', verifyToken, async (req, res) => {
             certifications: absoluteCertifications,
             awards: absoluteAwards,
             workHistory: formattedWorkHistory,
+            workHistoryGrouped: formattedWorkHistoryGrouped,
             // CVs show project experience as a single section: current
             // assignments plus historical (past) projects. Historical rows must
             // not disappear just because the staff still has active projects.

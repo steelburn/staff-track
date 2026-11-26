@@ -302,6 +302,10 @@
                                             <span class="var-chip"
                                                 data-var="{{#projects}}&#10;### {{project_name}}&#10;*{{start_date}} – {{end_date}}*&#10;- **Customer:** {{customer}} | **Role:** {{role}}&#10;- **Tech:** {{technologies}}&#10;&#10;{{description}}&#10;{{/projects}}">{{#projects}}…{{/projects}}</span>
                                             <span class="var-chip"
+                                                data-var="{{#workHistoryGrouped}}&#10;**{{employer}}** ({{start_date}} – {{end_date}})&#10;{{#positions}}&#10;↳ **{{job_title}}** · {{start_date}} – {{end_date}}&#10;{{description}}&#10;{{/positions}}&#10;{{/workHistoryGrouped}}">{{#workHistoryGrouped}}…{{/workHistoryGrouped}}</span>
+                                            <span class="var-chip"
+                                                data-var="{{#positions}}&#10;↳ **{{job_title}}** · {{start_date}} – {{end_date}}&#10;{{description}}&#10;{{/positions}}">{{#positions}}…{{/positions}}</span>
+                                            <span class="var-chip"
                                                 data-var="{{#workHistory}}&#10;**{{employer}}** — {{job_title}}&#10;({{start_date}} – {{end_date}})&#10;{{description}}&#10;&#10;{{/workHistory}}">{{#workHistory}}…{{/workHistory}}</span>
                                             <span class="var-chip"
                                                 data-var="{{#pastProjects}}&#10;### {{project_name}}&#10;*{{role}} | {{start_date}} – {{end_date}}*&#10;{{description}}&#10;_Stack: {{technologies}}_&#10;&#10;{{/pastProjects}}">{{#pastProjects}}…{{/pastProjects}}</span>

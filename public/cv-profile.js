@@ -22,6 +22,16 @@ function showToast(msg, isErr = false) {
     setTimeout(() => { t.classList.add('hide'); setTimeout(() => t.remove(), 400); }, 2500);
 }
 
+// Shared markup for the "current proof" row inside edit forms.
+function proofCurrentRow(proofPath, entryId, type) {
+    const fileName = String(proofPath || '').split('/').pop();
+    return `<span class="cv-proof-current">
+        <svg aria-hidden="true"><use href="#i-paperclip"/></svg>
+        <span>Current: <a href="${esc(proofPath)}" target="_blank" rel="noopener">${esc(fileName)}</a></span>
+        <button class="cv-act danger btn-remove" data-proof-id="${esc(entryId)}" data-proof-type="${esc(type)}"><svg aria-hidden="true"><use href="#i-trash"/></svg> Remove</button>
+    </span>`;
+}
+
 // Refresh the open edit form's proof section after an upload/remove, so it never
 // shows a stale "Current: <file>" for a proof that was just changed.
 function refreshFormProofState(prefix, entryId, proofPath) {
@@ -32,7 +42,7 @@ function refreshFormProofState(prefix, entryId, proofPath) {
     const deleteFnMap = { edu: deleteEducationProof, cert: deleteCertificationProof, award: deleteAwardProof };
     if (proofPath) {
         existing.style.display = '';
-        existing.innerHTML = `<span style="font-size:0.82rem; color:var(--accent-amber);">📎 Current: <a href="${proofPath}" target="_blank" style="color:var(--accent-amber);">${proofPath.split('/').pop()}</a></span> <button class="btn-remove" data-proof-id="${entryId}" data-proof-type="${typeMap[prefix]}" style="width:auto; padding:0.2rem 0.5rem; font-size:0.75rem; margin-left:0.5rem;">✕ Remove</button>`;
+        existing.innerHTML = proofCurrentRow(proofPath, entryId, typeMap[prefix]);
         existing.querySelector(`[data-proof-type="${typeMap[prefix]}"]`)?.addEventListener('click', () => deleteFnMap[prefix](entryId));
     } else {
         existing.style.display = 'none';
@@ -81,24 +91,28 @@ function applyViewOnlyMode() {
     if (!isViewOnly) return;
 
     // Show banner indicating view-only mode
-    const sectionBody = document.querySelector('.section-body');
-    if (sectionBody && !document.getElementById('view-only-banner')) {
+    const shell = document.querySelector('.cv-main');
+    if (shell && !document.getElementById('view-only-banner')) {
         const banner = document.createElement('div');
         banner.id = 'view-only-banner';
-        banner.style.cssText = 'background:var(--accent-amber); color:#000; padding:0.75rem 1rem; border-radius:8px; margin-bottom:1.5rem; font-size:0.9rem; display:flex; align-items:center; gap:0.5rem;';
-        banner.innerHTML = '<span style="font-size:1.2rem;">⚠️</span> <strong>View-Only Mode</strong> — You are viewing another staff member\'s profile. Editing is restricted.';
-        sectionBody.prepend(banner);
+        banner.className = 'cv-viewonly-banner';
+        banner.innerHTML = '<svg aria-hidden="true"><use href="#i-alert"/></svg><span><strong>View-only mode</strong> — you are viewing another staff member\'s profile. Editing is restricted.</span>';
+        shell.prepend(banner);
     }
 
     // Hide photo upload section in view-only mode
     const uploadSection = document.getElementById('photo-upload-section');
     if (uploadSection) uploadSection.style.display = 'none';
 
+    // The save/load action bar is meaningless while viewing another profile.
+    const actionBar = document.querySelector('.cv-actionbar');
+    if (actionBar) actionBar.style.display = 'none';
+
     // Disable all editing buttons and forms
     const editSelectors = [
         '#btn-add-skill', '#btn-add-project', '#btn-save', '#btn-load-previous', '#btn-clear',
         '#btn-upload-photo', '#btn-save-profile',
-        '#btn-add-education', '#btn-add-certification',
+        '#btn-add-education', '#btn-add-certification', '#btn-add-award',
         '#btn-add-work-history', '#btn-add-past-project'
     ];
     editSelectors.forEach(sel => {
@@ -109,6 +123,14 @@ function applyViewOnlyMode() {
             el.style.cursor = 'not-allowed';
             el.title = 'Cannot edit another staff member\'s profile';
         }
+    });
+
+    // Empty-state CTAs proxy to the add buttons, so disable them too.
+    document.querySelectorAll('[data-add-target]').forEach(btn => {
+        btn.disabled = true;
+        btn.style.opacity = '0.5';
+        btn.style.cursor = 'not-allowed';
+        btn.title = 'Cannot edit another staff member\'s profile';
     });
 
     // Disable all input fields in the main form sections
@@ -123,7 +145,6 @@ function applyViewOnlyMode() {
             section.querySelectorAll('input, textarea, select').forEach(el => {
                 el.disabled = true;
                 el.readOnly = true;
-                el.style.opacity = '0.7';
                 el.style.cursor = 'not-allowed';
             });
         }
@@ -170,13 +191,20 @@ function wireUpTabSwitching() {
             const targetTab = btn.dataset.tab;
 
             // Deactivate all tabs
-            tabBtns.forEach(b => b.classList.remove('active'));
+            tabBtns.forEach(b => {
+                b.classList.remove('active');
+                b.setAttribute('aria-selected', 'false');
+            });
             tabContents.forEach(c => c.classList.remove('active'));
 
             // Activate target
             btn.classList.add('active');
+            btn.setAttribute('aria-selected', 'true');
             const targetContent = document.getElementById(`${targetTab}-tab`);
             if (targetContent) targetContent.classList.add('active');
+
+            // Keep the active tab visible when the rail scrolls horizontally
+            btn.scrollIntoView({ block: 'nearest', inline: 'nearest' });
 
             // Lazy-load the audit trail the first time the tab is opened
             if (targetTab === 'audit' && !auditLoaded) {
@@ -186,6 +214,23 @@ function wireUpTabSwitching() {
 
             // Scroll to top so tab bar and content are both visible
             window.scrollTo({ top: 0, behavior: 'smooth' });
+        });
+    });
+
+    // Arrow-key navigation for the tab rail (ARIA tabs pattern).
+    const tabList = [...tabBtns];
+    tabList.forEach((btn, index) => {
+        btn.addEventListener('keydown', (e) => {
+            const keys = ['ArrowRight', 'ArrowLeft', 'Home', 'End'];
+            if (!keys.includes(e.key)) return;
+            e.preventDefault();
+            let next = index;
+            if (e.key === 'ArrowRight') next = (index + 1) % tabList.length;
+            if (e.key === 'ArrowLeft') next = (index - 1 + tabList.length) % tabList.length;
+            if (e.key === 'Home') next = 0;
+            if (e.key === 'End') next = tabList.length - 1;
+            tabList[next].focus();
+            tabList[next].click();
         });
     });
 
@@ -217,13 +262,9 @@ const AUDIT_SECTION_LABELS = {
 };
 
 function auditActionBadge(action) {
-    const styles = {
-        create: 'background:var(--color-success-light);color:var(--color-success);border:1px solid rgba(16,185,129,.3)',
-        update: 'background:var(--color-primary-light);color:var(--color-primary);border:1px solid rgba(99,102,241,.3)',
-        delete: 'background:var(--color-danger-light);color:var(--color-danger);border:1px solid rgba(239,68,68,.3)'
-    };
+    const tone = { create: 'badge-success', update: 'badge-primary', delete: 'badge-danger' }[action] || 'badge-primary';
     const label = { create: 'Added', update: 'Updated', delete: 'Removed' }[action] || action;
-    return `<span class="staff-updated-badge" style="${styles[action] || styles.update};text-transform:capitalize;">${label}</span>`;
+    return `<span class="badge ${tone}">${label}</span>`;
 }
 
 function formatAuditDate(v) {
@@ -262,10 +303,10 @@ async function loadAuditTrail() {
 
         tbody.innerHTML = rows.map(r => `
             <tr>
-                <td style="white-space:nowrap;color:var(--color-text-secondary);font-size:.82rem;">${formatAuditDate(r.createdAt)}</td>
-                <td>${AUDIT_SECTION_LABELS[r.section] || r.section}</td>
+                <td><span class="cv-when">${esc(formatAuditDate(r.createdAt))}</span></td>
+                <td><span class="cv-section-pill">${esc(AUDIT_SECTION_LABELS[r.section] || r.section)}</span></td>
                 <td>${auditActionBadge(r.action)}</td>
-                <td style="color:var(--color-text-secondary);font-size:.85rem;">${r.summary || '—'}</td>
+                <td style="color:var(--color-text-secondary);font-size:.8rem;">${esc(r.summary || '—')}</td>
             </tr>
         `).join('');
     } catch (err) {
@@ -612,7 +653,7 @@ async function loadSubmissionData() {
 
     const mentionEl = document.getElementById('target-staff-mention');
     if (mentionEl && targetProfileEmail.toLowerCase() !== authUser.email.toLowerCase()) {
-        mentionEl.textContent = `(Generating CV for: ${identityName})`;
+        mentionEl.textContent = `Viewing profile for ${identityName}`;
     } else if (mentionEl) {
         mentionEl.textContent = '';
     }
@@ -790,19 +831,30 @@ function addSkillRow(row) {
         if (!AppState.skills.length) showSkillsEmpty(true);
     });
 
-    const empty = document.getElementById('skills-empty');
-    if (empty) empty.style.display = 'none';
     tbody.appendChild(tr);
+    showSkillsEmpty(false);
 }
 
 function showSkillsEmpty(show) {
     const empty = document.getElementById('skills-empty');
-    if (empty) empty.style.display = show ? 'block' : 'none';
+    if (empty) empty.style.display = show ? '' : 'none';
+    const table = document.querySelector('#skills-tab .table-container');
+    if (table) table.style.display = show ? 'none' : '';
+}
+
+// Populate a tab's count badge (hidden when zero / unknown).
+function setTabCount(id, count) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    const n = Number(count) || 0;
+    el.textContent = String(n);
+    el.hidden = n <= 0;
 }
 
 function updateSkillsCount() {
     const el = document.getElementById('skills-count');
     if (el) el.textContent = `${AppState.skills.length} skill${AppState.skills.length !== 1 ? 's' : ''}`;
+    setTabCount('tab-count-skills', AppState.skills.length);
     refreshSidebarCompletion();
 }
 
@@ -812,7 +864,7 @@ function renderProjectsSub() {
     if (!list) return;
 
     if (!AppState.projects.length) {
-        if (empty) empty.style.display = 'block';
+        if (empty) empty.style.display = '';
         list.style.display = 'none';
         list.innerHTML = '';
     } else {
@@ -834,20 +886,27 @@ function renderProjectsSub() {
             const endDate = proj.endDate ? proj.endDate : 'Present';
             const technologies = proj.technologies || '';
             const description = proj.description || '';
-            const meta = [proj.soc ? `🔢 ${proj.soc}` : '', proj.customer ? `🏢 ${proj.customer}` : ''].filter(Boolean).join(' · ');
 
             return `
-                <div class="section-card" style="padding:1.25rem; position:relative;" data-id="${proj.id}">
-                    <div style="font-weight:700; font-size:1rem; margin-bottom:0.25rem;">${name}</div>
-                    ${meta ? `<div style="font-size:0.82rem; color:var(--text-muted); margin-bottom:0.25rem;">${meta}</div>` : ''}
-                    <div style="color:var(--accent-blue); font-size:0.9rem; margin-bottom:0.25rem;">${role}</div>
-                    <div style="color:var(--text-secondary); font-size:0.82rem; margin-bottom:0.5rem;">${startDate} – ${endDate}</div>
-                    ${technologies ? '<div style="font-size:0.78rem; color:var(--accent-amber); margin-bottom:0.5rem;">' + technologies + '</div>' : ''}
-                    ${description ? '<div class="preserve-newlines" style="font-size:0.85rem; color:var(--text-secondary);">' + description + '</div>' : ''}
-                    ${isViewOnly ? '' : `<div style="display:flex; gap:0.5rem; margin-top:1rem; flex-wrap:wrap;">
-                        <button class="btn-secondary btn-edit-project" data-id="${proj.id}" style="padding:0.35rem 0.75rem; font-size:0.8rem;">✏️ Edit</button>
-                        <button class="btn-secondary btn-move-project" data-id="${proj.id}" style="padding:0.35rem 0.75rem; font-size:0.8rem;" title="Move this project to Past Projects">📁 Move to Past</button>
-                        <button class="btn-remove btn-delete-project" data-id="${proj.id}" style="width:auto; padding:0.35rem 0.75rem; font-size:0.8rem;">🗑 Delete</button>
+                <div class="cv-entry" data-id="${proj.id}">
+                    <div class="cv-entry-top">
+                        <span class="cv-entry-ico project"><svg aria-hidden="true"><use href="#i-briefcase"/></svg></span>
+                        <div class="cv-entry-heading">
+                            <div class="cv-entry-title">${esc(name)}</div>
+                            <div class="cv-entry-sub">${esc(role)}</div>
+                        </div>
+                    </div>
+                    <div class="cv-entry-meta">
+                        ${proj.soc ? `<span class="cv-meta-item"><svg aria-hidden="true"><use href="#i-id"/></svg><span>${esc(proj.soc)}</span></span>` : ''}
+                        ${proj.customer ? `<span class="cv-meta-item"><svg aria-hidden="true"><use href="#i-building"/></svg><span>${esc(proj.customer)}</span></span>` : ''}
+                        <span class="cv-meta-item"><svg aria-hidden="true"><use href="#i-calendar"/></svg><span>${startDate} – ${endDate}</span></span>
+                    </div>
+                    ${technologies ? `<div class="cv-chip-row">${techChips(technologies)}</div>` : ''}
+                    ${description ? `<div class="cv-entry-desc">${esc(description)}</div>` : ''}
+                    ${isViewOnly ? '' : `<div class="cv-entry-actions">
+                        <button class="cv-act btn-edit-project" data-id="${proj.id}"><svg aria-hidden="true"><use href="#i-pencil"/></svg> Edit</button>
+                        <button class="cv-act btn-move-project" data-id="${proj.id}" title="Move this project to Past Projects"><svg aria-hidden="true"><use href="#i-move"/></svg> Move to past</button>
+                        <button class="cv-act danger btn-delete-project" data-id="${proj.id}"><svg aria-hidden="true"><use href="#i-trash"/></svg> Delete</button>
                     </div>`}
                 </div>
             `;
@@ -886,7 +945,7 @@ function showProjectForm(data = null) {
     if (!form || !nameInput) return;
 
     if (data) {
-        if (title) title.textContent = '✏️ Edit Project';
+        if (title) title.textContent = 'Edit Project';
         if (idInput) idInput.value = data.id;
         if (nameInput) nameInput.value = data.project_name || data.projectName || '';
         if (socInput) socInput.value = data.soc || '';
@@ -897,7 +956,7 @@ function showProjectForm(data = null) {
         if (techInput) techInput.value = data.technologies || '';
         if (descInput) descInput.value = data.description || '';
     } else {
-        if (title) title.textContent = '➕ Add Project';
+        if (title) title.textContent = 'Add Project';
         if (idInput) idInput.value = '';
         if (nameInput) nameInput.value = '';
         if (socInput) socInput.value = '';
@@ -1041,7 +1100,7 @@ function moveProjectToPast(id) {
 
     backdrop.querySelector('#btn-confirm-move-project').addEventListener('click', () => {
         const workHistoryId = backdrop.querySelector('#move-pp-employer')?.value || null;
-        const employer = workHistoryData.find(wh => String(wh.id) === String(workHistoryId)) || null;
+        const employer = findEmployerById(workHistoryId);
         const body = {
             project_name: proj.project_name || proj.projectName || '',
             work_history_id: workHistoryId,
@@ -1129,6 +1188,7 @@ function initProjectAutocomplete() {
 function updateProjectsCountSub() {
     const el = document.getElementById('projects-count');
     if (el) el.textContent = `${AppState.projects.length} project${AppState.projects.length !== 1 ? 's' : ''}`;
+    setTabCount('tab-count-projects', AppState.projects.length);
     refreshSidebarCompletion();
 }
 
@@ -1151,6 +1211,13 @@ function restoreForm() {
 }
 
 // ── Profile Functions ───
+// Keep the photo control label in sync with whether a photo already exists.
+function setPhotoButtonLabel(hasPhoto) {
+    const btn = document.getElementById('btn-upload-photo');
+    if (!btn) return;
+    btn.innerHTML = `<svg aria-hidden="true"><use href="#i-camera"/></svg> ${hasPhoto ? 'Change Photo' : 'Upload Photo'}`;
+}
+
 async function loadProfile() {
     const email = targetProfileEmail;
     const profileFields = ['cv-phone', 'cv-linkedin', 'cv-location', 'cv-summary'];
@@ -1166,6 +1233,7 @@ async function loadProfile() {
         avatarEl.innerHTML = '?';
         avatarEl.classList.remove('has-photo');
     }
+    setPhotoButtonLabel(false);
 
     try {
         const res = await window.StaffTrackAuth.apiFetch(`/api/cv-profiles/${email}`);
@@ -1191,6 +1259,7 @@ async function loadProfile() {
                     avatarEl.innerHTML = `<img src="${data.profile.photo_path}" alt="Profile Photo" onerror="this.parentElement.innerHTML='?'">`;
                     avatarEl.classList.add('has-photo');
                 }
+                setPhotoButtonLabel(true);
             }
 
             // Pre-populate all section data from the same response so that
@@ -1228,6 +1297,19 @@ async function loadProfile() {
 }
 
 // ── Profile Sidebar & Completion ───
+function renderCompletionScore(score, checks = {}) {
+    const pct = Math.max(0, Math.min(100, Math.round(score)));
+    const percentEl = document.getElementById('completion-percent');
+    const fillEl = document.getElementById('completion-fill');
+    const ringEl = document.getElementById('completion-ring');
+    if (percentEl) percentEl.textContent = pct + '%';
+    if (fillEl) fillEl.style.width = pct + '%';
+    if (ringEl) ringEl.style.setProperty('--pct', pct + '%');
+    document.querySelectorAll('#completion-list li').forEach(li => {
+        li.classList.toggle('done', !!checks[li.dataset.check]);
+    });
+}
+
 function updateProfileSidebar(data) {
     // Update name
     const nameEl = document.getElementById('profile-name');
@@ -1267,10 +1349,15 @@ function updateProfileSidebar(data) {
     if (education > 0) score += 10;
     if (certs > 0) score += 10;
 
-    const percentEl = document.getElementById('completion-percent');
-    const fillEl = document.getElementById('completion-fill');
-    if (percentEl) percentEl.textContent = score + '%';
-    if (fillEl) fillEl.style.width = score + '%';
+    renderCompletionScore(score, {
+        photo: hasPhoto,
+        summary: !!data.profile?.summary,
+        contact: !!(data.profile?.phone || data.profile?.location || data.profile?.linkedin),
+        skills: skills > 0,
+        projects: projects > 0,
+        education: education > 0,
+        certs: certs > 0,
+    });
 }
 
 // Lightweight refresh that doesn't need the full data object —
@@ -1305,10 +1392,17 @@ function refreshSidebarCompletion() {
     if (education > 0) score += 10;
     if (certs > 0) score += 10;
 
-    const percentEl = document.getElementById('completion-percent');
-    const fillEl = document.getElementById('completion-fill');
-    if (percentEl) percentEl.textContent = score + '%';
-    if (fillEl) fillEl.style.width = score + '%';
+    renderCompletionScore(score, {
+        photo: hasPhoto,
+        summary: !!document.getElementById('cv-summary')?.value?.trim(),
+        contact: !!(document.getElementById('cv-phone')?.value?.trim() ||
+            document.getElementById('cv-location')?.value?.trim() ||
+            document.getElementById('cv-linkedin')?.value?.trim()),
+        skills: skills > 0,
+        projects: projects > 0,
+        education: education > 0,
+        certs: certs > 0,
+    });
 }
 
 async function saveProfile() {
@@ -1383,6 +1477,7 @@ async function uploadPhoto() {
                 avatarEl.innerHTML = `<img src="${cacheBust}" alt="Profile Photo">`;
                 avatarEl.classList.add('has-photo');
             }
+            setPhotoButtonLabel(true);
 
             showToast('Photo uploaded successfully');
             
@@ -1438,11 +1533,12 @@ function renderEducationList() {
         const count = educationData.length;
         countEl.textContent = `${count} entr${count !== 1 ? 'ies' : 'y'}`;
     }
+    setTabCount('tab-count-education', educationData.length);
 
     // Toggle empty state vs list
     if (emptyState && list) {
         if (educationData.length === 0) {
-            emptyState.style.display = 'block';
+            emptyState.style.display = '';
             list.style.display = 'none';
         } else {
             emptyState.style.display = 'none';
@@ -1469,15 +1565,22 @@ function renderEducationList() {
             const proofPath = entry.proof_path || '';
 
             html += `
-                <div class="section-card" style="padding:1.25rem; position:relative;" data-id="${entry.id}">
-                    <div style="font-weight:700; font-size:1rem; margin-bottom:0.25rem;">${institution}</div>
-                    <div style="color:var(--accent-blue); font-size:0.9rem; margin-bottom:0.25rem;">${degree}${field ? ' — ' + field : ''}</div>
-                    <div style="color:var(--text-secondary); font-size:0.82rem; margin-bottom:0.5rem;">${startYear} – ${endYear}</div>
-                    ${description ? '<div class="preserve-newlines" style="font-size:0.85rem; color:var(--text-secondary);">' + description + '</div>' : ''}
-                    ${proofPath ? `<div style="margin-top:0.5rem;"><a href="${proofPath}" target="_blank" style="font-size:0.78rem; color:var(--accent-amber); text-decoration:none;">📎 View Proof</a></div>` : ''}
-                    ${isViewOnly ? '' : `<div style="display:flex; gap:0.5rem; margin-top:1rem;">
-                        <button class="btn-secondary btn-edit-education" data-id="${entry.id}" style="padding:0.35rem 0.75rem; font-size:0.8rem;">✏️ Edit</button>
-                        <button class="btn-remove btn-delete-education" data-id="${entry.id}" style="width:auto; padding:0.35rem 0.75rem; font-size:0.8rem;">🗑 Delete</button>
+                <div class="cv-entry" data-id="${entry.id}">
+                    <div class="cv-entry-top">
+                        <span class="cv-entry-ico edu"><svg aria-hidden="true"><use href="#i-graduation"/></svg></span>
+                        <div class="cv-entry-heading">
+                            <div class="cv-entry-title">${esc(institution)}</div>
+                            <div class="cv-entry-sub">${esc(degree)}${field ? ' · ' + esc(field) : ''}</div>
+                        </div>
+                    </div>
+                    <div class="cv-entry-meta">
+                        <span class="cv-meta-item"><svg aria-hidden="true"><use href="#i-calendar"/></svg><span>${startYear} – ${endYear}</span></span>
+                    </div>
+                    ${description ? `<div class="cv-entry-desc">${esc(description)}</div>` : ''}
+                    ${proofPath ? `<a class="cv-proof-link" href="${esc(proofPath)}" target="_blank" rel="noopener"><svg aria-hidden="true"><use href="#i-paperclip"/></svg> View proof</a>` : ''}
+                    ${isViewOnly ? '' : `<div class="cv-entry-actions">
+                        <button class="cv-act btn-edit-education" data-id="${entry.id}"><svg aria-hidden="true"><use href="#i-pencil"/></svg> Edit</button>
+                        <button class="cv-act danger btn-delete-education" data-id="${entry.id}"><svg aria-hidden="true"><use href="#i-trash"/></svg> Delete</button>
                     </div>`}
                 </div>
             `;
@@ -1536,7 +1639,7 @@ function showEducationForm(entry = null) {
         if (proofExisting) {
             if (entry.proof_path) {
                 proofExisting.style.display = '';
-                proofExisting.innerHTML = `<span style="font-size:0.82rem; color:var(--accent-amber);">📎 Current: <a href="${entry.proof_path}" target="_blank" style="color:var(--accent-amber);">${entry.proof_path.split('/').pop()}</a></span> <button class="btn-remove" data-proof-id="${entry.id}" data-proof-type="education" style="width:auto; padding:0.2rem 0.5rem; font-size:0.75rem; margin-left:0.5rem;">✕ Remove</button>`;
+                proofExisting.innerHTML = proofCurrentRow(entry.proof_path, entry.id, 'education');
                 proofExisting.querySelector('[data-proof-type="education"]')?.addEventListener('click', () => deleteEducationProof(entry.id));
             } else {
                 proofExisting.style.display = 'none';
@@ -1771,11 +1874,12 @@ function renderCertificationsList() {
         const count = certificationsData.length;
         countEl.textContent = `${count} entr${count !== 1 ? 'ies' : 'y'}`;
     }
+    setTabCount('tab-count-certifications', certificationsData.length);
 
     // Toggle empty state vs list
     if (emptyState && list) {
         if (certificationsData.length === 0) {
-            emptyState.style.display = 'block';
+            emptyState.style.display = '';
             list.style.display = 'none';
         } else {
             emptyState.style.display = 'none';
@@ -1802,19 +1906,24 @@ function renderCertificationsList() {
             const proofPath = entry.proof_path || '';
 
             html += `
-                <div class="section-card" style="padding:1.25rem; position:relative;" data-id="${entry.id}">
-                    <div style="font-weight:700; font-size:1rem; margin-bottom:0.25rem;">${name}</div>
-                    <div style="color:var(--accent-blue); font-size:0.9rem; margin-bottom:0.25rem;">${issuer}</div>
-                    <div style="color:var(--text-secondary); font-size:0.82rem; margin-bottom:0.25rem;">
-                        Obtained: ${dateObtained}
-                        ${expiryDate ? ' · Expires: ' + expiryDate : ''}
+                <div class="cv-entry" data-id="${entry.id}">
+                    <div class="cv-entry-top">
+                        <span class="cv-entry-ico cert"><svg aria-hidden="true"><use href="#i-badge"/></svg></span>
+                        <div class="cv-entry-heading">
+                            <div class="cv-entry-title">${esc(name)}</div>
+                            <div class="cv-entry-sub">${esc(issuer)}</div>
+                        </div>
                     </div>
-                    ${credentialId ? '<div style="font-size:0.78rem; color:var(--text-muted);">ID: ' + credentialId + '</div>' : ''}
-                    ${description ? '<div class="preserve-newlines" style="font-size:0.85rem; color:var(--text-secondary); margin-top:0.5rem;">' + description + '</div>' : ''}
-                    ${proofPath ? `<div style="margin-top:0.5rem;"><a href="${proofPath}" target="_blank" style="font-size:0.78rem; color:var(--accent-amber); text-decoration:none;">📎 View Proof</a></div>` : ''}
-                    ${isViewOnly ? '' : `<div style="display:flex; gap:0.5rem; margin-top:1rem;">
-                        <button class="btn-secondary btn-edit-certification" data-id="${entry.id}" style="padding:0.35rem 0.75rem; font-size:0.8rem;">✏️ Edit</button>
-                        <button class="btn-remove btn-delete-certification" data-id="${entry.id}" style="width:auto; padding:0.35rem 0.75rem; font-size:0.8rem;">🗑 Delete</button>
+                    <div class="cv-entry-meta">
+                        <span class="cv-meta-item"><svg aria-hidden="true"><use href="#i-calendar"/></svg><span>Obtained ${esc(dateObtained)}</span></span>
+                        ${expiryDate ? `<span class="cv-meta-item"><svg aria-hidden="true"><use href="#i-calendar"/></svg><span>Expires ${esc(expiryDate)}</span></span>` : ''}
+                    </div>
+                    ${credentialId ? `<div class="cv-chip-row"><span class="cv-chip"><svg aria-hidden="true"><use href="#i-id"/></svg>${esc(credentialId)}</span></div>` : ''}
+                    ${description ? `<div class="cv-entry-desc">${esc(description)}</div>` : ''}
+                    ${proofPath ? `<a class="cv-proof-link" href="${esc(proofPath)}" target="_blank" rel="noopener"><svg aria-hidden="true"><use href="#i-paperclip"/></svg> View proof</a>` : ''}
+                    ${isViewOnly ? '' : `<div class="cv-entry-actions">
+                        <button class="cv-act btn-edit-certification" data-id="${entry.id}"><svg aria-hidden="true"><use href="#i-pencil"/></svg> Edit</button>
+                        <button class="cv-act danger btn-delete-certification" data-id="${entry.id}"><svg aria-hidden="true"><use href="#i-trash"/></svg> Delete</button>
                     </div>`}
                 </div>
             `;
@@ -1873,7 +1982,7 @@ function showCertificationForm(entry = null) {
         if (proofExisting) {
             if (entry.proof_path) {
                 proofExisting.style.display = '';
-                proofExisting.innerHTML = `<span style="font-size:0.82rem; color:var(--accent-amber);">📎 Current: <a href="${entry.proof_path}" target="_blank" style="color:var(--accent-amber);">${entry.proof_path.split('/').pop()}</a></span> <button class="btn-remove" data-proof-id="${entry.id}" data-proof-type="certification" style="width:auto; padding:0.2rem 0.5rem; font-size:0.75rem; margin-left:0.5rem;">✕ Remove</button>`;
+                proofExisting.innerHTML = proofCurrentRow(entry.proof_path, entry.id, 'certification');
                 proofExisting.querySelector('[data-proof-type="certification"]')?.addEventListener('click', () => deleteCertificationProof(entry.id));
             } else {
                 proofExisting.style.display = 'none';
@@ -2101,11 +2210,12 @@ async function loadAwards() {
 function renderAwardsList() {
     const emptyState = document.getElementById('awards-empty');
     const list = document.getElementById('awards-list');
+    setTabCount('tab-count-awards', awardsData.length);
 
     // Toggle empty state vs list
     if (emptyState && list) {
         if (awardsData.length === 0) {
-            emptyState.style.display = 'block';
+            emptyState.style.display = '';
             list.style.display = 'none';
         } else {
             emptyState.style.display = 'none';
@@ -2130,15 +2240,20 @@ function renderAwardsList() {
             const proofPath = entry.proof_path || '';
 
             html += `
-                <div class="section-card" style="padding:1.25rem; position:relative;" data-id="${entry.id}">
-                    <div style="font-weight:700; font-size:1rem; margin-bottom:0.25rem;">🏆 ${title}</div>
-                    ${issuer ? `<div style="color:var(--accent-blue); font-size:0.9rem; margin-bottom:0.25rem;">${issuer}</div>` : ''}
-                    ${dateReceived ? `<div style="color:var(--text-secondary); font-size:0.82rem; margin-bottom:0.25rem;">Received: ${dateReceived}</div>` : ''}
-                    ${description ? `<div class="preserve-newlines" style="font-size:0.85rem; color:var(--text-secondary); margin-top:0.5rem;">${description}</div>` : ''}
-                    ${proofPath ? `<div style="margin-top:0.5rem;"><a href="${proofPath}" target="_blank" style="font-size:0.78rem; color:var(--accent-amber); text-decoration:none;">📎 View Proof</a></div>` : ''}
-                    ${isViewOnly ? '' : `<div style="display:flex; gap:0.5rem; margin-top:1rem;">
-                        <button class="btn-secondary btn-edit-award" data-id="${entry.id}" style="padding:0.35rem 0.75rem; font-size:0.8rem;">✏️ Edit</button>
-                        <button class="btn-remove btn-delete-award" data-id="${entry.id}" style="width:auto; padding:0.35rem 0.75rem; font-size:0.8rem;">🗑 Delete</button>
+                <div class="cv-entry" data-id="${entry.id}">
+                    <div class="cv-entry-top">
+                        <span class="cv-entry-ico award"><svg aria-hidden="true"><use href="#i-trophy"/></svg></span>
+                        <div class="cv-entry-heading">
+                            <div class="cv-entry-title">${esc(title)}</div>
+                            ${issuer ? `<div class="cv-entry-sub">${esc(issuer)}</div>` : ''}
+                        </div>
+                    </div>
+                    ${dateReceived ? `<div class="cv-entry-meta"><span class="cv-meta-item"><svg aria-hidden="true"><use href="#i-calendar"/></svg><span>Received ${esc(dateReceived)}</span></span></div>` : ''}
+                    ${description ? `<div class="cv-entry-desc">${esc(description)}</div>` : ''}
+                    ${proofPath ? `<a class="cv-proof-link" href="${esc(proofPath)}" target="_blank" rel="noopener"><svg aria-hidden="true"><use href="#i-paperclip"/></svg> View proof</a>` : ''}
+                    ${isViewOnly ? '' : `<div class="cv-entry-actions">
+                        <button class="cv-act btn-edit-award" data-id="${entry.id}"><svg aria-hidden="true"><use href="#i-pencil"/></svg> Edit</button>
+                        <button class="cv-act danger btn-delete-award" data-id="${entry.id}"><svg aria-hidden="true"><use href="#i-trash"/></svg> Delete</button>
                     </div>`}
                 </div>
             `;
@@ -2193,7 +2308,7 @@ function showAwardForm(entry = null) {
         if (proofExisting) {
             if (entry.proof_path) {
                 proofExisting.style.display = '';
-                proofExisting.innerHTML = `<span style="font-size:0.82rem; color:var(--accent-amber);">📎 Current: <a href="${entry.proof_path}" target="_blank" style="color:var(--accent-amber);">${entry.proof_path.split('/').pop()}</a></span> <button class="btn-remove" data-proof-id="${entry.id}" data-proof-type="award" style="width:auto; padding:0.2rem 0.5rem; font-size:0.75rem; margin-left:0.5rem;">✕ Remove</button>`;
+                proofExisting.innerHTML = proofCurrentRow(entry.proof_path, entry.id, 'award');
                 proofExisting.querySelector('[data-proof-type="award"]')?.addEventListener('click', () => deleteAwardProof(entry.id));
             } else {
                 proofExisting.style.display = 'none';
@@ -2410,16 +2525,21 @@ function renderWorkHistoryList() {
     const emptyState = document.getElementById('work-history-empty');
     const list = document.getElementById('work-history-list');
 
+    const companies = groupWorkHistory(workHistoryData);
+    const roleCount = workHistoryData.length;
+
     // Update count
     if (countEl) {
-        const count = workHistoryData.length;
-        countEl.textContent = `${count} entr${count !== 1 ? 'ies' : 'y'}`;
+        const companyLabel = `${companies.length} compan${companies.length !== 1 ? 'ies' : 'y'}`;
+        const roleLabel = `${roleCount} role${roleCount !== 1 ? 's' : ''}`;
+        countEl.textContent = companies.length ? `${companyLabel} · ${roleLabel}` : '0 entries';
     }
+    setTabCount('tab-count-work-history', roleCount);
 
     // Toggle empty state vs list
     if (emptyState && list) {
         if (workHistoryData.length === 0) {
-            emptyState.style.display = 'block';
+            emptyState.style.display = '';
             list.style.display = 'none';
         } else {
             emptyState.style.display = 'none';
@@ -2427,38 +2547,43 @@ function renderWorkHistoryList() {
         }
     }
 
-    // Render work history entries
+    // Render one card per company with the role progression inside it
     if (list) {
-        // Sort by start_date descending (most recent first), entries without start_date go last
-        const sortedData = [...workHistoryData].sort((a, b) => {
-            if (!a.start_date && !b.start_date) return 0;
-            if (!a.start_date) return 1;
-            if (!b.start_date) return -1;
-            return b.start_date.localeCompare(a.start_date);
-        });
-
         let html = '';
-        sortedData.forEach(entry => {
-            const employer = entry.employer || '—';
-            const jobTitle = entry.job_title || '—';
-            const startDate = entry.start_date || '?';
-            const endDate = entry.end_date === null || entry.end_date === '' ? 'Present' : (entry.end_date || '?');
-            const description = entry.description || '';
-            const isCurrent = !!entry.is_current;
+        companies.forEach(company => {
+            const companyDates = `${company.start_date || '?'} – ${company.end_date || 'Present'}`;
+            const roles = company.positions || [];
+            const roleItems = roles.map(role => {
+                const roleDates = `${role.start_date || '?'} – ${role.end_date || 'Present'}`;
+                return `
+                    <div class="wh-role" data-role-id="${role.id}">
+                        <div class="wh-role-rail"><span class="wh-role-dot"></span></div>
+                        <div class="wh-role-body">
+                            <div class="wh-role-title">${esc(role.job_title || '—')}${role.is_current ? ' <span class="wh-current-badge">Current</span>' : ''}</div>
+                            <div class="wh-role-dates">${roleDates}</div>
+                            ${role.description ? `<div class="wh-role-desc">${esc(role.description)}</div>` : ''}
+                            ${isViewOnly ? '' : `<div class="wh-role-actions">
+                                <button class="cv-act btn-edit-work-history" data-id="${role.id}"><svg aria-hidden="true"><use href="#i-pencil"/></svg> Edit</button>
+                                <button class="cv-act danger btn-delete-work-history" data-id="${role.id}"><svg aria-hidden="true"><use href="#i-trash"/></svg> Delete</button>
+                            </div>`}
+                        </div>
+                    </div>`;
+            }).join('');
 
             html += `
-                <div class="section-card" style="padding:1.25rem; position:relative; ${isCurrent ? 'border-left: 4px solid var(--accent-blue);' : ''}" data-id="${entry.id}">
-                    <div style="display:flex; justify-content:space-between; align-items:flex-start;">
-                        <div style="font-weight:700; font-size:1rem; margin-bottom:0.25rem;">${employer}</div>
-                        ${isCurrent ? '<span style="background:var(--accent-blue); color:white; font-size:0.65rem; padding:0.1rem 0.4rem; border-radius:4px; text-transform:uppercase; font-weight:700;">Current</span>' : ''}
+                <div class="section-card wh-company" data-employer-key="${esc(company.employer.toLowerCase())}">
+                    <div class="wh-company-head">
+                        <div class="wh-company-id">
+                            <span class="cv-entry-ico work"><svg aria-hidden="true"><use href="#i-building"/></svg></span>
+                            <div>
+                                <div class="wh-company-name">${esc(company.employer)}${company.is_current ? ' <span class="wh-current-badge">Current</span>' : ''}</div>
+                                <div class="wh-company-dates">${companyDates} · ${roles.length} role${roles.length !== 1 ? 's' : ''}</div>
+                                ${company.roles_summary ? `<div class="wh-company-progression">${esc(company.roles_summary)}</div>` : ''}
+                            </div>
+                        </div>
+                        ${isViewOnly ? '' : `<button class="cv-act btn-add-role" data-employer="${esc(company.employer)}"><svg aria-hidden="true"><use href="#i-plus"/></svg> Add role</button>`}
                     </div>
-                    <div style="color:var(--accent-blue); font-size:0.9rem; margin-bottom:0.25rem;">${jobTitle}</div>
-                    <div style="color:var(--text-secondary); font-size:0.82rem; margin-bottom:0.5rem;">${startDate} – ${endDate}</div>
-                    ${description ? '<div class="preserve-newlines" style="font-size:0.85rem; color:var(--text-secondary);">' + description + '</div>' : ''}
-                    ${isViewOnly ? '' : `<div style="display:flex; gap:0.5rem; margin-top:1rem;">
-                        <button class="btn-secondary btn-edit-work-history" data-id="${entry.id}" style="padding:0.35rem 0.75rem; font-size:0.8rem;">✏️ Edit</button>
-                        <button class="btn-remove btn-delete-work-history" data-id="${entry.id}" style="width:auto; padding:0.35rem 0.75rem; font-size:0.8rem;">🗑 Delete</button>
-                    </div>`}
+                    <div class="wh-role-list">${roleItems}</div>
                 </div>
             `;
         });
@@ -2480,11 +2605,103 @@ function renderWorkHistoryList() {
                 deleteWorkHistory(id);
             });
         });
+
+        // Add another role at the same company (promotion path)
+        document.querySelectorAll('.btn-add-role').forEach(btn => {
+            btn.addEventListener('click', () => showWorkHistoryForm(null, btn.dataset.employer));
+        });
     }
+
+    refreshEmployerSuggestions();
     refreshSidebarCompletion();
 }
 
-function showWorkHistoryForm(entry = null) {
+/**
+ * Group flat work-history rows by employer (oldest role → newest role).
+ * Mirrors the server-side grouping in backend/src/routes/cv_profiles.js so the
+ * editor and the generated CV tell the same progression story.
+ */
+function groupWorkHistory(rows) {
+    const groups = new Map();
+    (rows || []).forEach(row => {
+        const employer = String(row.employer || '').trim();
+        const key = employer.toLowerCase() || '__unknown__';
+        if (!groups.has(key)) {
+            groups.set(key, {
+                employer: employer || '—',
+                positions: [],
+                start_date: null,
+                end_date: null,
+                is_current: 0,
+                job_title: '',
+                roles_summary: '',
+                id: null
+            });
+        }
+        const group = groups.get(key);
+        group.positions.push({
+            id: row.id,
+            job_title: row.job_title || '',
+            start_date: row.start_date || null,
+            end_date: row.end_date || null,
+            description: row.description || '',
+            is_current: Number(row.is_current) ? 1 : 0
+        });
+        if (Number(row.is_current)) group.is_current = 1;
+    });
+
+    groups.forEach(group => {
+        group.positions.sort((a, b) => {
+            if (!a.start_date && !b.start_date) return 0;
+            if (!a.start_date) return 1;
+            if (!b.start_date) return -1;
+            return String(a.start_date).localeCompare(String(b.start_date));
+        });
+        const startDates = group.positions.map(p => p.start_date).filter(Boolean).sort();
+        group.start_date = startDates[0] || null;
+        const hasOpenRole = group.is_current === 1 || group.positions.some(p => !p.end_date);
+        if (hasOpenRole) {
+            group.end_date = null;
+        } else {
+            const endDates = group.positions.map(p => p.end_date).filter(Boolean).sort();
+            group.end_date = endDates[endDates.length - 1] || null;
+        }
+        const latest = group.positions[group.positions.length - 1];
+        group.id = latest ? latest.id : (group.positions[0] || {}).id || null;
+        group.job_title = latest ? latest.job_title : '';
+        group.roles_summary = group.positions.map(p => p.job_title).filter(Boolean).join(' → ');
+    });
+
+    const activityKey = group => group.is_current ? '9999-12-31' : (group.end_date || group.start_date || '');
+    return [...groups.values()].sort((a, b) => {
+        if (a.is_current !== b.is_current) return b.is_current - a.is_current;
+        return String(activityKey(b)).localeCompare(String(activityKey(a)));
+    });
+}
+
+// Find the company group a work-history role belongs to.
+function findEmployerById(id) {
+    return groupWorkHistory(workHistoryData).find(group =>
+        group.positions.some(p => String(p.id) === String(id))
+    ) || null;
+}
+
+// Employer suggestions for the work-history form (one entry per company).
+function refreshEmployerSuggestions() {
+    const datalist = document.getElementById('wh-employer-suggestions');
+    if (!datalist) return;
+    const seen = new Set();
+    let html = '';
+    groupWorkHistory(workHistoryData).forEach(group => {
+        const name = String(group.employer || '').trim();
+        if (!name || name === '—' || seen.has(name.toLowerCase())) return;
+        seen.add(name.toLowerCase());
+        html += `<option value="${esc(name)}"></option>`;
+    });
+    datalist.innerHTML = html;
+}
+
+function showWorkHistoryForm(entry = null, presetEmployer = '') {
     const form = document.getElementById('work-history-form');
     const title = document.getElementById('work-history-form-title');
     const idInput = document.getElementById('work-history-id');
@@ -2506,16 +2723,19 @@ function showWorkHistoryForm(entry = null) {
         if (isCurrentInput) isCurrentInput.checked = !!entry.is_current;
         if (descriptionInput) descriptionInput.value = entry.description || '';
     } else {
-        // Add mode
-        if (title) title.textContent = 'Add Work History';
+        // Add mode — when launched from "+ Add role", prefill the company so
+        // the new title is recorded as a progression within that employer.
+        if (title) title.textContent = presetEmployer ? `Add Role at ${presetEmployer}` : 'Add Work History';
         if (idInput) idInput.value = '';
-        if (employerInput) employerInput.value = '';
+        if (employerInput) employerInput.value = presetEmployer || '';
         if (jobTitleInput) jobTitleInput.value = '';
         if (startDateInput) startDateInput.value = '';
         if (endDateInput) endDateInput.value = '';
         if (isCurrentInput) isCurrentInput.checked = false;
         if (descriptionInput) descriptionInput.value = '';
     }
+
+    refreshEmployerSuggestions();
 
     if (form) form.style.display = '';
     if (form) form.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -2628,7 +2848,7 @@ async function deleteWorkHistory(id) {
 // Rebuild the Associated Employer dropdown in the Past Project form
 // using the current workHistoryData (call after any WH save/delete).
 function getCurrentEmployer() {
-    return workHistoryData.find(wh => Number(wh.is_current) === 1) || null;
+    return groupWorkHistory(workHistoryData).find(wh => wh.is_current === 1) || null;
 }
 
 function employerOptionLabel(wh) {
@@ -2637,8 +2857,14 @@ function employerOptionLabel(wh) {
 
 function buildEmployerOptions(selectedId = '') {
     let html = '<option value="">— No Association —</option>';
-    workHistoryData.forEach(wh => {
-        html += `<option value="${wh.id}"${String(wh.id) === String(selectedId) ? ' selected' : ''}>${employerOptionLabel(wh)}</option>`;
+    groupWorkHistory(workHistoryData).forEach(wh => {
+        // Keep a selection that points at an older role row, otherwise use the
+        // company's most recent role id as the stable association target.
+        const selectedRole = selectedId
+            ? wh.positions.find(p => String(p.id) === String(selectedId))
+            : null;
+        const value = selectedRole ? selectedRole.id : wh.id;
+        html += `<option value="${value}"${String(value) === String(selectedId) ? ' selected' : ''}>${employerOptionLabel(wh)}</option>`;
     });
     return html;
 }
@@ -2685,11 +2911,12 @@ function renderPastProjectsList() {
         const count = pastProjectsData.length;
         countEl.textContent = `${count} entr${count !== 1 ? 'ies' : 'y'}`;
     }
+    setTabCount('tab-count-past-projects', pastProjectsData.length);
 
     // Toggle empty state vs list
     if (emptyState && list) {
         if (pastProjectsData.length === 0) {
-            emptyState.style.display = 'block';
+            emptyState.style.display = '';
             list.style.display = 'none';
         } else {
             emptyState.style.display = 'none';
@@ -2716,22 +2943,30 @@ function renderPastProjectsList() {
             const technologies = entry.technologies || '';
             const description = entry.description || '';
 
-            // Find associated employer
-            const employer = workHistoryData.find(wh => wh.id === entry.work_history_id);
+            // Find associated employer (resolve the role row back to its company)
+            const employer = findEmployerById(entry.work_history_id);
             const employerName = employer ? employer.employer : null;
             const employerIsCurrent = !!(employer && Number(employer.is_current) === 1);
 
             html += `
-                <div class="section-card" style="padding:1.25rem; position:relative;" data-id="${entry.id}">
-                    <div style="font-weight:700; font-size:1rem; margin-bottom:0.25rem;">${projectName}</div>
-                    ${employerName ? `<div style="font-size:0.82rem; color:var(--text-muted); margin-bottom:0.25rem;">📍 ${esc(employerName)}${employerIsCurrent ? ' <span style="color:var(--accent-blue); font-weight:600;">(Current Company)</span>' : ''}</div>` : ''}
-                    <div style="color:var(--accent-blue); font-size:0.9rem; margin-bottom:0.25rem;">${role}</div>
-                    <div style="color:var(--text-secondary); font-size:0.82rem; margin-bottom:0.5rem;">${startDate} – ${endDate}</div>
-                    ${technologies ? '<div style="font-size:0.78rem; color:var(--accent-amber); margin-bottom:0.5rem;">' + technologies + '</div>' : ''}
-                    ${description ? '<div class="preserve-newlines" style="font-size:0.85rem; color:var(--text-secondary);">' + description + '</div>' : ''}
-                    ${isViewOnly ? '' : `<div style="display:flex; gap:0.5rem; margin-top:1rem;">
-                        <button class="btn-secondary btn-edit-past-project" data-id="${entry.id}" style="padding:0.35rem 0.75rem; font-size:0.8rem;">✏️ Edit</button>
-                        <button class="btn-remove btn-delete-past-project" data-id="${entry.id}" style="width:auto; padding:0.35rem 0.75rem; font-size:0.8rem;">🗑 Delete</button>
+                <div class="cv-entry" data-id="${entry.id}">
+                    <div class="cv-entry-top">
+                        <span class="cv-entry-ico past"><svg aria-hidden="true"><use href="#i-folder"/></svg></span>
+                        <div class="cv-entry-heading">
+                            <div class="cv-entry-title">${esc(projectName)}</div>
+                            <div class="cv-entry-sub">${esc(role)}</div>
+                        </div>
+                    </div>
+                    <div class="cv-entry-meta">
+                        ${employerName ? `<span class="cv-meta-item"><svg aria-hidden="true"><use href="#i-building"/></svg><span>${esc(employerName)}</span></span>` : ''}
+                        <span class="cv-meta-item"><svg aria-hidden="true"><use href="#i-calendar"/></svg><span>${startDate} – ${endDate}</span></span>
+                    </div>
+                    ${employerIsCurrent ? '<div class="cv-chip-row"><span class="cv-chip current">Current company</span></div>' : ''}
+                    ${technologies ? `<div class="cv-chip-row">${techChips(technologies)}</div>` : ''}
+                    ${description ? `<div class="cv-entry-desc">${esc(description)}</div>` : ''}
+                    ${isViewOnly ? '' : `<div class="cv-entry-actions">
+                        <button class="cv-act btn-edit-past-project" data-id="${entry.id}"><svg aria-hidden="true"><use href="#i-pencil"/></svg> Edit</button>
+                        <button class="cv-act danger btn-delete-past-project" data-id="${entry.id}"><svg aria-hidden="true"><use href="#i-trash"/></svg> Delete</button>
                     </div>`}
                 </div>
             `;
@@ -2791,7 +3026,7 @@ function showPastProjectForm(entry = null) {
     if (workHistoryIdInput && projectNameInput) {
         updateAutocomplete = () => {
             const whId = workHistoryIdInput.value;
-            const employer = workHistoryData.find(e => String(e.id) === String(whId));
+            const employer = findEmployerById(whId);
             const datalist = document.getElementById('project-catalog-list');
 
             if (employer && Number(employer.is_current) === 1 && datalist) {
@@ -2908,7 +3143,7 @@ async function savePastProject() {
     // Dates outside the employer's period are NOT a hard error (projects often
     // span before/after a formal employment window, or the association is only
     // approximate) — surface a confirm modal, then save on approval.
-    const employer = workHistoryData.find(e => String(e.id) === String(workHistoryId)) || null;
+    const employer = findEmployerById(workHistoryId);
     const conflicts = getPastProjectDateConflicts(body, employer);
     if (conflicts.length) {
         confirmPastProjectDates(body, id, employer, conflicts);
@@ -2923,6 +3158,17 @@ let pendingPastProjectSave = null;
 
 function esc(s) {
     return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+// Render a comma-separated technology list as compact chips.
+function techChips(technologies) {
+    return String(technologies || '')
+        .split(',')
+        .map(t => t.trim())
+        .filter(Boolean)
+        .slice(0, 8)
+        .map(t => `<span class="cv-chip tech">${esc(t)}</span>`)
+        .join('');
 }
 
 function confirmPastProjectDates(body, id, employer, conflicts, onSuccess = null) {
@@ -3118,26 +3364,31 @@ function renderTemplatePicker() {
         const meta = styleMap[t.id] || { icon: '📋', desc: '' };
         const isSelected = t.id === selectedTemplateId;
         return `
-        <div class="template-card section-card ${isSelected ? 'selected' : ''}" data-id="${t.id}"
-            style="padding:1rem 1.25rem; cursor:pointer; min-width:180px; flex:1; max-width:260px;
-            border:2px solid ${isSelected ? 'var(--accent-blue)' : 'var(--border)'};
-            transition:border-color 0.15s, box-shadow 0.15s;
-            ${isSelected ? 'box-shadow:0 0 0 3px rgba(59,130,246,0.15);' : ''}">
-            <div style="font-size:1.8rem; margin-bottom:0.4rem;">${meta.icon}</div>
-            <div style="font-weight:700; font-size:0.95rem; margin-bottom:0.25rem;">${t.name}</div>
-            <div style="font-size:0.78rem; color:var(--text-muted);">${meta.desc}</div>
-            ${t.is_default ? '<div style="margin-top:0.5rem; font-size:0.7rem; color:var(--accent-blue); font-weight:600;">DEFAULT</div>' : ''}
+        <div class="template-card ${isSelected ? 'selected' : ''}" data-id="${t.id}" role="radio" aria-checked="${isSelected}" tabindex="0">
+            <span class="template-check"><svg aria-hidden="true"><use href="#i-check"/></svg></span>
+            <div class="template-icon">${meta.icon}</div>
+            <div class="template-name">${esc(t.name)}</div>
+            <div class="template-desc">${meta.desc}</div>
+            ${t.is_default ? '<span class="cv-chip tech" style="width:fit-content">Default</span>' : ''}
         </div>`;
     }).join('');
 
+    const selectTemplate = (id) => {
+        selectedTemplateId = id;
+        picker.querySelectorAll('.template-card').forEach(c => {
+            const on = c.dataset.id === selectedTemplateId;
+            c.classList.toggle('selected', on);
+            c.setAttribute('aria-checked', String(on));
+        });
+    };
+
     picker.querySelectorAll('.template-card').forEach(card => {
-        card.addEventListener('click', () => {
-            selectedTemplateId = card.dataset.id;
-            // Update selection highlight
-            picker.querySelectorAll('.template-card').forEach(c => {
-                c.style.borderColor = c.dataset.id === selectedTemplateId ? 'var(--accent-blue)' : 'var(--border)';
-                c.style.boxShadow = c.dataset.id === selectedTemplateId ? '0 0 0 3px rgba(59,130,246,0.15)' : '';
-            });
+        card.addEventListener('click', () => selectTemplate(card.dataset.id));
+        card.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                selectTemplate(card.dataset.id);
+            }
         });
     });
 }
@@ -3260,7 +3511,7 @@ async function downloadCertificateBundle() {
     } finally {
         if (btn) {
             btn.disabled = false;
-            btn.textContent = '📎 Download Certificates';
+            btn.innerHTML = '<svg width="14" height="14" aria-hidden="true"><use href="#i-paperclip"/></svg> Download Certificates';
         }
     }
 }
@@ -3329,7 +3580,7 @@ function renderSnapshotsTable(snapshots, email) {
     const canDelete = isAdmin || isOwnProfile;
 
     if (!snapshots || snapshots.length === 0) {
-        if (empty) empty.style.display = 'block';
+        if (empty) empty.style.display = '';
         if (container) container.style.display = 'none';
         // Show Clear All (disabled) for users who can manage their own CV
         if (clearBtn && canDelete) {
@@ -3350,18 +3601,20 @@ function renderSnapshotsTable(snapshots, email) {
 
     if (!tbody) return;
     tbody.innerHTML = snapshots.map(s => {
-        const created = new Date(s.created_at).toLocaleString('en-MY', { timeZone: 'Asia/Kuala_Lumpur' });
+        const d = new Date(s.created_at);
+        const dateStr = d.toLocaleDateString('en-MY', { timeZone: 'Asia/Kuala_Lumpur', year: 'numeric', month: 'short', day: 'numeric' });
+        const timeStr = d.toLocaleTimeString('en-MY', { timeZone: 'Asia/Kuala_Lumpur', hour: '2-digit', minute: '2-digit' });
         const deleteBtn = canDelete
-            ? `<button class="btn-remove btn-delete-snapshot" data-id="${s.id}" data-email="${email}" style="width:auto; padding:0.25rem 0.6rem; font-size:0.78rem;">🗑</button>`
-            : `<span style="font-size:0.75rem; color:var(--text-muted);" title="HR cannot delete snapshots">—</span>`;
+            ? `<button class="cv-act danger btn-delete-snapshot" data-id="${s.id}" data-email="${esc(email)}" title="Delete snapshot"><svg aria-hidden="true"><use href="#i-trash"/></svg></button>`
+            : `<span style="font-size:0.75rem; color:var(--color-text-muted);" title="HR cannot delete snapshots">—</span>`;
         return `<tr>
-            <td style="font-size:0.85rem;">${created}</td>
-            <td style="font-size:0.85rem;">${s.template_name || '—'}</td>
-            <td style="font-size:0.85rem;">${s.generated_by}</td>
-            <td style="display:flex; gap:0.4rem; align-items:center;">
-                <button class="btn-secondary btn-view-snapshot" data-id="${s.id}" data-email="${email}" style="padding:0.25rem 0.6rem; font-size:0.78rem;">👁 View</button>
+            <td><span class="cv-when">${esc(dateStr)}<small>${esc(timeStr)}</small></span></td>
+            <td><span class="cv-chip accent">${esc(s.template_name || '—')}</span></td>
+            <td style="font-size:0.78rem;">${esc(s.generated_by)}</td>
+            <td><div class="cv-table-actions">
+                <button class="cv-act btn-view-snapshot" data-id="${s.id}" data-email="${esc(email)}"><svg aria-hidden="true"><use href="#i-eye"/></svg> View</button>
                 ${deleteBtn}
-            </td>
+            </div></td>
         </tr>`;
     }).join('');
 
@@ -3451,6 +3704,14 @@ async function init() {
     if (typeof Toast !== 'undefined') {
         Toast.init();
     }
+
+    // Empty-state CTA buttons proxy to their section's Add button.
+    document.addEventListener('click', (e) => {
+        const cta = e.target.closest('[data-add-target]');
+        if (!cta) return;
+        const target = document.getElementById(cta.dataset.addTarget);
+        if (target && !target.disabled) target.click();
+    });
     
     // Set target email from URL
     const urlParams = new URLSearchParams(window.location.search);
@@ -3575,7 +3836,7 @@ async function init() {
                 showLoadModal(subs);
             }
         } catch { showToast('Could not reach server'); }
-        btn.textContent = '📂 Load Previous';
+        btn.innerHTML = '<svg width="14" height="14" aria-hidden="true"><use href="#i-refresh"/></svg> Load Previous';
         btn.disabled = false;
     });
     document.getElementById('btn-clear')?.addEventListener('click', () => {

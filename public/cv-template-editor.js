@@ -37,6 +37,27 @@ const SAMPLE_DATA = {
         { employer: 'TechCorp Sdn Bhd', job_title: 'Senior Software Engineer', start_date: '2020-01-01', end_date: 'Present', description: 'Led a team of 5 engineers building cloud-native microservices.' },
         { employer: 'StartupXYZ', job_title: 'Software Engineer', start_date: '2016-07-01', end_date: '2019-12-31', description: 'Full-stack development using React and Node.js.' },
     ],
+    // Same data grouped per company, oldest role → newest, for progression lists.
+    workHistoryGrouped: [
+        {
+            employer: 'TechCorp Sdn Bhd', start_date: '2016-01-01', end_date: 'Present', is_current: 1,
+            job_title: 'Senior Software Engineer',
+            roles_summary: 'Software Engineer → Senior Software Engineer',
+            positions: [
+                { job_title: 'Software Engineer', start_date: '2016-01-01', end_date: '2019-12-31', description: 'Built core platform services.' },
+                { job_title: 'Senior Software Engineer', start_date: '2020-01-01', end_date: 'Present', description: 'Led a team of 5 engineers building cloud-native microservices.' },
+            ]
+        },
+        {
+            employer: 'StartupXYZ', start_date: '2014-06-01', end_date: '2015-12-31', is_current: 0,
+            job_title: 'Junior Developer',
+            roles_summary: 'Intern → Junior Developer',
+            positions: [
+                { job_title: 'Intern', start_date: '2014-06-01', end_date: '2014-12-31', description: 'Supported the web team.' },
+                { job_title: 'Junior Developer', start_date: '2015-01-01', end_date: '2015-12-31', description: 'Maintained internal tools.' },
+            ]
+        },
+    ],
     pastProjects: [{ project_name: 'Data Pipeline Optimisation', role: 'Data Engineer', start_date: '2021-03-01', end_date: '2021-09-30', description: 'Reduced ETL processing time by 60%.', technologies: 'Python, Apache Spark, AWS S3' }],
 };
 
@@ -169,18 +190,20 @@ function renderTemplateClient(markdownTpl, cssStyles, data) {
         if (!val) return '';
         if (Array.isArray(val)) {
             if (val.length === 0) return '';
+            const fill = (str, item) => str.replace(/\{\{(\w+)\}\}/g, (__, f) => item[f] != null ? String(item[f]) : '');
             return val.map(item => {
-                let renderedBlock = block.replace(/\{\{(\w+)\}\}/g, (__, f) => item[f] != null ? String(item[f]) : '');
-                // Handle nested loops/conditionals (one level deep)
-                renderedBlock = renderedBlock.replace(/\{\{#(\w+)\}\}([\s\S]*?)\{\{\/\1\}\}/g, (___, key2, block2) => {
+                // Nested loops/conditionals (one level deep) must be expanded
+                // BEFORE scalar replacement, otherwise outer-company values
+                // would blank out the inner role placeholders.
+                let renderedBlock = block.replace(/\{\{#(\w+)\}\}([\s\S]*?)\{\{\/\1\}\}/g, (___, key2, block2) => {
                     const val2 = item[key2];
                     if (!val2) return '';
                     if (Array.isArray(val2)) {
-                        return val2.map(item2 => block2.replace(/\{\{(\w+)\}\}/g, (____, f2) => item2[f2] != null ? String(item2[f2]) : '')).join('');
+                        return val2.map(item2 => fill(block2, item2)).join('');
                     }
-                    return block2.replace(/\{\{(\w+)\}\}/g, (____, f2) => item[f2] != null ? String(item[f2]) : '');
+                    return fill(block2, item);
                 });
-                return renderedBlock;
+                return fill(renderedBlock, item);
             }).join('');
         }
         // Conditional block
@@ -592,16 +615,20 @@ function newTemplate() {
 
 ---
 
-{{section:experience}}
+{{section:workHistory}}
 ## Work History
 
-{{#workHistory}}
-**{{employer}}** — {{job_title}} ({{start_date}} – {{end_date}})
+{{#workHistoryGrouped}}
+**{{employer}}** ({{start_date}} – {{end_date}})
+
+{{#positions}}
+↳ **{{job_title}}** · {{start_date}} – {{end_date}}
 
 {{description}}
 
-{{/workHistory}}
-{{/section:experience}}
+{{/positions}}
+{{/workHistoryGrouped}}
+{{/section:workHistory}}
 
 ---
 
