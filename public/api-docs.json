@@ -266,6 +266,24 @@
         "x-console": { "id": "catalog-staff", "roles": "admin,hr" }
       }
     },
+    "/api/org-chart": {
+      "get": {
+        "tags": ["Reports & Catalog"],
+        "summary": "Organization chart (nested tree + flat nodes)",
+        "description": "The full reporting hierarchy, resolved from `staff.manager_name` (a name) to manager emails. Returns BOTH a nested `roots` tree and a flat `nodes` array (`{ id, parentId, ... }`, ready for d3-org-chart). Manager cycles are broken automatically. Active accounts only unless `includeInactive=1`. Optionally scope to one person's subtree with `root=<email>` (404 when unknown). Any authenticated user may read it — the same data the Org Chart page shows.",
+        "parameters": [
+          { "name": "root", "in": "query", "required": false, "description": "Staff email — return only that person's subtree.", "schema": { "type": "string", "format": "email", "example": "jane@example.com" } },
+          { "name": "includeInactive", "in": "query", "required": false, "description": "`1`/`true` includes deactivated accounts. Default active only.", "schema": { "type": "string", "enum": ["0", "1", "true", "false"], "default": "0" } }
+        ],
+        "responses": {
+          "200": { "description": "OK", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/OrgChartResponse" }, "example": { "generatedAt": "2026-09-10T08:00:00.000Z", "count": 2, "rootCount": 1, "roots": [ { "id": "boss@example.com", "parentId": null, "name": "Boss", "title": "CEO", "department": "Management", "managerName": null, "children": [ { "id": "jane@example.com", "parentId": "boss@example.com", "name": "Jane Doe", "title": "Engineer", "department": "Engineering", "managerName": "Boss", "children": [] } ] } ], "nodes": [ { "id": "boss@example.com", "parentId": null, "name": "Boss", "title": "CEO", "department": "Management", "managerName": null }, { "id": "jane@example.com", "parentId": "boss@example.com", "name": "Jane Doe", "title": "Engineer", "department": "Engineering", "managerName": "Boss" } ] } } } },
+          "401": { "$ref": "#/components/responses/Error401" },
+          "404": { "$ref": "#/components/responses/Error404" },
+          "500": { "$ref": "#/components/responses/Error500" }
+        },
+        "x-console": { "id": "org-chart", "roles": "all" }
+      }
+    },
     "/api/cv-profiles/{email}": {
       "get": {
         "tags": ["Staff data & CV"],
@@ -397,6 +415,8 @@
       "FeedMeta": { "type": "object", "properties": { "page": { "type": "integer" }, "limit": { "type": "integer" }, "total": { "type": "integer", "description": "Row count ignoring pagination" }, "returned": { "type": "integer", "description": "Rows in this page" } } },
       "SubordinatesResult": { "type": "object", "properties": { "subordinates": { "type": "array", "items": { "type": "string", "format": "email" }, "description": "Emails of direct + indirect reports" }, "count": { "type": "integer" } } },
       "CatalogStaffRow": { "type": "object", "properties": { "email": { "type": "string" }, "name": { "type": "string" }, "title": { "type": "string", "nullable": true }, "department": { "type": "string", "nullable": true }, "manager_name": { "type": "string", "nullable": true } } },
+      "OrgChartNode": { "type": "object", "properties": { "id": { "type": "string", "format": "email", "description": "Canonical (lower-cased) staff email" }, "parentId": { "type": "string", "nullable": true, "description": "Manager's email; null for roots" }, "name": { "type": "string" }, "title": { "type": "string" }, "department": { "type": "string" }, "managerName": { "type": "string", "nullable": true } } },
+      "OrgChartResponse": { "type": "object", "properties": { "generatedAt": { "type": "string", "format": "date-time" }, "count": { "type": "integer", "description": "Nodes in this response (subtree size when `root` is used)" }, "rootCount": { "type": "integer", "description": "Top-level entries in `roots`" }, "roots": { "type": "array", "items": { "type": "object", "description": "Nested tree node — OrgChartNode plus `children`", "properties": { "id": { "type": "string" }, "parentId": { "type": "string", "nullable": true }, "name": { "type": "string" }, "title": { "type": "string" }, "department": { "type": "string" }, "managerName": { "type": "string", "nullable": true }, "children": { "type": "array", "items": { "type": "object", "additionalProperties": true } } } } }, "nodes": { "type": "array", "description": "Flat d3-org-chart compatible list", "items": { "$ref": "#/components/schemas/OrgChartNode" } } } },
       "CvProfileBundle": { "type": "object", "description": "Date fields are YYYY-MM-DD; list sections are [] until the person records data.", "properties": {
         "profile": { "type": "object", "properties": { "id": { "type": "string" }, "staff_email": { "type": "string" }, "summary": { "type": "string", "nullable": true }, "phone": { "type": "string", "nullable": true }, "linkedin": { "type": "string", "nullable": true }, "location": { "type": "string", "nullable": true }, "photo_path": { "type": "string", "nullable": true } } },
         "education": { "type": "array", "items": { "type": "object", "properties": { "institution": { "type": "string" }, "degree": { "type": "string" }, "field": { "type": "string" }, "start_year": { "type": "integer" }, "end_year": { "type": "integer", "nullable": true }, "description": { "type": "string" } } } },

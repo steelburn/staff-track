@@ -270,6 +270,7 @@ const ENDPOINTS = [
     { id: 'feeds-summary', label: 'Org summary KPIs — /api/feeds/summary', method: 'GET', path: '/api/feeds/summary', roles: 'full,manager', kind: 'feed', filterable: [], sortable: [], feedDefaultSort: '', feedNote: 'Org summary KPIs — single aggregate object' },
     { id: 'reports-mine', label: 'My subordinates — /api/reports/my-subordinates', method: 'GET', path: '/api/reports/my-subordinates', roles: 'manager', kind: 'simple' },
     { id: 'catalog-staff', label: 'Staff catalog — /api/catalog/staff', method: 'GET', path: '/api/catalog/staff', roles: 'admin,hr', kind: 'simple' },
+    { id: 'org-chart', label: 'Organization chart — /api/org-chart', method: 'GET', path: '/api/org-chart', roles: 'all', kind: 'simple' },
     // ── CV-profile endpoints (guide §6) — {email} is filled in by the console ──
     { id: 'cv-profile', label: 'Staff CV profile bundle — /api/cv-profiles/{email}', method: 'GET', path: '/api/cv-profiles/{email}', roles: 'all', kind: 'cv', doc: 'The comprehensive profile bundle — profile, education, certifications, awards, work history, past projects (see guide §6 for the response shape).' },
     { id: 'cv-snapshots', label: 'CV snapshots — /api/cv-profiles/{email}/snapshots', method: 'GET', path: '/api/cv-profiles/{email}/snapshots', roles: 'all', kind: 'cv', doc: 'Previously generated CVs — template data + HTML, who generated it, created date; newest first.' },
