@@ -29,6 +29,34 @@ function fmtDate(v) {
 function esc(s) {
     return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
+function toDate(v) {
+    if (!v) return null;
+    const d = new Date(String(v).replace(' ', 'T'));
+    return isNaN(d.getTime()) ? null : d;
+}
+// Compact relative time used as a secondary line under dates ("in 12d", "3d ago").
+function relTime(v) {
+    const d = toDate(v);
+    if (!d) return '';
+    const diff = d.getTime() - Date.now();
+    const abs = Math.abs(diff);
+    const mins = Math.round(abs / 60000);
+    const hours = Math.round(abs / 36e5);
+    const days = Math.round(abs / 864e5);
+    let txt = 'just now';
+    if (mins >= 1 && mins < 60) txt = mins + 'm';
+    else if (hours >= 1 && hours < 24) txt = hours + 'h';
+    else if (days >= 1 && days < 45) txt = days + 'd';
+    else if (days >= 45) txt = Math.round(days / 30) + 'mo';
+    if (txt === 'just now') return txt;
+    return diff < 0 ? txt + ' ago' : 'in ' + txt;
+}
+
+// Inline icons reused by the token rows (kept in sync with the page shell).
+const SVG_KEY = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="7.5" cy="15.5" r="4.5"/><path d="m11 12 9-9"/><path d="m17 6 3 3"/><path d="m14 9 3 3"/></svg>';
+const SVG_LOCK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="10" width="16" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>';
+const SVG_COPY = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>';
+const SVG_TRASH = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18"/><path d="M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg>';
 
 // ── Help & Guide (single source — injected into the inline section AND the
 //    ❓ Help overlay modal, so both stay identical) ─────────────────────────────
@@ -42,11 +70,13 @@ const HELP_GUIDE_HTML = `
             <li><b>3 · Call the API</b> with the token in the <code>Authorization</code> header:</li>
         </ul>
         <pre>curl -H "Authorization: Bearer st_…" "https://your-host/api/feeds/me"</pre>
-        <p style="margin-bottom:0;">Full reference below, organised by topic. The same guide opens as an overlay any time via the <b>❓ Help</b> button (top-right).</p>
+        <p style="margin-bottom:0;">Full reference below, organised by topic. The same guide opens as an overlay any time via the <b>Help</b> button (top-right).</p>
     </div>
     <div class="api-docs-banner">
-        <span style="font-size:18px; line-height:1;">🤖</span>
-        <span><b>Building a client?</b> Machine-readable reference — <code>https://your-host/api-docs.json</code> is an <b>OpenAPI 3.0</b> document describing every endpoint, parameter, schema and example on this page (same catalog the console lists). Tools, scripts and AI agents can fetch it directly to generate interfaces — see also the <b>📖 API Docs</b> button at the top of this page.</span>
+        <span style="color: var(--color-primary); line-height: 1; display: flex;">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="8" width="18" height="12" rx="3"/><path d="M12 8V4"/><circle cx="12" cy="3" r="1"/><path d="M8 13h.01"/><path d="M16 13h.01"/></svg>
+        </span>
+        <span><b>Building a client?</b> Machine-readable reference — <code>https://your-host/api-docs.json</code> is an <b>OpenAPI 3.0</b> document describing every endpoint, parameter, schema and example on this page (same catalog the console lists). Tools, scripts and AI agents can fetch it directly to generate interfaces — see also the <b>API Docs</b> button at the top of this page.</span>
     </div>
 
     <details>
@@ -136,11 +166,11 @@ const { data, meta } = await res.json();</pre>
     Rows = Table.FromRecords(Source[data])
 in
     Rows</pre>
-            <p><b>Machine-readable reference:</b> <code>https://your-host/api-docs.json</code> (OpenAPI 3.0 — see the 🤖 banner at the top of this guide).</p>
+            <p><b>Machine-readable reference:</b> <code>https://your-host/api-docs.json</code> (OpenAPI 3.0 — see the banner at the top of this guide).</p>
             <p>Tips:</p>
             <ul>
                 <li>Want CSV? Ask with <code>?format=csv</code> or the <code>Accept: text/csv</code> header.</li>
-                <li>Test a token first in the <b>🧪 API Console</b> (set “Authenticate as → API token” and paste it), then hit <b>Copy cURL</b> to get a ready-made command.</li>
+                <li>Test a token first in the <b>API Console</b> (set “Authenticate as → API token” and paste it), then hit <b>Copy cURL</b> to get a ready-made command.</li>
                 <li>Anything outside your role — or a revoked/expired/deactivated token — fails with <code>401</code> / <code>403</code>, never with fake data.</li>
             </ul>
         </div>
@@ -184,6 +214,7 @@ in
   "certifications": [ { "name": "…", "issuer": "…", "date_obtained": "2024-03-01", "expiry_date": "2027-03-01", "credential_id": "…" } ],
   "awards":         [ { "title": "…", "issuer": "…", "date_received": "2023-11-01", "description": "…" } ],
   "workHistory":    [ { "employer": "…", "job_title": "…", "start_date": "2021-06-01", "end_date": "2023-05-31", "is_current": 1 } ],
+  "workHistoryGrouped": [ { "employer": "…", "start_date": "2019-01-01", "end_date": null, "is_current": 1, "roles_summary": "System Engineer → Senior System Engineer", "positions": [ { "job_title": "System Engineer", "start_date": "2019-01-01", "end_date": "2021-12-31" }, { "job_title": "Senior System Engineer", "start_date": "2022-01-01", "end_date": null } ] } ],
   "pastProjects":   [ { "project_name": "…", "role": "…", "technologies": "…", "start_date": "2022-01-01", "end_date": "2022-12-31" } ]
 }</pre>
             <table>
@@ -316,37 +347,84 @@ async function loadTokens() {
         const { tokens } = await res.json();
         const hint = document.getElementById('token-count-hint');
         if (hint) hint.textContent = tokens.length + ' / 20 active token' + (tokens.length === 1 ? '' : 's');
+        const fill = document.getElementById('token-meter-fill');
+        if (fill) fill.style.width = Math.min(100, (tokens.length / 20) * 100) + '%';
+        renderTokenStats(tokens);
         renderTokens(tokens);
     } catch (err) {
-        tbody.innerHTML = '<tr><td colspan="7" style="color:var(--color-danger);">Failed to load tokens: ' + esc(err.message) + '</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="6" style="color:var(--color-danger); padding: var(--space-5);">Failed to load tokens: ' + esc(err.message) + '</td></tr>';
     }
+}
+
+// Overview tiles — derived from the live token list.
+function renderTokenStats(tokens) {
+    const now = Date.now();
+    const readOnly = tokens.filter(t => t.readOnly).length;
+    const expiring = tokens.filter(t => {
+        const d = toDate(t.expiresAt);
+        if (!d) return false;
+        const ms = d.getTime() - now;
+        return ms > 0 && ms <= 30 * 864e5;
+    }).length;
+    const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+    set('stat-active', tokens.length);
+    set('stat-readonly', readOnly);
+    set('stat-full', tokens.length - readOnly);
+    set('stat-expiring', expiring);
 }
 
 function renderTokens(tokens) {
     const tbody = document.getElementById('api-token-tbody');
     if (tokens.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="7" style="color:var(--color-text-muted); text-align:center; padding: var(--space-5);">No active tokens. Create one above to call the API from scripts, cron jobs, or Power BI.</td></tr>';
+        tbody.innerHTML = `<tr><td colspan="6">
+            <div class="aa-empty">
+                <span class="aa-empty-icon">${SVG_KEY}</span>
+                <span class="aa-empty-title">No active tokens</span>
+                <span class="aa-empty-text">Create one above to call the API from scripts, cron jobs, or Power BI.</span>
+            </div>
+        </td></tr>`;
         return;
     }
     tbody.innerHTML = tokens.map(t => {
         const scopeBadge = t.readOnly
             ? '<span class="badge badge-info">Read-only</span>'
             : '<span class="badge badge-success">Full access</span>';
-        const expiring = t.expiresAt && new Date(String(t.expiresAt).replace(' ', 'T')).getTime() - Date.now() < 30 * 86400e3;
-        const expiry = t.expiresAt
-            ? (expiring ? '<span class="badge badge-warning">' + esc(fmtDate(t.expiresAt)) + '</span>' : esc(fmtDate(t.expiresAt)))
-            : '<span class="badge badge-neutral">Never</span>';
-        const fresh = lastSecret && t.id === lastSecret.id ? '<span class="badge badge-success">New</span> ' : '';
-        return `<tr data-id="${esc(t.id)}">
-            <td>${fresh}${esc(t.name)}</td>
-            <td><span style="font-family:monospace;">${esc(t.mask)}</span></td>
+        const exp = toDate(t.expiresAt);
+        let expiry;
+        if (!exp) {
+            expiry = '<span class="badge badge-neutral">Never</span>';
+        } else {
+            const days = Math.ceil((exp.getTime() - Date.now()) / 864e5);
+            const tone = days <= 7 ? 'badge-danger' : days <= 30 ? 'badge-warning' : 'badge-neutral';
+            expiry = '<span class="badge ' + tone + '">' + esc(fmtDate(t.expiresAt)) + '</span>'
+                + '<span class="aa-cell-sub">' + esc(relTime(t.expiresAt)) + '</span>';
+        }
+        const lastUsed = t.lastUsedAt
+            ? '<span class="aa-cell-muted">' + esc(fmtDate(t.lastUsedAt)) + '</span>'
+                + '<span class="aa-cell-sub">' + esc(relTime(t.lastUsedAt)) + '</span>'
+            : '<span class="aa-cell-muted">Never used</span>';
+        const fresh = lastSecret && t.id === lastSecret.id ? '<span class="badge badge-success">New</span>' : '';
+        const canCurl = !!(lastSecret && t.id === lastSecret.id);
+        const curlHint = canCurl ? 'Copy a cURL command using this token' : 'Only available in the session that created the token';
+        return `<tr data-id="${esc(t.id)}" data-name="${esc(t.name)}">
+            <td>
+                <div class="aa-token-cell">
+                    <span class="aa-token-avatar">${SVG_KEY}</span>
+                    <span class="aa-token-meta">
+                        <span class="aa-token-title" title="${esc(t.name)}"><span class="aa-token-name">${esc(t.name)}</span>${fresh}</span>
+                        <span class="aa-token-key" title="${esc(t.mask)}">${SVG_LOCK}${esc(t.mask)}</span>
+                    </span>
+                </div>
+            </td>
             <td>${scopeBadge}</td>
-            <td>${esc(fmtDate(t.createdAt))}</td>
+            <td class="aa-col-created"><span class="aa-cell-muted">${esc(fmtDate(t.createdAt))}</span><span class="aa-cell-sub">${esc(relTime(t.createdAt))}</span></td>
             <td>${expiry}</td>
-            <td>${esc(fmtDate(t.lastUsedAt))}</td>
-            <td style="text-align:right; white-space:nowrap;">
-                <button class="btn btn-ghost btn-sm tok-copy-curl" ${lastSecret && t.id === lastSecret.id ? '' : 'disabled'}>Copy cURL</button>
-                <button class="btn btn-danger btn-sm tok-revoke">Revoke</button>
+            <td class="aa-col-lastused">${lastUsed}</td>
+            <td class="aa-td-actions">
+                <div class="aa-actions">
+                    <button class="aa-icon-btn tok-copy-curl" title="${curlHint}" aria-label="Copy cURL" ${canCurl ? '' : 'disabled'}>${SVG_COPY}</button>
+                    <button class="aa-icon-btn is-danger tok-revoke" title="Revoke token" aria-label="Revoke token">${SVG_TRASH}</button>
+                </div>
             </td>
         </tr>`;
     }).join('');
@@ -355,7 +433,7 @@ function renderTokens(tokens) {
         btn.addEventListener('click', async () => {
             const tr = btn.closest('tr');
             const id = tr.dataset.id;
-            const name = tr.querySelector('td').textContent.trim();
+            const name = tr.dataset.name || 'this token';
             if (!confirm('Revoke token "' + name + '"? Any script using it will stop working immediately.')) return;
             const res = await window.StaffTrackAuth.apiFetch('/api/api-tokens/' + id, { method: 'DELETE' });
             if (res.ok) {
@@ -482,12 +560,13 @@ function addFilterRow() {
     filterRowCounter += 1;
     const id = 'flt-' + filterRowCounter;
     const row = document.createElement('div');
-    row.style.cssText = 'display:flex; gap: var(--space-2); align-items:center;';
+    row.className = 'aa-filter-row';
+    row.dataset.filterId = id;
     row.innerHTML = `
         <select class="select flt-col" style="flex:1; min-width:120px;">${(ep.filterable || []).map(c => `<option value="${c}">${c}</option>`).join('')}</select>
-        <select class="select flt-op" style="width:90px;"><option value="eq">= equals</option><option value="like">~ contains</option></select>
+        <select class="select flt-op" style="width:104px; flex:0 0 auto;"><option value="eq">= equals</option><option value="like">~ contains</option></select>
         <input type="text" class="input flt-val" style="flex:2;" placeholder="value">
-        <button type="button" class="btn btn-ghost btn-sm flt-del" title="Remove">✕</button>
+        <button type="button" class="aa-icon-btn is-danger flt-del" title="Remove filter" aria-label="Remove filter"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button>
     `;
     row.querySelector('.flt-del').addEventListener('click', () => { row.remove(); updateUrlPreview(); });
     ['change', 'input'].forEach(ev => row.querySelectorAll('select, input').forEach(el => el.addEventListener(ev, updateUrlPreview)));
@@ -519,14 +598,19 @@ function currentQuery() {
 
 function updateUrlPreview() {
     const urlEl = document.getElementById('con-url');
-    if (!activeEndpoint) { urlEl.textContent = ''; return; }
+    const methodEl = document.getElementById('con-method');
+    if (!activeEndpoint) { if (urlEl) urlEl.textContent = ''; return; }
     const qs = activeEndpoint.kind === 'feed' ? currentQuery() : '';
-    urlEl.textContent = activeEndpoint.method + ' ' + effectivePath(activeEndpoint, true) + (qs ? '?' + qs : '');
+    if (urlEl) urlEl.textContent = effectivePath(activeEndpoint, true) + (qs ? '?' + qs : '');
+    if (methodEl) {
+        const method = activeEndpoint.method || 'GET';
+        methodEl.textContent = method;
+        methodEl.className = 'aa-method' + (method === 'POST' ? ' is-post' : method === 'DELETE' ? ' is-delete' : '');
+    }
 }
 
 async function runConsole() {
     const output = document.getElementById('con-output');
-    const status = document.getElementById('con-status');
     const download = document.getElementById('con-download');
     const copyCurl = document.getElementById('con-copy-curl');
     const format = document.getElementById('con-format').value;
@@ -553,10 +637,14 @@ async function runConsole() {
         opts.body = bodyRaw;
     }
 
-    status.textContent = 'Sending ' + opts.method + ' ' + url + ' …';
+    const started = performance.now();
+    const shortUrl = url.split('?')[0];
+    setConsoleStatus('is-info', 'Sending ' + opts.method + ' ' + shortUrl + ' …');
     output.style.display = 'none';
     download.style.display = 'none';
     copyCurl.disabled = true;
+    const meta = document.getElementById('con-meta');
+    if (meta) meta.textContent = '';
     const btn = document.getElementById('con-run');
     btn.disabled = true;
     try {
@@ -564,12 +652,15 @@ async function runConsole() {
             ? await window.StaffTrackAuth.apiFetch(url, opts)
             : await fetch(url, opts);
         const ctype = res.headers.get('content-type') || '';
-        status.textContent = opts.method + ' ' + url + ' → ' + res.status + ' ' + res.statusText;
+        setConsoleStatus(res.ok ? 'is-ok' : 'is-error', opts.method + ' ' + shortUrl + ' → ' + res.status + ' ' + res.statusText);
         output.style.display = '';
+        let bytes = 0;
         if (ctype.includes('text/csv')) {
             const text = await res.text();
+            bytes = new Blob([text]).size;
             output.textContent = text;
             download.style.display = '';
+            download.textContent = 'Download CSV';
             download.onclick = () => {
                 const blob = new Blob([text], { type: 'text/csv' });
                 const a = document.createElement('a');
@@ -581,9 +672,10 @@ async function runConsole() {
         } else if (ctype.includes('application/zip') || ctype.includes('application/octet-stream')) {
             // Binary download (e.g. the CV certifications bundle) — offer a save.
             const blob = await res.blob();
+            bytes = blob.size;
             const name = (res.headers.get('content-disposition') || '').match(/filename="?([^";]+)"?/i);
             output.textContent = 'Binary response (' + (ctype || 'unknown') + ', ' + blob.size.toLocaleString() + ' bytes) — saved as ' + (name ? name[1] : ep.id + '.zip') + '. Open it to inspect.';
-            download.textContent = '💾 Download ' + (name ? name[1] : 'bundle.zip');
+            download.textContent = 'Download ' + (name ? name[1] : 'bundle.zip');
             download.style.display = '';
             download.onclick = () => {
                 const a = document.createElement('a');
@@ -594,7 +686,14 @@ async function runConsole() {
             };
         } else {
             const data = await res.json().catch(() => null);
-            output.textContent = data == null ? '(non-JSON response)' : JSON.stringify(data, null, 2);
+            const text = data == null ? '(non-JSON response)' : JSON.stringify(data, null, 2);
+            bytes = new Blob([text]).size;
+            output.textContent = text;
+        }
+        if (meta) {
+            const ms = Math.max(1, Math.round(performance.now() - started));
+            const size = bytes >= 1024 ? (bytes / 1024).toFixed(1) + ' KB' : bytes + ' B';
+            meta.textContent = ms + ' ms · ' + size;
         }
         copyCurl.disabled = false;
         copyCurl.onclick = () => {
@@ -605,10 +704,17 @@ async function runConsole() {
             copyText(cmd + ' ' + location.origin + url);
         };
     } catch (err) {
-        status.textContent = 'Request failed: ' + err.message;
+        setConsoleStatus('is-error', 'Request failed: ' + err.message);
     } finally {
         btn.disabled = false;
     }
+}
+
+function setConsoleStatus(tone, text) {
+    const el = document.getElementById('con-status');
+    if (!el) return;
+    el.className = tone || '';
+    el.textContent = text;
 }
 
 // ── Warnings / wiring ──────────────────────────────────────────────────────────
@@ -645,6 +751,7 @@ document.addEventListener('DOMContentLoaded', () => {
     buildGuideTables(); // fills the generated endpoint tables in every guide copy
     const btnHelp = document.getElementById('btn-help');
     if (btnHelp) btnHelp.addEventListener('click', () => openModal('help-modal'));
+    document.querySelectorAll('[data-open-help]').forEach(el => el.addEventListener('click', () => openModal('help-modal')));
 
     // console wiring
     renderEndpointSelect();
@@ -658,6 +765,29 @@ document.addEventListener('DOMContentLoaded', () => {
     const conParam = document.getElementById('con-param-val');
     if (conParam) conParam.addEventListener('input', updateUrlPreview);
     document.getElementById('con-run').addEventListener('click', runConsole);
+
+    // The pasted-token field only matters in "API token" auth mode.
+    const authSel = document.getElementById('con-auth');
+    const pasteWrap = document.getElementById('con-token-paste-wrap');
+    const syncAuthMode = () => { if (pasteWrap) pasteWrap.hidden = authSel.value !== 'token'; };
+    if (authSel && pasteWrap) { authSel.addEventListener('change', syncAuthMode); syncAuthMode(); }
+
+    // Ctrl/Cmd + Enter runs the console from anywhere inside it.
+    const consoleSection = document.getElementById('aa-console');
+    if (consoleSection) {
+        consoleSection.addEventListener('keydown', e => {
+            if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') { e.preventDefault(); runConsole(); }
+        });
+    }
+
+    const copyUrlBtn = document.getElementById('con-copy-url');
+    if (copyUrlBtn) {
+        copyUrlBtn.addEventListener('click', () => {
+            if (!activeEndpoint) return;
+            const qs = activeEndpoint.kind === 'feed' ? currentQuery() : '';
+            copyText(location.origin + effectivePath(activeEndpoint, false) + (qs ? '?' + qs : ''));
+        });
+    }
 
     // modal helpers
     document.querySelectorAll('[data-close-modal]').forEach(btn => btn.addEventListener('click', closeModal));

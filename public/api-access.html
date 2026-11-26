@@ -7,48 +7,1215 @@
     <title>StaffTrack — API Access</title>
     <link rel="stylesheet" href="/css/main.css?v=20260904a">
     <style>
-        /* ── Help & Guide (inline + overlay share one .help-guide block) ── */
-        .help-guide { font-size: 13px; line-height: 1.75; color: var(--color-text-primary); }
-        .help-guide p { margin: 0 0 var(--space-3); }
-        .help-guide ul { margin: 0 0 var(--space-3); padding-left: var(--space-5); list-style: disc; }
-        .help-guide li { margin-bottom: 4px; }
+        /* ════════════════════════════════════════════════════════════════════
+           API ACCESS — page-scoped design layer
+           "Developer console, refined": mono accents, soft indigo glow,
+           quiet borders, one accent per surface.
+           ════════════════════════════════════════════════════════════════════ */
+
+        /* Width config follows My CV (cv-profile.html): full-width header,
+           centered 1560px content column, shrinkable flex items. */
+        .main-content,
+        .content-area {
+            min-width: 0;
+        }
+
+        .aa-page {
+            display: flex;
+            flex-direction: column;
+            gap: var(--space-8);
+            width: 100%;
+            max-width: 1560px;
+            margin: 0 auto;
+            min-width: 0;
+        }
+
+        .aa-section,
+        .aa-card,
+        .aa-table-wrap {
+            min-width: 0;
+        }
+
+        .aa-heading {
+            display: flex;
+            align-items: center;
+            gap: var(--space-3);
+        }
+
+        .aa-eyebrow {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 10.5px;
+            font-weight: 700;
+            letter-spacing: 0.14em;
+            text-transform: uppercase;
+            color: var(--color-primary);
+            background: var(--color-primary-light);
+            border-radius: var(--radius-full);
+            padding: 3px 10px;
+            margin-bottom: var(--space-2);
+        }
+
+        .aa-eyebrow::before {
+            content: '';
+            width: 5px;
+            height: 5px;
+            border-radius: 50%;
+            background: currentColor;
+        }
+
+        .aa-header-actions .btn,
+        .page-actions .btn {
+            gap: var(--space-2);
+        }
+
+        .aa-btn-icon {
+            width: 16px;
+            height: 16px;
+            flex: 0 0 auto;
+        }
+
+        /* ── Overview tiles ─────────────────────────────────────────────── */
+        .aa-overview {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(min(190px, 100%), 1fr));
+            gap: var(--space-4);
+        }
+
+        .aa-stat {
+            position: relative;
+            display: flex;
+            align-items: center;
+            gap: var(--space-3);
+            min-width: 0;
+            padding: var(--space-4) var(--space-5);
+            background: var(--color-bg-surface);
+            border: 1px solid var(--color-border);
+            border-radius: var(--radius-xl);
+            overflow: hidden;
+            transition: border-color var(--transition-base), transform var(--transition-base), box-shadow var(--transition-base);
+            animation: aaRise 420ms ease both;
+        }
+
+        .aa-stat:hover {
+            border-color: var(--color-border-hover);
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-sm);
+        }
+
+        .aa-stat::after {
+            content: '';
+            position: absolute;
+            top: -70px;
+            right: -70px;
+            width: 150px;
+            height: 150px;
+            border-radius: 50%;
+            background: radial-gradient(circle, var(--color-primary-light), transparent 68%);
+            pointer-events: none;
+        }
+
+        .aa-stat-icon {
+            display: grid;
+            place-items: center;
+            width: 36px;
+            height: 36px;
+            flex: 0 0 36px;
+            border-radius: var(--radius-md);
+            background: var(--color-primary-light);
+            color: var(--color-primary);
+        }
+
+        .aa-stat-icon.tone-info {
+            background: var(--color-info-light);
+            color: var(--color-info);
+        }
+
+        .aa-stat-icon.tone-success {
+            background: var(--color-success-light);
+            color: var(--color-success);
+        }
+
+        .aa-stat-icon.tone-warning {
+            background: var(--color-warning-light);
+            color: var(--color-warning);
+        }
+
+        .aa-stat-icon svg {
+            width: 18px;
+            height: 18px;
+        }
+
+        .aa-stat-body {
+            display: flex;
+            flex-direction: column;
+            gap: 1px;
+            min-width: 0;
+        }
+
+        .aa-stat-value {
+            font-size: var(--font-size-3xl);
+            font-weight: var(--font-weight-bold);
+            line-height: 1.05;
+            letter-spacing: -0.02em;
+            color: var(--color-text-primary);
+            font-variant-numeric: tabular-nums;
+        }
+
+        .aa-stat-label {
+            font-size: 10.5px;
+            font-weight: 600;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            color: var(--color-text-secondary);
+        }
+
+        /* ── Section scaffolding ────────────────────────────────────────── */
+        .aa-section {
+            display: flex;
+            flex-direction: column;
+            gap: var(--space-4);
+        }
+
+        .aa-section-head {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: var(--space-4);
+            flex-wrap: wrap;
+        }
+
+        .aa-section-heading {
+            display: flex;
+            align-items: center;
+            gap: var(--space-3);
+            min-width: 0;
+        }
+
+        .aa-section-title {
+            font-size: var(--font-size-xl);
+            font-weight: var(--font-weight-semibold);
+            letter-spacing: -0.01em;
+            color: var(--color-text-primary);
+        }
+
+        .aa-section-sub {
+            margin: 2px 0 0;
+            font-size: var(--font-size-sm);
+            color: var(--color-text-secondary);
+        }
+
+        .aa-icon-tile {
+            display: grid;
+            place-items: center;
+            width: 38px;
+            height: 38px;
+            flex: 0 0 38px;
+            border-radius: var(--radius-md);
+            background: var(--color-primary-light);
+            color: var(--color-primary);
+            border: 1px solid transparent;
+        }
+
+        .aa-icon-tile svg {
+            width: 19px;
+            height: 19px;
+        }
+
+        .aa-icon-tile.is-muted {
+            background: var(--color-bg-muted);
+            color: var(--color-text-secondary);
+        }
+
+        .aa-card {
+            border-radius: var(--radius-xl);
+            box-shadow: none;
+        }
+
+        .aa-card:hover {
+            border-color: var(--color-border);
+        }
+
+        .aa-card-head {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: var(--space-4);
+            padding: var(--space-5) var(--space-5) var(--space-4);
+            flex-wrap: wrap;
+        }
+
+        .aa-card-heading {
+            display: flex;
+            align-items: flex-start;
+            gap: var(--space-3);
+            min-width: 0;
+        }
+
+        .aa-card-title {
+            font-size: var(--font-size-md);
+            font-weight: var(--font-weight-semibold);
+            color: var(--color-text-primary);
+            line-height: 1.35;
+        }
+
+        .aa-card-sub {
+            margin: 2px 0 0;
+            font-size: var(--font-size-sm);
+            color: var(--color-text-secondary);
+            line-height: 1.5;
+            max-width: 62ch;
+        }
+
+        .aa-card-body {
+            padding: 0 var(--space-5) var(--space-5);
+        }
+
+        .aa-card-divider {
+            height: 1px;
+            background: var(--color-border);
+            margin: 0 var(--space-5);
+        }
+
+        /* ── Create token form ──────────────────────────────────────────── */
+        .aa-page .select {
+            height: 43px;
+            min-width: 0;
+            max-width: 100%;
+            padding: 0 40px 0 14px;
+            font-size: var(--font-size-base);
+            font-weight: var(--font-weight-normal);
+            color: var(--color-text-primary);
+            background-color: var(--color-bg-surface);
+            border: 1px solid var(--color-border);
+            border-radius: var(--radius-md);
+            cursor: pointer;
+            transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+        }
+
+        .aa-page .select:hover {
+            border-color: var(--color-border-hover);
+        }
+
+        .aa-page .select:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .aa-page .select:focus {
+            outline: none;
+            border-color: var(--color-border-focus);
+            box-shadow: 0 0 0 3px var(--color-primary-light);
+        }
+
+        .aa-create-grid {
+            display: grid;
+            grid-template-columns: minmax(220px, 1fr) auto 176px auto;
+            align-items: end;
+            gap: var(--space-4);
+        }
+
+        .aa-field {
+            display: flex;
+            flex-direction: column;
+            gap: var(--space-2);
+            min-width: 0;
+        }
+
+        .aa-field .form-label {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 11px;
+            letter-spacing: 0.07em;
+            text-transform: uppercase;
+            color: var(--color-text-muted);
+        }
+
+        .aa-create-btn {
+            height: 42px;
+        }
+
+        /* Segmented scope control */
+        .aa-segmented {
+            display: inline-flex;
+            gap: 2px;
+            padding: 3px;
+            background: var(--color-bg-muted);
+            border: 1px solid var(--color-border);
+            border-radius: var(--radius-md);
+            height: 42px;
+            align-items: stretch;
+        }
+
+        .aa-segmented label {
+            position: relative;
+            display: flex;
+        }
+
+        .aa-segmented input[type="radio"] {
+            position: absolute;
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        .aa-seg-label {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 0 12px;
+            border-radius: var(--radius-sm);
+            font-size: var(--font-size-sm);
+            font-weight: var(--font-weight-medium);
+            color: var(--color-text-secondary);
+            cursor: pointer;
+            white-space: nowrap;
+            transition: background var(--transition-fast), color var(--transition-fast), box-shadow var(--transition-fast);
+        }
+
+        .aa-seg-label em {
+            font-style: normal;
+            font-size: 10px;
+            color: var(--color-text-muted);
+        }
+
+        .aa-segmented input:checked + .aa-seg-label {
+            background: var(--color-bg-surface);
+            color: var(--color-text-primary);
+            font-weight: var(--font-weight-semibold);
+            box-shadow: var(--shadow-xs);
+        }
+
+        .aa-segmented input:checked + .aa-seg-label em {
+            color: var(--color-primary);
+        }
+
+        .aa-segmented input:focus-visible + .aa-seg-label {
+            outline: 2px solid var(--color-border-focus);
+            outline-offset: 2px;
+        }
+
+        /* Warnings */
+        .aa-callout {
+            display: flex;
+            align-items: flex-start;
+            gap: var(--space-2);
+            margin-top: var(--space-3);
+            padding: 10px 12px;
+            font-size: var(--font-size-sm);
+            line-height: 1.5;
+            color: var(--color-text-secondary);
+            background: var(--color-warning-light);
+            border: 1px solid var(--color-warning-light);
+            border-left: 3px solid var(--color-warning);
+            border-radius: var(--radius-md);
+        }
+
+        .aa-callout svg {
+            width: 15px;
+            height: 15px;
+            flex: 0 0 15px;
+            margin-top: 1px;
+            color: var(--color-warning);
+        }
+
+        .aa-callout b {
+            color: var(--color-text-primary);
+        }
+
+        .aa-create-foot {
+            display: flex;
+            align-items: center;
+            gap: var(--space-2);
+            margin-top: var(--space-4);
+            font-size: var(--font-size-xs);
+            color: var(--color-text-secondary);
+        }
+
+        .aa-create-foot svg {
+            width: 14px;
+            height: 14px;
+            flex: 0 0 14px;
+        }
+
+        /* ── Token list ─────────────────────────────────────────────────── */
+        .aa-list .aa-card-head {
+            align-items: center;
+        }
+
+        .aa-capacity {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+            gap: 6px;
+            min-width: 130px;
+        }
+
+        .aa-meter {
+            width: 130px;
+            height: 6px;
+            border-radius: var(--radius-full);
+            background: var(--color-bg-muted);
+            overflow: hidden;
+        }
+
+        .aa-meter-fill {
+            display: block;
+            height: 100%;
+            width: 0;
+            border-radius: inherit;
+            background: linear-gradient(90deg, var(--color-primary), var(--color-info));
+            transition: width 400ms ease;
+        }
+
+        .aa-table-wrap {
+            overflow-x: auto;
+            max-width: 100%;
+        }
+
+        .aa-table {
+            min-width: 680px;
+        }
+
+        .aa-table th {
+            padding: 10px var(--space-4);
+            background: var(--color-bg-muted);
+            font-size: 10.5px;
+            letter-spacing: 0.09em;
+            color: var(--color-text-secondary);
+        }
+
+        .aa-table td {
+            padding: 13px var(--space-4);
+            vertical-align: middle;
+        }
+
+        .aa-th-actions,
+        .aa-td-actions {
+            text-align: right;
+        }
+
+        .aa-token-cell {
+            display: flex;
+            align-items: center;
+            gap: var(--space-3);
+            min-width: 0;
+        }
+
+        .aa-token-avatar {
+            display: grid;
+            place-items: center;
+            width: 34px;
+            height: 34px;
+            flex: 0 0 34px;
+            border-radius: var(--radius-md);
+            background: var(--color-primary-light);
+            color: var(--color-primary);
+        }
+
+        .aa-token-avatar svg {
+            width: 16px;
+            height: 16px;
+        }
+
+        .aa-token-meta {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+            min-width: 0;
+        }
+
+        .aa-token-title {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-weight: var(--font-weight-semibold);
+            font-size: var(--font-size-base);
+            color: var(--color-text-primary);
+            line-height: 1.3;
+            max-width: 46ch;
+            min-width: 0;
+        }
+
+        .aa-token-name {
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            min-width: 0;
+        }
+
+        .aa-token-key {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            font-family: var(--font-mono);
+            font-size: 11.5px;
+            letter-spacing: 0.01em;
+            color: var(--color-text-secondary);
+        }
+
+        .aa-token-key svg {
+            width: 11px;
+            height: 11px;
+            opacity: 0.7;
+        }
+
+        .aa-cell-sub {
+            display: block;
+            margin-top: 3px;
+            font-size: 11.5px;
+            color: var(--color-text-secondary);
+            opacity: 0.72;
+            white-space: nowrap;
+        }
+
+        .aa-cell-muted {
+            color: var(--color-text-secondary);
+            font-size: var(--font-size-sm);
+            white-space: nowrap;
+        }
+
+        .aa-actions {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            justify-content: flex-end;
+        }
+
+        .aa-icon-btn {
+            display: inline-grid;
+            place-items: center;
+            width: 32px;
+            height: 32px;
+            border-radius: var(--radius-sm);
+            border: 1px solid transparent;
+            color: var(--color-text-secondary);
+            background: transparent;
+            transition: background var(--transition-fast), color var(--transition-fast), border-color var(--transition-fast);
+        }
+
+        .aa-icon-btn svg {
+            width: 15px;
+            height: 15px;
+        }
+
+        .aa-icon-btn:hover {
+            background: var(--color-bg-muted);
+            border-color: var(--color-border);
+            color: var(--color-text-primary);
+        }
+
+        .aa-icon-btn.is-danger:hover {
+            background: var(--color-danger-light);
+            border-color: transparent;
+            color: var(--color-danger);
+        }
+
+        .aa-icon-btn:disabled {
+            opacity: 0.3;
+            cursor: not-allowed;
+        }
+
+        .aa-icon-btn:disabled:hover {
+            background: transparent;
+            border-color: transparent;
+            color: var(--color-text-secondary);
+        }
+
+        .aa-empty {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: var(--space-2);
+            padding: var(--space-10) var(--space-5);
+            text-align: center;
+        }
+
+        .aa-empty-icon {
+            display: grid;
+            place-items: center;
+            width: 52px;
+            height: 52px;
+            border-radius: 50%;
+            background: var(--color-bg-muted);
+            color: var(--color-text-muted);
+            margin-bottom: var(--space-1);
+        }
+
+        .aa-empty-icon svg {
+            width: 22px;
+            height: 22px;
+        }
+
+        .aa-empty-title {
+            font-size: var(--font-size-md);
+            font-weight: var(--font-weight-semibold);
+            color: var(--color-text-primary);
+        }
+
+        .aa-empty-text {
+            max-width: 42ch;
+            font-size: var(--font-size-sm);
+            color: var(--color-text-muted);
+        }
+
+        /* ── Console ────────────────────────────────────────────────────── */
+        .aa-console {
+            position: relative;
+            overflow: visible;
+        }
+
+        .aa-endpoint-picker {
+            display: flex;
+            align-items: center;
+            gap: var(--space-3);
+            min-width: 280px;
+            flex: 1;
+            max-width: 460px;
+        }
+
+        .aa-mini-label {
+            font-size: 10.5px;
+            font-weight: 700;
+            letter-spacing: 0.09em;
+            text-transform: uppercase;
+            color: var(--color-text-secondary);
+            white-space: nowrap;
+        }
+
+        .aa-endpoint-picker .select {
+            height: 38px;
+        }
+
+        .aa-console-toolbar {
+            display: flex;
+            align-items: flex-end;
+            gap: var(--space-3);
+            flex-wrap: wrap;
+            padding: var(--space-4) var(--space-4);
+            background: var(--color-bg-muted);
+            border-top: 1px solid var(--color-border);
+            border-bottom: 1px solid var(--color-border);
+        }
+
+        .aa-console-toolbar .aa-field {
+            gap: 5px;
+            min-width: 150px;
+        }
+
+        .aa-console-toolbar .aa-field .form-label {
+            font-size: 10px;
+        }
+
+        .aa-console-toolbar .input,
+        .aa-console-toolbar .select {
+            height: 38px;
+            padding-top: 0;
+            padding-bottom: 0;
+            font-size: var(--font-size-sm);
+            background-color: var(--color-bg-surface);
+        }
+
+        .aa-token-paste {
+            flex: 1 1 240px;
+            max-width: 360px;
+        }
+
+        .aa-token-paste[hidden] {
+            display: none !important;
+        }
+
+        .aa-run {
+            margin-left: auto;
+            height: 38px;
+            padding: 0 18px;
+        }
+
+        .aa-run kbd {
+            font-family: var(--font-mono);
+            font-size: 10px;
+            font-weight: 500;
+            padding: 2px 5px;
+            border-radius: 4px;
+            background: rgba(255, 255, 255, 0.18);
+            border: 1px solid rgba(255, 255, 255, 0.22);
+            color: inherit;
+            line-height: 1.4;
+        }
+
+        .aa-builder {
+            padding: var(--space-5) var(--space-5) 0;
+        }
+
+        .aa-builder-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: var(--space-3);
+        }
+
+        .aa-builder-grid .aa-field .form-label {
+            font-size: 10.5px;
+            text-transform: uppercase;
+            letter-spacing: 0.07em;
+        }
+
+        .aa-inline-hint {
+            margin-left: 4px;
+            font-size: 10.5px;
+            color: var(--color-text-muted);
+            text-transform: none;
+            letter-spacing: 0;
+            font-weight: var(--font-weight-normal);
+        }
+
+        .aa-filter-head {
+            display: flex;
+            align-items: center;
+            gap: var(--space-2);
+            margin-top: var(--space-4);
+        }
+
+        .aa-filter-head .form-label {
+            margin: 0;
+            font-size: 10.5px;
+            letter-spacing: 0.07em;
+            text-transform: uppercase;
+        }
+
+        .aa-filter-rows {
+            display: grid;
+            gap: var(--space-2);
+            margin-top: var(--space-2);
+        }
+
+        .aa-filter-row {
+            display: flex;
+            align-items: center;
+            gap: var(--space-2);
+            padding: var(--space-2);
+            background: var(--color-bg-muted);
+            border: 1px solid var(--color-border);
+            border-radius: var(--radius-md);
+            animation: aaRise 200ms ease both;
+        }
+
+        .aa-filter-row .select,
+        .aa-filter-row .input {
+            height: 34px;
+            padding-top: 0;
+            padding-bottom: 0;
+            font-size: var(--font-size-sm);
+            background-color: var(--color-bg-surface);
+        }
+
+        /* URL preview bar */
+        .aa-urlbar {
+            display: flex;
+            align-items: center;
+            gap: var(--space-2);
+            margin: var(--space-5) var(--space-5) 0;
+            padding: 7px 7px 7px 12px;
+            background: var(--color-bg-muted);
+            border: 1px solid var(--color-border);
+            border-radius: var(--radius-md);
+            min-height: 40px;
+        }
+
+        .aa-method {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 46px;
+            height: 24px;
+            padding: 0 8px;
+            border-radius: var(--radius-sm);
+            font-family: var(--font-mono);
+            font-size: 10.5px;
+            font-weight: 700;
+            letter-spacing: 0.06em;
+            background: var(--color-success-light);
+            color: var(--color-success);
+            flex: 0 0 auto;
+        }
+
+        .aa-method.is-post {
+            background: var(--color-warning-light);
+            color: var(--color-warning);
+        }
+
+        .aa-method.is-delete {
+            background: var(--color-danger-light);
+            color: var(--color-danger);
+        }
+
+        #con-url {
+            flex: 1;
+            min-width: 0;
+            padding: 0;
+            background: transparent;
+            color: var(--color-text-secondary);
+            font-family: var(--font-mono);
+            font-size: 12px;
+            white-space: nowrap;
+            overflow-x: auto;
+            scrollbar-width: none;
+        }
+
+        #con-url::-webkit-scrollbar {
+            display: none;
+        }
+
+        /* Response panel */
+        .aa-response {
+            margin: var(--space-4) var(--space-5) var(--space-5);
+            border: 1px solid var(--color-border);
+            border-radius: var(--radius-md);
+            overflow: hidden;
+            background: var(--color-bg-surface);
+        }
+
+        .aa-response-head {
+            display: flex;
+            align-items: center;
+            gap: var(--space-2);
+            padding: 9px var(--space-3);
+            background: var(--color-bg-muted);
+            border-bottom: 1px solid var(--color-border);
+            min-height: 42px;
+        }
+
+        .aa-response-dots {
+            display: inline-flex;
+            gap: 5px;
+            margin-right: var(--space-1);
+        }
+
+        .aa-response-dots i {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--color-border-hover);
+        }
+
+        .aa-response-head #con-status {
+            flex: 1;
+            min-width: 0;
+            font-size: 11.5px;
+            color: var(--color-text-muted);
+            font-family: var(--font-mono);
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .aa-response-head #con-status.is-ok {
+            color: var(--color-success);
+        }
+
+        .aa-response-head #con-status.is-error {
+            color: var(--color-danger);
+        }
+
+        .aa-response-head #con-status.is-info {
+            color: var(--color-info);
+        }
+
+        .aa-response-meta {
+            font-family: var(--font-mono);
+            font-size: 10.5px;
+            color: var(--color-text-muted);
+            white-space: nowrap;
+        }
+
+        .aa-response-actions {
+            display: inline-flex;
+            gap: var(--space-2);
+        }
+
+        #con-output {
+            margin: 0;
+            border-top: 1px solid var(--color-border);
+            padding: var(--space-4);
+            max-height: 460px;
+            overflow: auto;
+            background: #0b1220;
+            color: #cbd5e1;
+            font-family: var(--font-mono);
+            font-size: 12px;
+            line-height: 1.65;
+            white-space: pre-wrap;
+            word-break: break-word;
+            border-radius: 0;
+            tab-size: 2;
+        }
+
+        #con-output::selection {
+            background: rgba(99, 102, 241, 0.45);
+        }
+
+        /* ── Docs ───────────────────────────────────────────────────────── */
+        .aa-doc-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+            gap: var(--space-4);
+        }
+
+        .aa-doc-card {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 6px;
+            padding: var(--space-4) var(--space-5) var(--space-5);
+            text-align: left;
+            background: var(--color-bg-surface);
+            border: 1px solid var(--color-border);
+            border-radius: var(--radius-xl);
+            color: var(--color-text-primary);
+            font-family: inherit;
+            cursor: pointer;
+            transition: border-color var(--transition-base), transform var(--transition-base), box-shadow var(--transition-base);
+        }
+
+        .aa-doc-card:hover {
+            border-color: var(--color-primary);
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-sm);
+            color: var(--color-text-primary);
+        }
+
+        .aa-doc-icon {
+            display: grid;
+            place-items: center;
+            width: 32px;
+            height: 32px;
+            margin-bottom: var(--space-1);
+            border-radius: var(--radius-md);
+            background: var(--color-primary-light);
+            color: var(--color-primary);
+        }
+
+        .aa-doc-icon svg {
+            width: 16px;
+            height: 16px;
+        }
+
+        .aa-doc-title {
+            font-size: var(--font-size-base);
+            font-weight: var(--font-weight-semibold);
+        }
+
+        .aa-doc-text {
+            font-size: var(--font-size-sm);
+            color: var(--color-text-secondary);
+            line-height: 1.55;
+        }
+
+        .aa-doc-link {
+            margin-top: auto;
+            padding-top: var(--space-3);
+            font-family: var(--font-mono);
+            font-size: 11.5px;
+            color: var(--color-primary);
+        }
+
+        /* Collapsed full guide */
+        .aa-guide {
+            background: var(--color-bg-surface);
+            border: 1px solid var(--color-border);
+            border-radius: var(--radius-xl);
+            overflow: hidden;
+        }
+
+        .aa-guide > summary {
+            display: flex;
+            align-items: center;
+            gap: var(--space-3);
+            padding: var(--space-4) var(--space-5);
+            cursor: pointer;
+            list-style: none;
+            user-select: none;
+            font-weight: var(--font-weight-semibold);
+            font-size: var(--font-size-base);
+            color: var(--color-text-primary);
+            transition: background var(--transition-fast);
+        }
+
+        .aa-guide > summary::-webkit-details-marker {
+            display: none;
+        }
+
+        .aa-guide > summary:hover {
+            background: var(--color-bg-muted);
+        }
+
+        .aa-guide > summary::after {
+            content: '';
+            margin-left: auto;
+            width: 8px;
+            height: 8px;
+            border-right: 2px solid var(--color-text-muted);
+            border-bottom: 2px solid var(--color-text-muted);
+            transform: rotate(45deg);
+            transition: transform var(--transition-base);
+        }
+
+        .aa-guide[open] > summary::after {
+            transform: rotate(-135deg);
+        }
+
+        .aa-guide[open] > summary {
+            border-bottom: 1px solid var(--color-border);
+        }
+
+        .aa-guide-hint {
+            font-size: var(--font-size-xs);
+            font-weight: var(--font-weight-medium);
+            color: var(--color-text-muted);
+            background: var(--color-bg-muted);
+            border-radius: var(--radius-full);
+            padding: 2px 9px;
+        }
+
+        .aa-guide-body {
+            padding: var(--space-5);
+            background: var(--color-bg-base);
+        }
+
+        /* ══ Help & Guide content (inline + overlay share .help-guide) ═════ */
+        .help-guide {
+            font-size: 13px;
+            line-height: 1.75;
+            color: var(--color-text-primary);
+        }
+
+        .help-guide p {
+            margin: 0 0 var(--space-3);
+        }
+
+        .help-guide ul {
+            margin: 0 0 var(--space-3);
+            padding-left: var(--space-5);
+            list-style: disc;
+        }
+
+        .help-guide li {
+            margin-bottom: 5px;
+        }
+
+        .help-guide li::marker {
+            color: var(--color-text-muted);
+        }
+
         .help-guide code {
             color: var(--color-primary);
             background: var(--color-primary-light);
             font-size: 0.92em;
+            padding: 1px 5px;
+            border-radius: 5px;
         }
+
         .help-guide details {
             border: 1px solid var(--color-border);
             border-radius: var(--radius-md);
-            margin-bottom: var(--space-3);
+            margin-bottom: var(--space-2);
             background: var(--color-bg-surface);
             overflow: hidden;
+            transition: border-color var(--transition-fast);
         }
+
+        .help-guide details:hover {
+            border-color: var(--color-border-hover);
+        }
+
+        .help-guide details[open] {
+            border-color: var(--color-border);
+        }
+
         .help-guide summary {
             cursor: pointer;
             font-weight: var(--font-weight-semibold);
-            padding: 10px var(--space-4);
+            font-size: 13px;
+            padding: 12px var(--space-4);
             display: flex;
             align-items: center;
-            gap: var(--space-2);
+            gap: var(--space-3);
             list-style: none;
             user-select: none;
         }
-        .help-guide summary::-webkit-details-marker { display: none; }
-        .help-guide summary::before {
-            content: '▸';
-            color: var(--color-text-muted);
-            transition: transform var(--transition-fast);
-            font-size: 12px;
+
+        .help-guide summary::-webkit-details-marker {
+            display: none;
         }
-        .help-guide details[open] summary::before { transform: rotate(90deg); }
-        .help-guide .help-body { padding: var(--space-3) var(--space-4) var(--space-4); border-top: 1px solid var(--color-border); }
-        .help-guide .help-body > :first-child { margin-top: 0; }
-        .help-guide .help-body > :last-child { margin-bottom: 0; }
-        .help-guide table { width: 100%; border-collapse: collapse; margin: var(--space-2) 0 var(--space-4); font-size: 12.5px; }
-        .help-guide th, .help-guide td { text-align: left; padding: 6px 10px; border: 1px solid var(--color-border); vertical-align: top; }
-        .help-guide th { background: var(--color-bg-muted); font-weight: var(--font-weight-semibold); white-space: nowrap; }
-        .help-guide pre { margin: var(--space-2) 0 var(--space-4); }
+
+        .help-guide summary::before {
+            content: '';
+            width: 6px;
+            height: 6px;
+            flex: 0 0 6px;
+            border-right: 2px solid var(--color-text-muted);
+            border-bottom: 2px solid var(--color-text-muted);
+            transform: rotate(-45deg);
+            transition: transform var(--transition-fast);
+        }
+
+        .help-guide details[open] summary::before {
+            transform: rotate(45deg);
+        }
+
+        .help-guide details[open] summary {
+            border-bottom: 1px solid var(--color-border);
+            background: var(--color-bg-muted);
+        }
+
+        .help-guide .help-body {
+            padding: var(--space-4);
+        }
+
+        .help-guide .help-body > :first-child {
+            margin-top: 0;
+        }
+
+        .help-guide .help-body > :last-child {
+            margin-bottom: 0;
+        }
+
+        .help-guide table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: var(--space-2) 0 var(--space-4);
+            font-size: 12.5px;
+        }
+
+        .help-guide th,
+        .help-guide td {
+            text-align: left;
+            padding: 7px 10px;
+            border: 1px solid var(--color-border);
+            vertical-align: top;
+        }
+
+        .help-guide th {
+            background: var(--color-bg-muted);
+            font-weight: var(--font-weight-semibold);
+            white-space: nowrap;
+            font-size: 11.5px;
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+            color: var(--color-text-secondary);
+        }
+
+        .help-guide pre {
+            margin: var(--space-2) 0 var(--space-4);
+            padding: 12px 14px;
+            background: #0b1220;
+            color: #cbd5e1;
+            border-radius: var(--radius-md);
+            font-size: 11.5px;
+            line-height: 1.7;
+            overflow-x: auto;
+        }
+
         .help-guide .help-quickstart {
             background: var(--color-bg-muted);
             border: 1px solid var(--color-border);
@@ -56,28 +1223,278 @@
             padding: var(--space-4);
             margin-bottom: var(--space-4);
         }
-        .help-guide .help-quickstart pre { margin-bottom: 0; }
+
+        .help-guide .help-quickstart pre {
+            margin-bottom: 0;
+        }
+
         .help-guide .api-docs-banner {
             display: flex;
             align-items: flex-start;
             gap: var(--space-3);
             background: var(--color-bg-muted);
             border: 1px solid var(--color-border);
-            border-left: 3px solid var(--color-primary, #2f6fed);
+            border-left: 3px solid var(--color-primary);
             border-radius: var(--radius-md);
             padding: var(--space-3) var(--space-4);
             margin: 0 0 var(--space-4);
-            font-size: 13px;
+            font-size: 12.5px;
         }
-        .help-guide .api-docs-banner code { font-size: 12px; }
+
+        .help-guide .api-docs-banner code {
+            font-size: 11.5px;
+        }
+
         .help-ic {
             cursor: help;
-            opacity: 0.55;
-            font-size: 12px;
-            margin-left: 2px;
+            opacity: 0.5;
+            font-size: 11px;
+            margin-left: 1px;
+            transition: opacity var(--transition-fast);
         }
-        .help-ic:hover { opacity: 1; }
-        .badge-row { display: inline-block; }
+
+        .help-ic:hover {
+            opacity: 1;
+        }
+
+        .badge-row {
+            display: inline-block;
+        }
+
+        /* ── Reveal-secret modal ────────────────────────────────────────── */
+        .aa-reveal-note {
+            display: flex;
+            align-items: flex-start;
+            gap: var(--space-2);
+            padding: 10px 12px;
+            font-size: var(--font-size-sm);
+            line-height: 1.55;
+            color: var(--color-text-secondary);
+            background: var(--color-warning-light);
+            border-left: 3px solid var(--color-warning);
+            border-radius: var(--radius-md);
+            margin-bottom: var(--space-4);
+        }
+
+        .aa-reveal-note svg {
+            width: 15px;
+            height: 15px;
+            flex: 0 0 15px;
+            margin-top: 2px;
+            color: var(--color-warning);
+        }
+
+        .aa-secret-wrap {
+            display: flex;
+            align-items: flex-start;
+            gap: var(--space-2);
+            margin-top: var(--space-2);
+        }
+
+        .aa-secret-wrap .input {
+            font-family: var(--font-mono);
+            font-size: 12px;
+            line-height: 1.65;
+            letter-spacing: 0.01em;
+            background: var(--color-bg-muted);
+            color: var(--color-text-primary);
+            resize: none;
+            word-break: break-all;
+            cursor: text;
+        }
+
+        .aa-secret-wrap .input:focus {
+            cursor: text;
+        }
+
+        .aa-secret-wrap .btn {
+            flex: 0 0 auto;
+            align-self: flex-start;
+            height: 43px;
+        }
+
+        /* ── Motion ─────────────────────────────────────────────────────── */
+        @keyframes aaRise {
+            from {
+                opacity: 0;
+                transform: translateY(6px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .aa-section:nth-of-type(1) {
+            animation-delay: 30ms;
+        }
+
+        .aa-section:nth-of-type(2) {
+            animation-delay: 70ms;
+        }
+
+        .aa-section:nth-of-type(3) {
+            animation-delay: 110ms;
+        }
+
+        .aa-section:nth-of-type(4) {
+            animation-delay: 150ms;
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+
+            .aa-stat,
+            .aa-filter-row,
+            .aa-section {
+                animation: none !important;
+            }
+
+            .aa-stat:hover,
+            .aa-doc-card:hover {
+                transform: none;
+            }
+        }
+
+        /* ── Responsive ─────────────────────────────────────────────────── */
+        @media (max-width: 1180px) {
+            .aa-overview {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+            }
+
+            .aa-create-grid {
+                grid-template-columns: 1fr 1fr;
+            }
+
+            .aa-create-btn {
+                justify-self: start;
+            }
+
+            /* Keep row actions reachable while the table scrolls sideways. */
+            .aa-th-actions,
+            .aa-td-actions {
+                position: sticky;
+                right: 0;
+                background: var(--color-bg-surface);
+                box-shadow: -10px 0 14px -12px rgba(15, 23, 42, 0.45);
+            }
+
+            .aa-th-actions {
+                background: var(--color-bg-muted);
+            }
+        }
+
+        @media (max-width: 1100px) {
+            .aa-col-lastused {
+                display: none;
+            }
+        }
+
+        @media (max-width: 900px) {
+            .aa-col-created {
+                display: none;
+            }
+
+            .aa-console-toolbar .aa-token-paste {
+                max-width: none;
+            }
+
+            .aa-run {
+                margin-left: 0;
+            }
+        }
+
+        @media (max-width: 720px) {
+            .aa-page {
+                gap: var(--space-6);
+            }
+
+            .aa-table {
+                min-width: 560px;
+            }
+
+            .aa-table th,
+            .aa-table td {
+                padding-left: 10px;
+                padding-right: 10px;
+            }
+
+            .aa-create-btn {
+                width: 100%;
+            }
+
+            .aa-create-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .aa-capacity {
+                align-items: flex-start;
+            }
+
+            .aa-card-head,
+            .aa-card-body {
+                padding-left: var(--space-4);
+                padding-right: var(--space-4);
+            }
+
+            .aa-card-divider {
+                margin: 0 var(--space-4);
+            }
+
+            .aa-console-toolbar,
+            .aa-builder {
+                padding-left: var(--space-4);
+                padding-right: var(--space-4);
+            }
+
+            .aa-urlbar,
+            .aa-response {
+                margin-left: var(--space-4);
+                margin-right: var(--space-4);
+            }
+
+            .aa-col-lastused {
+                display: none;
+            }
+
+            .aa-seg-label {
+                padding: 0 10px;
+            }
+        }
+
+        @media (max-width: 640px) {
+            .aa-overview {
+                grid-template-columns: 1fr 1fr;
+                gap: var(--space-3);
+            }
+
+            .aa-stat {
+                padding: var(--space-3);
+                gap: var(--space-2);
+            }
+
+            .aa-stat-icon {
+                width: 32px;
+                height: 32px;
+                flex-basis: 32px;
+            }
+
+            .aa-stat-value {
+                font-size: var(--font-size-2xl);
+            }
+        }
+
+        @media (max-width: 520px) {
+            .aa-endpoint-picker {
+                min-width: 0;
+                width: 100%;
+                max-width: none;
+            }
+
+            .aa-stat-value {
+                font-size: var(--font-size-2xl);
+            }
+        }
     </style>
     <script src="/theme.js?v=20260904a"></script>
 </head>
@@ -102,16 +1519,23 @@
         <div class="main-content">
             <header class="page-header">
                 <div class="page-header-top">
-                    <div style="display:flex; align-items:center; gap:12px;">
+                    <div class="aa-heading">
                         <button class="mobile-menu-btn" id="mobileMenuBtn">☰</button>
                         <div>
+                            <span class="aa-eyebrow">Developer</span>
                             <h1 class="page-title">API Access</h1>
-                            <p class="page-subtitle">Personal API tokens, data feeds, and a live console</p>
+                            <p class="page-subtitle">Personal tokens, data feeds, and a live request console.</p>
                         </div>
                     </div>
-                    <div class="page-actions">
-                        <button class="btn btn-secondary" id="btn-help" title="Open the API Access help & guide">❓ Help</button>
-                        <a class="btn btn-secondary" id="btn-api-docs" href="/api-docs.json" target="_blank" rel="noopener" title="Machine-readable OpenAPI 3.0 reference (JSON) — for tools, agents & AI building against these endpoints">📖 API Docs</a>
+                    <div class="page-actions aa-header-actions">
+                        <button class="btn btn-secondary" id="btn-help" title="Open the API Access help & guide">
+                            <svg class="aa-btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9.2 9a3 3 0 0 1 5.8 1c0 2-3 2.4-3 3.6"/><path d="M12 17h.01"/></svg>
+                            Help
+                        </button>
+                        <a class="btn btn-secondary" id="btn-api-docs" href="/api-docs.json" target="_blank" rel="noopener" title="Machine-readable OpenAPI 3.0 reference (JSON) — for tools, agents & AI building against these endpoints">
+                            <svg class="aa-btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m16 18 6-6-6-6"/><path d="m8 6-6 6 6 6"/></svg>
+                            API Docs
+                        </a>
                         <button class="btn btn-secondary" id="theme-toggle" data-theme-toggle>
                             <span class="theme-icon">🌙</span>
                             <span class="theme-label">Dark</span>
@@ -120,205 +1544,412 @@
                 </div>
             </header>
 
-            <main class="content-area">
-                <!-- ═══ My Tokens ═════════════════════════════════════════════ -->
-                <div class="section-header" style="margin-top:0;">
-                    <h2 class="section-title">🔑 My API Tokens</h2>
-                    <span class="section-count" id="token-count-hint"></span>
-                </div>
-
-                <div class="card" style="margin-bottom: var(--space-5);">
-                    <div class="card-header">
-                        <div class="card-title">Create a token</div>
-                        <div class="card-subtitle">Tokens act as <b>you</b> — never wider than your UI role. The secret is shown once.</div>
+            <main class="content-area aa-page">
+                <!-- ═══ Overview ═════════════════════════════════════════════ -->
+                <section class="aa-overview" aria-label="Token overview">
+                    <div class="aa-stat">
+                        <span class="aa-stat-icon">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="7.5" cy="15.5" r="4.5"/><path d="m11 12 9-9"/><path d="m17 6 3 3"/><path d="m14 9 3 3"/></svg>
+                        </span>
+                        <span class="aa-stat-body">
+                            <span class="aa-stat-value" id="stat-active">—</span>
+                            <span class="aa-stat-label">Active tokens</span>
+                        </span>
                     </div>
-                    <div class="card-body">
-                        <div style="display:grid; gap: var(--space-4); grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));">
+                    <div class="aa-stat">
+                        <span class="aa-stat-icon tone-info">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
+                        </span>
+                        <span class="aa-stat-body">
+                            <span class="aa-stat-value" id="stat-readonly">—</span>
+                            <span class="aa-stat-label">Read-only</span>
+                        </span>
+                    </div>
+                    <div class="aa-stat">
+                        <span class="aa-stat-icon tone-success">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2v4"/><path d="m16.2 7.8 2.9-2.9"/><path d="M18 12h4"/><path d="m16.2 16.2 2.9 2.9"/><path d="M12 18v4"/><path d="m4.9 19.1 2.9-2.9"/><path d="M2 12h4"/><path d="m4.9 4.9 2.9 2.9"/></svg>
+                        </span>
+                        <span class="aa-stat-body">
+                            <span class="aa-stat-value" id="stat-full">—</span>
+                            <span class="aa-stat-label">Full access</span>
+                        </span>
+                    </div>
+                    <div class="aa-stat">
+                        <span class="aa-stat-icon tone-warning">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+                        </span>
+                        <span class="aa-stat-body">
+                            <span class="aa-stat-value" id="stat-expiring">—</span>
+                            <span class="aa-stat-label">Expiring in 30d</span>
+                        </span>
+                    </div>
+                </section>
+
+                <!-- ═══ My Tokens ═════════════════════════════════════════════ -->
+                <section class="aa-section" id="aa-tokens">
+                    <div class="aa-section-head">
+                        <div class="aa-section-heading">
+                            <span class="aa-icon-tile">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="7.5" cy="15.5" r="4.5"/><path d="m11 12 9-9"/><path d="m17 6 3 3"/><path d="m14 9 3 3"/></svg>
+                            </span>
                             <div>
-                                <label class="form-label" for="tok-name">Token name <span class="help-ic" title="A label you'll recognise later — e.g. 'Nightly BI sync'. Names are stored in plain text on your token list.">ⓘ</span></label>
-                                <input type="text" id="tok-name" class="input" maxlength="100" placeholder="e.g. Nightly backup sync">
+                                <h2 class="aa-section-title">API tokens</h2>
+                                <p class="aa-section-sub">Create a credential, then wire it into scripts, cron jobs or BI tools.</p>
                             </div>
-                            <div>
-                                <label class="form-label">Scope <span class="help-ic" title="Read-only (default) = GET/HEAD/OPTIONS only. Full access also allows the writes your role permits. When in doubt, pick Read-only.">ⓘ</span></label>
-                                <div style="display:flex; gap: var(--space-4); padding-top: 6px;">
-                                    <label style="display:flex; align-items:center; gap:6px;">
-                                        <input type="radio" name="tok-scope" value="read" checked> Read-only <span style="font-size:11px; color: var(--color-text-muted);">(safe default)</span>
-                                    </label>
-                                    <label style="display:flex; align-items:center; gap:6px;">
-                                        <input type="radio" name="tok-scope" value="full"> Full access
-                                    </label>
+                        </div>
+                    </div>
+
+                    <div class="card aa-card">
+                        <div class="aa-card-head">
+                            <div class="aa-card-heading">
+                                <span class="aa-icon-tile is-muted">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
+                                </span>
+                                <div>
+                                    <h3 class="aa-card-title">Create a token</h3>
+                                    <p class="aa-card-sub">Tokens act as <b>you</b> — never wider than your UI role. The secret is shown once.</p>
                                 </div>
                             </div>
-                            <div>
-                                <label class="form-label" for="tok-expiry">Expires in <span class="help-ic" title="The token stops working after this date. Choose the shortest lifetime that fits the job — expired tokens return 401 and can be revoked.">ⓘ</span></label>
-                                <select id="tok-expiry" class="select" style="width:100%;">
-                                    <option value="30">30 days</option>
-                                    <option value="90" selected>90 days</option>
-                                    <option value="180">180 days</option>
-                                    <option value="365">365 days</option>
-                                    <option value="never">Never (not recommended)</option>
-                                </select>
+                        </div>
+                        <div class="aa-card-body">
+                            <div class="aa-create-grid">
+                                <div class="aa-field">
+                                    <label class="form-label" for="tok-name">
+                                        Token name
+                                        <span class="help-ic" title="A label you'll recognise later — e.g. 'Nightly BI sync'. Names are stored in plain text on your token list.">ⓘ</span>
+                                    </label>
+                                    <input type="text" id="tok-name" class="input" maxlength="100" placeholder="e.g. Nightly backup sync">
+                                </div>
+                                <div class="aa-field">
+                                    <label class="form-label">
+                                        Scope
+                                        <span class="help-ic" title="Read-only (default) = GET/HEAD/OPTIONS only. Full access also allows the writes your role permits. When in doubt, pick Read-only.">ⓘ</span>
+                                    </label>
+                                    <div class="aa-segmented" role="group" aria-label="Token scope">
+                                        <label>
+                                            <input type="radio" name="tok-scope" value="read" checked>
+                                            <span class="aa-seg-label">Read-only <em>safe default</em></span>
+                                        </label>
+                                        <label>
+                                            <input type="radio" name="tok-scope" value="full">
+                                            <span class="aa-seg-label">Full access</span>
+                                        </label>
+                                    </div>
+                                </div>
+                                <div class="aa-field">
+                                    <label class="form-label" for="tok-expiry">
+                                        Expires in
+                                        <span class="help-ic" title="The token stops working after this date. Choose the shortest lifetime that fits the job — expired tokens return 401 and can be revoked.">ⓘ</span>
+                                    </label>
+                                    <select id="tok-expiry" class="select">
+                                        <option value="30">30 days</option>
+                                        <option value="90" selected>90 days</option>
+                                        <option value="180">180 days</option>
+                                        <option value="365">365 days</option>
+                                        <option value="never">Never (not recommended)</option>
+                                    </select>
+                                </div>
+                                <button class="btn btn-primary aa-create-btn" id="tok-create">
+                                    <svg class="aa-btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
+                                    Create token
+                                </button>
+                            </div>
+
+                            <p class="aa-callout" id="tok-scope-warning" style="display:none;">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>
+                                <span>A full-access token can <b>write</b> to every endpoint your role allows. Anyone holding it can act as you.</span>
+                            </p>
+                            <p class="aa-callout" id="tok-expiry-warning" style="display:none;">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>
+                                <span>Tokens that never expire stay valid until manually revoked.</span>
+                            </p>
+
+                            <div class="aa-create-foot">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="10" width="16" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>
+                                The secret is returned once and never stored — copy it straight into your secret manager.
                             </div>
                         </div>
-                        <p id="tok-scope-warning" style="display:none; font-size:12px; color: var(--color-warning); margin: var(--space-3) 0 0;">
-                            ⚠️ A full-access token can <b>write</b> to every endpoint your role allows. Anyone holding it can act as you.
-                        </p>
-                        <p id="tok-expiry-warning" style="display:none; font-size:12px; color: var(--color-warning); margin: var(--space-3) 0 0;">
-                            ⚠️ Tokens that never expire stay valid until manually revoked.
-                        </p>
-                        <div style="margin-top: var(--space-4);">
-                            <button class="btn btn-primary" id="tok-create">+ Create token</button>
+                    </div>
+
+                    <div class="card aa-card aa-list">
+                        <div class="aa-card-head">
+                            <div class="aa-card-heading">
+                                <span class="aa-icon-tile is-muted">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="7.5" cy="15.5" r="4.5"/><path d="m11 12 9-9"/><path d="m17 6 3 3"/><path d="m14 9 3 3"/></svg>
+                                </span>
+                                <div>
+                                    <h3 class="aa-card-title">Active tokens</h3>
+                                    <p class="aa-card-sub">Revoke anything you no longer use — scripts fail immediately.</p>
+                                </div>
+                            </div>
+                            <div class="aa-capacity">
+                                <span class="section-count" id="token-count-hint"></span>
+                                <div class="aa-meter" role="presentation"><span class="aa-meter-fill" id="token-meter-fill"></span></div>
+                            </div>
+                        </div>
+                        <div class="aa-card-divider"></div>
+                        <div class="aa-table-wrap">
+                            <table class="table aa-table" id="api-token-table">
+                                <thead>
+                                    <tr>
+                                        <th>Token</th>
+                                        <th>Scope</th>
+                                        <th class="aa-col-created">Created</th>
+                                        <th>Expires</th>
+                                        <th class="aa-col-lastused">Last used</th>
+                                        <th class="aa-th-actions">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="api-token-tbody">
+                                    <tr>
+                                        <td colspan="6">
+                                            <div class="loading-state" style="padding: var(--space-10);">
+                                                <div class="spinner"></div>
+                                                <p>Loading tokens...</p>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
                         </div>
                     </div>
-                </div>
-
-                <div class="table-container">
-                    <div class="table-scroll">
-                        <table class="table" id="api-token-table">
-                            <thead>
-                                <tr>
-                                    <th>Name</th>
-                                    <th>Key</th>
-                                    <th>Scope</th>
-                                    <th>Created</th>
-                                    <th>Expires</th>
-                                    <th>Last used</th>
-                                    <th style="text-align:right;">Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody id="api-token-tbody">
-                                <tr><td colspan="7"><div class="loading-state"><div class="spinner"></div><p>Loading tokens...</p></div></td></tr>
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
+                </section>
 
                 <!-- ═══ API Console ═══════════════════════════════════════════ -->
-                <div class="section-header" style="margin-top: var(--space-6);">
-                    <h2 class="section-title">🧪 API Console</h2>
-                    <span class="section-count">Try endpoints live — responses come straight from the API</span>
-                </div>
-
-                <div class="card" style="margin-bottom: var(--space-5);">
-                    <div class="card-body">
-                        <div style="display:grid; gap: var(--space-3); grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); align-items:end;">
+                <section class="aa-section" id="aa-console">
+                    <div class="aa-section-head">
+                        <div class="aa-section-heading">
+                            <span class="aa-icon-tile">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m4 17 6-6-6-6"/><path d="M12 19h8"/></svg>
+                            </span>
                             <div>
-                                <label class="form-label" for="con-endpoint">Endpoint <span class="help-ic" title="Only endpoints your role can actually use are listed — try something out of scope and you'll get 403.">ⓘ</span></label>
-                                <select id="con-endpoint" class="select" style="width:100%;"></select>
+                                <h2 class="aa-section-title">API console</h2>
+                                <p class="aa-section-sub">Run real requests against this host — responses come straight from the API.</p>
                             </div>
-                            <div>
-                                <label class="form-label" for="con-auth">Authenticate as <span class="help-ic" title="Your browser session, or paste a real API token to test it before wiring it into a script.">ⓘ</span></label>
-                                <select id="con-auth" class="select" style="width:100%;">
+                        </div>
+                    </div>
+
+                    <div class="card aa-card aa-console">
+                        <div class="aa-card-head">
+                            <div class="aa-card-heading" style="align-items:center;">
+                                <span class="aa-icon-tile is-muted">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m18 16 4-4-4-4"/><path d="m6 8-4 4 4 4"/><path d="m14.5 4-5 16"/></svg>
+                                </span>
+                                <div>
+                                    <h3 class="aa-card-title">Request builder</h3>
+                                    <p class="aa-card-sub">Only endpoints your role can use are listed — others return 403.</p>
+                                </div>
+                            </div>
+                            <div class="aa-endpoint-picker">
+                                <label class="aa-mini-label" for="con-endpoint">Endpoint</label>
+                                <select id="con-endpoint" class="select" title="Only endpoints your role can use are listed"></select>
+                            </div>
+                        </div>
+
+                        <div class="aa-console-toolbar">
+                            <div class="aa-field" style="min-width:190px;">
+                                <label class="form-label" for="con-auth">Authenticate as</label>
+                                <select id="con-auth" class="select" title="Your browser session, or paste a real API token to test it before wiring it into a script.">
                                     <option value="session">My session (default)</option>
-                                    <option value="token">API token (paste below)</option>
+                                    <option value="token">API token (paste)</option>
                                 </select>
                             </div>
-                            <div style="grid-column: span 2;">
-                                <label class="form-label" for="con-token-paste">Pasted API token <span class="help-ic" title="Only needed for 'API token' mode. The paste stays in this field — the secret is sent only in the test request's Authorization header.">ⓘ</span></label>
-                                <input type="password" id="con-token-paste" class="input" style="width:100%;" placeholder="st_… — only needed when using 'API token' auth">
+                            <div class="aa-field aa-token-paste" id="con-token-paste-wrap" hidden>
+                                <label class="form-label" for="con-token-paste">Pasted token</label>
+                                <input type="password" id="con-token-paste" class="input" placeholder="st_… — sent only as the Authorization header" autocomplete="off" spellcheck="false">
+                            </div>
+                            <button class="btn btn-primary aa-run" id="con-run">
+                                <svg class="aa-btn-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5.1v13.8a1 1 0 0 0 1.5.9l11-6.9a1 1 0 0 0 0-1.7l-11-6.9A1 1 0 0 0 8 5.1Z"/></svg>
+                                Run
+                                <kbd>Ctrl ↵</kbd>
+                            </button>
+                        </div>
+
+                        <div class="aa-builder">
+                            <div id="con-feed-controls">
+                                <div class="aa-builder-grid">
+                                    <div class="aa-field">
+                                        <label class="form-label" for="con-fields">
+                                            fields <span class="aa-inline-hint">comma list</span>
+                                            <span class="help-ic" title="Comma list of columns allowed by this feed. Empty = all default columns.">ⓘ</span>
+                                        </label>
+                                        <input type="text" id="con-fields" class="input" placeholder="email,name,department">
+                                    </div>
+                                    <div class="aa-field">
+                                        <label class="form-label" for="con-sort">sort</label>
+                                        <select id="con-sort" class="select"></select>
+                                    </div>
+                                    <div class="aa-field">
+                                        <label class="form-label" for="con-order">order</label>
+                                        <select id="con-order" class="select">
+                                            <option value="asc">asc</option>
+                                            <option value="desc">desc</option>
+                                        </select>
+                                    </div>
+                                    <div class="aa-field">
+                                        <label class="form-label" for="con-limit">
+                                            limit <span class="aa-inline-hint">≤ 500</span>
+                                            <span class="help-ic" title="Rows per page, 1–500 (default 50). Use page + limit to page through large feeds.">ⓘ</span>
+                                        </label>
+                                        <input type="number" id="con-limit" class="input" value="25" min="1" max="500">
+                                    </div>
+                                    <div class="aa-field">
+                                        <label class="form-label" for="con-format">format</label>
+                                        <select id="con-format" class="select">
+                                            <option value="json">JSON</option>
+                                            <option value="csv">CSV (download)</option>
+                                        </select>
+                                    </div>
+                                </div>
+
+                                <div class="aa-filter-head">
+                                    <span class="form-label">
+                                        Filters
+                                        <span class="help-ic" title="Exact match (=) or contains (~). Example: name ~ john finds any name containing 'john'. Filter columns are whitelisted per feed.">ⓘ</span>
+                                    </span>
+                                    <button type="button" class="btn btn-ghost btn-sm" id="con-add-filter">
+                                        <svg class="aa-btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
+                                        Add filter
+                                    </button>
+                                </div>
+                                <div class="aa-filter-rows" id="con-filter-rows"></div>
+                            </div>
+
+                            <div id="con-cv-controls" style="display:none; padding-top: var(--space-1);">
+                                <div class="aa-builder-grid">
+                                    <div class="aa-field">
+                                        <label class="form-label" for="con-param-val">
+                                            <span id="con-param-label">Staff email</span>
+                                            <span class="help-ic" id="con-param-hint" title="The staff member — leave blank for your own record.">ⓘ</span>
+                                        </label>
+                                        <input type="text" id="con-param-val" class="input" placeholder="jane@example.com">
+                                        <span class="aa-inline-hint" style="margin-left:0;">Blank = your own email</span>
+                                    </div>
+                                </div>
+                                <div id="con-body-controls" style="display:none; margin-top: var(--space-3);">
+                                    <div class="aa-field">
+                                        <label class="form-label" for="con-body-val">
+                                            JSON body
+                                            <span class="help-ic" title="Sent with the request as-is — parsed here first so bad JSON is caught before the call.">ⓘ</span>
+                                        </label>
+                                        <textarea id="con-body-val" class="input" rows="2" style="font-family: var(--font-mono); font-size: 12px; resize: vertical;" spellcheck="false"></textarea>
+                                    </div>
+                                </div>
                             </div>
                         </div>
 
-                        <div id="con-feed-controls" style="margin-top: var(--space-4);">
-                            <div style="display:grid; gap: var(--space-3); grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));">
-                                <div>
-                                    <label class="form-label" for="con-fields">fields <span class="help-ic" title="Comma list of columns allowed by this feed. Empty = all default columns.">ⓘ</span> <span style="font-size:11px; color:var(--color-text-muted);">(comma list)</span></label>
-                                    <input type="text" id="con-fields" class="input" placeholder="email,name,department">
-                                </div>
-                                <div>
-                                    <label class="form-label" for="con-sort">sort</label>
-                                    <select id="con-sort" class="select" style="width:100%;"></select>
-                                </div>
-                                <div>
-                                    <label class="form-label" for="con-order">order</label>
-                                    <select id="con-order" class="select" style="width:100%;">
-                                        <option value="asc">asc</option>
-                                        <option value="desc">desc</option>
-                                    </select>
-                                </div>
-                                <div>
-                                    <label class="form-label" for="con-limit">limit <span class="help-ic" title="Rows per page, 1–500 (default 50). Use page + limit to page through large feeds.">ⓘ</span> <span style="font-size:11px; color:var(--color-text-muted);">(≤500)</span></label>
-                                    <input type="number" id="con-limit" class="input" value="25" min="1" max="500">
-                                </div>
-                                <div>
-                                    <label class="form-label" for="con-format">format</label>
-                                    <select id="con-format" class="select" style="width:100%;">
-                                        <option value="json">JSON</option>
-                                        <option value="csv">CSV (download)</option>
-                                    </select>
-                                </div>
-                            </div>
-                            <div style="margin-top: var(--space-3);">
-                                <label class="form-label">Filters <span class="help-ic" title="Exact match (=) or contains (~). Example: name ~ john finds any name containing 'john'. Filter columns are whitelisted per feed.">ⓘ</span> <button type="button" class="btn btn-ghost btn-sm" id="con-add-filter">+ add</button></label>
-                                <div id="con-filter-rows" style="display:grid; gap: var(--space-2); margin-top: var(--space-2);"></div>
-                            </div>
+                        <div class="aa-urlbar">
+                            <span class="aa-method" id="con-method">GET</span>
+                            <code id="con-url"></code>
+                            <button class="aa-icon-btn" id="con-copy-url" type="button" title="Copy request URL" aria-label="Copy request URL">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                            </button>
                         </div>
 
-                        <div id="con-cv-controls" style="display:none; margin-top: var(--space-4);">
-                            <div style="display:grid; gap: var(--space-3); grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); align-items:end;">
-                                <div>
-                                    <label class="form-label" for="con-param-val"><span id="con-param-label">Staff email</span> <span class="help-ic" id="con-param-hint" title="The staff member — leave blank for your own record.">ⓘ</span></label>
-                                    <input type="text" id="con-param-val" class="input" style="width:100%;" placeholder="jane@example.com">
-                                    <div style="font-size:11px; color:var(--color-text-muted); margin-top:2px;">Leave blank to use your own email</div>
-                                </div>
+                        <div class="aa-response">
+                            <div class="aa-response-head">
+                                <span class="aa-response-dots" aria-hidden="true"><i></i><i></i><i></i></span>
+                                <span id="con-status">Ready — configure a request and hit Run.</span>
+                                <span class="aa-response-meta" id="con-meta"></span>
+                                <span class="aa-response-actions">
+                                    <button class="btn btn-secondary btn-sm" id="con-copy-curl" disabled>Copy cURL</button>
+                                    <button class="btn btn-secondary btn-sm" id="con-download" style="display:none;">Download</button>
+                                </span>
                             </div>
-                            <div id="con-body-controls" style="display:none; margin-top: var(--space-3);">
-                                <label class="form-label" for="con-body-val">JSON body <span class="help-ic" title="Sent with the request as-is — parsed here first so bad JSON is caught before the call.">ⓘ</span></label>
-                                <textarea id="con-body-val" class="input" rows="2" style="width:100%; font-family:monospace; font-size:12px; resize:vertical;"></textarea>
-                            </div>
+                            <pre id="con-output" style="display:none;"></pre>
                         </div>
-
-                        <div style="display:flex; gap: var(--space-3); align-items:center; margin-top: var(--space-4); flex-wrap:wrap;">
-                            <code id="con-url" style="font-family:monospace; font-size:12px;"></code>
-                            <button class="btn btn-primary" id="con-run">▶ Run</button>
-                            <button class="btn btn-secondary" id="con-copy-curl" disabled>Copy cURL</button>
-                            <button class="btn btn-secondary" id="con-download" style="display:none;">⬇ Download CSV</button>
-                        </div>
-
-                        <div id="con-status" style="margin-top: var(--space-3); font-size:12px; color: var(--color-text-muted);"></div>
-                        <pre id="con-output" style="display:none; margin-top: var(--space-3); background:var(--color-bg-muted); border:1px solid var(--color-border); border-radius:8px; padding:var(--space-4); overflow:auto; max-height:480px; font-size:12px; white-space:pre-wrap; word-break:break-word;"></pre>
                     </div>
-                </div>
+                </section>
 
-                <!-- ═══ Help & Guide ═════════════════════════════════════════ -->
-                <div class="section-header" style="margin-top: var(--space-6);">
-                    <h2 class="section-title">📖 Help &amp; Guide</h2>
-                    <span class="section-count">Quick start, role scope, feed grammar, samples &amp; troubleshooting — also available as an overlay via ❓ Help</span>
-                </div>
-                <div class="card">
-                    <div class="card-body" id="help-guide-inline"></div>
-                </div>
+                <!-- ═══ Documentation ═════════════════════════════════════════ -->
+                <section class="aa-section" id="aa-docs">
+                    <div class="aa-section-head">
+                        <div class="aa-section-heading">
+                            <span class="aa-icon-tile">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2Z"/></svg>
+                            </span>
+                            <div>
+                                <h2 class="aa-section-title">Documentation</h2>
+                                <p class="aa-section-sub">Everything you need to build against the API — specs, samples and troubleshooting.</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="aa-doc-grid">
+                        <a class="aa-doc-card" href="/api-docs.json" target="_blank" rel="noopener">
+                            <span class="aa-doc-icon">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m16 18 6-6-6-6"/><path d="m8 6-6 6 6 6"/></svg>
+                            </span>
+                            <span class="aa-doc-title">OpenAPI 3.0 reference</span>
+                            <span class="aa-doc-text">Machine-readable spec for every endpoint, parameter and schema — ready for tools, scripts and AI agents.</span>
+                            <span class="aa-doc-link">/api-docs.json →</span>
+                        </a>
+                        <button class="aa-doc-card" type="button" data-open-help>
+                            <span class="aa-doc-icon">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9.2 9a3 3 0 0 1 5.8 1c0 2-3 2.4-3 3.6"/><path d="M12 17h.01"/></svg>
+                            </span>
+                            <span class="aa-doc-title">Quick start &amp; guide</span>
+                            <span class="aa-doc-text">Tokens, scopes, feed grammar, CV endpoints, status codes and security — in one focused overlay.</span>
+                            <span class="aa-doc-link">Open guide →</span>
+                        </button>
+                        <a class="aa-doc-card" href="#aa-tokens" data-scroll-tokens>
+                            <span class="aa-doc-icon">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="7.5" cy="15.5" r="4.5"/><path d="m11 12 9-9"/><path d="m17 6 3 3"/><path d="m14 9 3 3"/></svg>
+                            </span>
+                            <span class="aa-doc-title">Create your first token</span>
+                            <span class="aa-doc-text">Pick a read-only scope and a short lifetime, copy the secret once, and call the API in under a minute.</span>
+                            <span class="aa-doc-link">Jump to tokens ↑</span>
+                        </a>
+                    </div>
+
+                    <details class="aa-guide">
+                        <summary>
+                            <span>Browse the full guide</span>
+                            <span class="aa-guide-hint">9 sections</span>
+                        </summary>
+                        <div class="aa-guide-body" id="help-guide-inline"></div>
+                    </details>
+                </section>
             </main>
         </div>
     </div>
 
     <!-- ═══ Reveal-secret modal ═════════════════════════════════════════════ -->
     <div class="modal-backdrop" id="reveal-modal">
-        <div class="modal" role="dialog" aria-modal="true">
+        <div class="modal" role="dialog" aria-modal="true" aria-labelledby="reveal-title">
             <div class="modal-header">
-                <div class="modal-title">🔑 Token created — copy it now</div>
-                <button class="modal-close" data-close-modal>✕</button>
+                <div class="modal-title" id="reveal-title">Token created — copy it now</div>
+                <button class="modal-close" data-close-modal aria-label="Close">✕</button>
             </div>
             <div class="modal-body">
-                <p style="font-size:13px; color: var(--color-text-muted);">This secret is shown <b>once</b> and never stored. Keep it safe — anyone with it can act as you.</p>
-                <input type="text" id="reveal-secret" class="input" readonly style="width:100%; font-family: monospace; margin-top: var(--space-3);">
-                <div style="display:flex; gap: var(--space-3); margin-top: var(--space-4); flex-wrap:wrap;">
-                    <button class="btn btn-primary" id="reveal-copy">📋 Copy token</button>
-                    <button class="btn btn-secondary" id="reveal-copy-curl">Copy cURL sample</button>
+                <div class="aa-reveal-note">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="10" width="16" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>
+                    <span>This secret is shown <b>once</b> and never stored. Keep it safe — anyone with it can act as you.</span>
+                </div>
+                <label class="form-label" for="reveal-secret">Your API token</label>
+                <div class="aa-secret-wrap">
+                    <textarea id="reveal-secret" class="input" rows="2" readonly spellcheck="false"></textarea>
+                    <button class="btn btn-secondary" id="reveal-copy">
+                        <svg class="aa-btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                        Copy
+                    </button>
+                </div>
+                <div style="margin-top: var(--space-4);">
+                    <button class="btn btn-secondary btn-sm" id="reveal-copy-curl">Copy cURL sample</button>
                 </div>
             </div>
             <div class="modal-footer">
-                <button class="btn btn-secondary" data-close-modal>I've saved it</button>
+                <button class="btn btn-primary" data-close-modal>I've saved it</button>
             </div>
         </div>
     </div>
 
     <!-- ═══ Help & Guide overlay ══════════════════════════════════════════ -->
     <div class="modal-backdrop" id="help-modal">
-        <div class="modal" role="dialog" aria-modal="true" style="max-width: 880px;">
+        <div class="modal" role="dialog" aria-modal="true" aria-labelledby="help-title" style="max-width: 900px;">
             <div class="modal-header">
-                <div class="modal-title">📖 API Access — Help &amp; Guide</div>
-                <button class="modal-close" data-close-modal>✕</button>
+                <div class="modal-title" id="help-title">API Access — Help &amp; Guide</div>
+                <button class="modal-close" data-close-modal aria-label="Close">✕</button>
             </div>
             <div class="modal-body" id="help-modal-body" style="padding: var(--space-5) var(--space-6);"></div>
             <div class="modal-footer">
@@ -334,7 +1965,7 @@
     <script src="/menu.js?v=20260904a"></script>
     <script src="/sidebar.js?v=20260904a"></script>
     <script src="/toast.js?v=20260904a"></script>
-    <script src="/api-access.js?v=20260904a"></script>
+    <script src="/api-access.js?v=20261126a"></script>
 </body>
 
 </html>
